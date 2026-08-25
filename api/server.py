@@ -36,7 +36,6 @@ from dia.compliance import format_compliance_dossier_markdown, scan_dataset_priv
 from dia.data_profiler import profile_dataframe
 from dia.data_quality import format_contract_markdown, generate_data_contract
 from dia.data_sanitizer import sanitize_dataframe
-from dia.deep_autoencoder import train_tabular_autoencoder
 from dia.demo_datasets import DEMO_BENCHMARKS, get_demo_dataset
 from dia.drift_monitor import calculate_drift_report, calculate_psi
 from dia.gdpr import format_gdpr_audit_markdown, generate_ropa_record
@@ -809,6 +808,8 @@ def get_autoencoder_analysis(session_id: str) -> AutoencoderResponse:
         feature_names = num_df.columns.tolist()
 
     try:
+        from dia.deep_autoencoder import train_tabular_autoencoder
+
         ae_res = train_tabular_autoencoder(X_proc, feature_names)
         if ae_res.get("status") == "insufficient_data":
             return AutoencoderResponse(
@@ -827,6 +828,12 @@ def get_autoencoder_analysis(session_id: str) -> AutoencoderResponse:
             top_anomalous_samples=ae_res.get("feature_attributions", [])[:10],
             loss_history=ae_res.get("loss_history", []),
         )
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="PyTorch is not installed; the Deep Autoencoder is an optional feature. "
+                   "Install it with `pip install torch` to enable this endpoint.",
+        ) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Autoencoder Error: {str(e)}") from e
 

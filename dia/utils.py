@@ -78,6 +78,15 @@ def is_sentence_transformers_available() -> bool:
         return False
 
 
+def is_torch_available() -> bool:
+    """Return True if torch is importable."""
+    try:
+        import torch  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 # ─── Column name utilities ─────────────────────────────────────────────────────
 
 def clean_column_name(col: str) -> str:

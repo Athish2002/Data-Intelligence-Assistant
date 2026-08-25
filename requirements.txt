@@ -5,6 +5,12 @@ numpy==2.3.1
 scikit-learn==1.7.0
 requests==2.33.1
 
+# ─── Fullstack Edition: REST API + JS client (run_fullstack.py) ────────────
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+pydantic==2.11.5
+python-multipart==0.0.20
+
 # ─── Visualization ────────────────────────────────────────────────────────────
 plotly==6.1.2
 seaborn==0.13.2
@@ -17,6 +23,17 @@ matplotlib==3.10.3
 # ─── Optional: Extra models ───────────────────────────────────────────────────
 xgboost==3.0.2
 lightgbm==4.6.0
+# catboost==1.2.8          # CatBoost model option
+
+# ─── Optional: Deep learning (heavy — large download) ─────────────────────────
+# Required only for the Deep Tabular Autoencoder tab / endpoint
+# torch==2.7.1
+
+# ─── Graph analytics ───────────────────────────────────────────────────────────────────────────────────────
+networkx==3.5
+
+# ─── Statistics ───────────────────────────────────────────────────────────────────────────────────────────────
+scipy==1.15.3
 
 # ─── Optional: Semantic goal parsing (heavy — pulls in torch) ─────────────────
 # Uncomment if you want semantic NLP goal matching

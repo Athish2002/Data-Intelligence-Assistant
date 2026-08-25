@@ -18,12 +18,12 @@
 
 Actively being built. Rough edges to expect right now:
 
-- **Docs drift** — the Features table below still describes an earlier, smaller version
-  of the app (e.g. "choose up to 4 models"); the trainer now supports 10 model families,
-  plus deep, causal, streaming, time-series, and bandit engines that aren't documented yet.
-- **Undeclared deps** — `torch` (deep autoencoder) and `catboost` are imported by some
-  modules, and the Fullstack Edition needs `fastapi` / `uvicorn` / `pydantic` /
-  `python-multipart`. None of these are in `requirements.txt` yet; install them by hand.
+- **Uneven maturity** — the Features list is accurate, but depth varies a lot between
+  entries. Core profiling and AutoML are the most exercised paths; several governance
+  and adaptive engines are closer to working prototypes than finished features.
+- **Optional deps degrade silently** — `torch` (Deep Autoencoder), `catboost`, `shap`,
+  and `sentence-transformers` are commented out in `requirements.txt`. Those features
+  report that the dependency is missing rather than failing outright.
 - **Unstable interfaces** — function signatures in `dia/` are not frozen; treat nothing
   as a stable public API yet.
 - **Partial coverage** — tests exist but do not cover every module.
@@ -34,21 +34,61 @@ Issues and PRs are welcome, but expect the ground to move under you.
 
 ## ✨ Features
 
+Organised roughly the way the app presents them.
+
+### 📊 Core Intelligence
 | Feature | Description |
 |---|---|
-| **Smart Dataset Profiling** | Automatically detects column types, null percentages, unique counts, high-cardinality columns, and likely identifier / date columns |
-| **Intelligent Column Role Inference** | Uses heuristics to label each column as identifier, date, duration, target candidate, numeric feature, etc. — with a confidence score |
-| **Dual Goal Parsing** | Maps your free-text goal to a task type using both **keyword matching** and optional **semantic matching** (sentence-transformers) |
-| **Automatic Task Detection** | Detects classification vs. regression from both the goal text and the target column's data type and unique-value ratio |
-| **Data Readiness Report** | Scores your dataset 0–100 for suitability, highlights useful features, flags leakage risks, and lists missing signals |
-| **Model Selection** | Choose up to 4 models before training: Logistic Regression, Random Forest, XGBoost (optional), LightGBM (optional) |
-| **Baseline Model Training** | Trains selected models with proper preprocessing (imputation, scaling, one-hot encoding) and an 80/20 train-test split |
-| **Full Evaluation Metrics** | Classification: Accuracy, Precision, Recall, F1, ROC-AUC · Regression: MAE, RMSE, R² |
-| **Feature Explainability** | SHAP values if available, falling back to sklearn feature importances, rendered as Plotly charts or Seaborn static plots |
-| **Plain-English Final Summary** | A human-readable report summarising what the assistant understood, what it inferred, which model won, and whether the data is trustworthy |
-| **Downloadable Summary** | Export the final summary as a Markdown file |
-| **Dark Mode Ready** | Toggle via Streamlit's built-in Settings menu |
-| **500 MB Upload Limit** | Files are kept in memory only — nothing is saved to disk |
+| **Smart Dataset Profiling** | Detects column types, null percentages, unique counts, high-cardinality columns, and likely identifier / date columns |
+| **Column Role Inference** | Labels each column as identifier, date, duration, target candidate, numeric feature, etc. — with a confidence score |
+| **Dual Goal Parsing** | Maps free-text goals to a task type via **keyword matching** plus optional **semantic matching** (sentence-transformers) |
+| **Automatic Task Detection** | Infers classification vs. regression from the goal text and the target's dtype and unique-value ratio |
+| **Data Readiness Audit** | Scores the dataset 0–100, highlights useful features, flags leakage risks, lists missing signals |
+| **Data Sanitization & Quality** | Cleaning, validation rules, and expectation/contract checks |
+| **Multi-Source Ingestion** | Local CSV, URL, SQL, S3, GCS, Azure Blob, BigQuery, Snowflake |
+
+### 🤖 AutoML & Explainability
+| Feature | Description |
+|---|---|
+| **10 Model Families** | Logistic/Linear (Ridge), Random Forest, Extra Trees, Gradient Boosting, XGBoost, LightGBM, CatBoost, SVM, KNN, and MLP — each with classification and regression variants |
+| **Hyperparameter Optimization** | `RandomizedSearchCV` over per-model search grids, with cross-validation |
+| **Calibration & Ensembling** | Sigmoid probability calibration and a soft-voting ensemble of the top 3 models |
+| **Automated Feature Engineering** | Generated features plus mutual-information based selection |
+| **Class Imbalance Handling** | Sample weighting computed from class frequencies |
+| **Model Leaderboard** | Accuracy, Precision, Recall, F1, ROC-AUC, Average Precision · MAE, RMSE, R² |
+| **Feature Explainability** | SHAP (Tree/Linear/Kernel explainers) with graceful fallback to native importances |
+| **Business ROI & Impact** | Translates confusion-matrix outcomes into cost/benefit terms |
+| **Interactive Simulator** | Change feature values and watch predictions update live |
+| **Active Learning Queue** | Surfaces highest-uncertainty predictions for human review |
+| **A/B Test Planner** | Experiment sizing and significance testing |
+
+### 🧪 Advanced & Adaptive Engines
+| Feature | Description |
+|---|---|
+| **Deep Tabular Autoencoder** | PyTorch bottleneck network; flags anomalies by reconstruction error with per-feature attribution *(optional — needs `torch`)* |
+| **Causal ML** | Counterfactual "what-if" search and T-learner uplift modelling |
+| **Contextual Bandits** | LinUCB and Thompson Sampling for exploration/exploitation policy simulation |
+| **Time-Series Forecasting** | Auto-detects date columns, builds lag/rolling/calendar features, forecasts with prediction intervals |
+| **Streaming / Online Learning** | Incremental `partial_fit` learners (SGD, Passive-Aggressive) with live accuracy curves |
+| **NLP & Lexical Analysis** | TF-IDF vectorization plus TruncatedSVD topic extraction |
+| **Graph Intelligence** | NetworkX entity graphs — PageRank, betweenness, community and collusion-ring detection |
+| **Synthetic Data & Privacy** | Gaussian-copula synthesis with calibrated Laplace noise for differential privacy |
+
+### 🛡️ Governance, MLOps & Production
+| Feature | Description |
+|---|---|
+| **Fairness & Bias Auditing** | Group metrics plus decision-tree rule extraction to explain disparities |
+| **Drift Monitoring** | Distribution drift detection and `IsolationForest` outlier flagging |
+| **Model Registry** | Versioning and promotion tracking, with canary routing |
+| **Feature Store** | Feature definitions and retrieval |
+| **Privacy & GDPR Audit** | PII detection and compliance reporting |
+| **RBAC** | Role-based access control primitives |
+| **SQL Transpiler** | Compiles trained decision trees into in-database `CASE` statements |
+| **Production Code Export** | Generates a runnable training script matching your chosen configuration |
+| **Executive Briefing** | Plain-English summary of what was inferred, which model won, and whether the data is trustworthy — downloadable as Markdown |
+| **AI Chat Copilot** | Natural-language queries over the dataset; deterministic offline mode by default, optional LLM reasoning |
+
+> ⚠️ Not every feature above is equally mature — see [Project Status](#-project-status).
 
 ---
 
@@ -66,12 +106,8 @@ both read the same code and produce the same results.
 | API docs | — | Swagger UI at `/docs` |
 | Best for | Fast local exploration, notebooks-style use | Integrating over REST, custom/embedded UI |
 
-Extra dependencies for the Fullstack Edition (not yet in `requirements.txt` — see
-[Project Status](#-project-status)):
-
-```bash
-pip install fastapi uvicorn pydantic python-multipart
-```
+Both editions install from the same `requirements.txt`; the FastAPI stack is
+included, so no extra step is needed.
 
 ---
 
@@ -99,11 +135,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> **Optional heavy dependencies** (comment out in `requirements.txt` if not needed):
-> - `shap` — for SHAP-based explainability
-> - `sentence-transformers` — for semantic goal parsing
-> - `xgboost` — for XGBoost model option
-> - `lightgbm` — for LightGBM model option
+> **Optional extras** (commented out in `requirements.txt` — uncomment to enable):
+> - `torch` — Deep Tabular Autoencoder (large download)
+> - `shap` — SHAP-based explainability
+> - `sentence-transformers` — semantic goal parsing (also pulls in torch)
+> - `catboost` — CatBoost model option
+>
+> Each is loaded lazily: without it, the matching feature reports the missing
+> dependency instead of breaking the app.
 
 ### 4. Run the app
 

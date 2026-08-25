@@ -96,7 +96,6 @@ from dia.synthetic_data import generate_synthetic_dataset
 from dia.streaming_learner import simulate_streaming_incremental_fit
 from dia.report_generator import generate_executive_html_report
 from dia.active_learning import sample_uncertain_predictions
-from dia.deep_autoencoder import train_tabular_autoencoder
 from dia.bandit_optimizer import run_contextual_bandit_simulation
 from dia.sql_transpiler import transpile_model_to_sql
 from dia.feature_store import generate_feature_store_definitions
@@ -976,6 +975,8 @@ elif workspace == "🧬 Adaptive AI Engines":
 
         if st.button("🚀 Train Deep Autoencoder", key="ae_train_btn"):
             try:
+                from dia.deep_autoencoder import train_tabular_autoencoder
+
                 ae_res = train_tabular_autoencoder(
                     X_processed=s["train_result"]["X_test_processed"],
                     feature_names=s["train_result"]["feature_names"],
@@ -988,6 +989,11 @@ elif workspace == "🧬 Adaptive AI Engines":
                     d2.metric("Anomaly Threshold", f"{ae_res['anomaly_threshold_mse']}")
                     d3.metric("Anomalies Flagged", f"{ae_res['total_anomalies_detected']}", delta=f"{ae_res['anomaly_rate_pct']}% of samples", delta_color="inverse")
                     st.dataframe(pd.DataFrame(ae_res["feature_attribution_ranking"]), use_container_width=True)
+            except ImportError:
+                st.warning(
+                    "PyTorch is not installed — the Deep Autoencoder is an optional "
+                    "feature. Install it with `pip install torch` to enable this tab."
+                )
             except Exception as e:
                 st.error(f"Deep Autoencoder Error: {e}")
     tab_idx += 1
