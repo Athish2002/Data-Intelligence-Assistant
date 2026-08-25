@@ -124,22 +124,6 @@ Final Plain-English Summary (downloadable)
 
 ---
 
-## 📸 Screenshots
-
-> _(Replace these placeholders with actual screenshots after running the app)_
-
-| Section | Screenshot |
-|---|---|
-| Sidebar & Upload | `screenshots/sidebar.png` |
-| Dataset Overview | `screenshots/overview.png` |
-| Column Roles | `screenshots/column_roles.png` |
-| Readiness Report | `screenshots/readiness.png` |
-| Model Results | `screenshots/model_results.png` |
-| Feature Importance | `screenshots/explainability.png` |
-| Final Summary | `screenshots/summary.png` |
-
----
-
 ## 🗂 Example Datasets to Try
 
 | Dataset | Goal to type |
