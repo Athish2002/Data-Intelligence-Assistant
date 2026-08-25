@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Intelligence Assistant &bull; Fullstack Enterprise AutoML & Governance</title>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfeff',
+              500: '#06b6d4',
+              600: '#0891b2',
+              900: '#164e63',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Plotly.js for Rich Interactive Charting -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  
+  <!-- Custom Glassmorphism Stylesheet -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="bg-[#070b19] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-slate-950">
+
+  <!-- Top Navbar -->
+  <header class="border-b border-white/5 bg-slate-950/70 backdrop-blur-xl sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 font-bold text-lg text-white">
+          🧠
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-base tracking-tight text-slate-100">Data Intelligence Assistant</span>
+            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-cyan-950 text-cyan-400 border border-cyan-500/30 rounded-full">Fullstack v13.6</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Autonomous AutoML &bull; SHAP &bull; Causal ML &bull; GDPR &bull; Great Expectations</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <div id="active-dataset-badge"></div>
+        <div id="system-health-badge" class="flex items-center px-3 py-1 bg-slate-900/80 border border-slate-800 rounded-full"></div>
+        <a href="/docs" target="_blank" class="text-xs text-slate-400 hover:text-cyan-300 flex items-center transition-colors">
+          <i data-lucide="book-open" class="w-3.5 h-3.5 mr-1"></i> Swagger API Docs
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid Container -->
+  <main class="max-w-7xl mx-auto px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+    
+    <!-- Left Sidebar: Controls & Ingestion (4 Columns) -->
+    <aside class="lg:col-span-4 space-y-5">
+      
+      <!-- Data Ingestion Card -->
+      <div class="glass-card p-5">
+        <div class="flex items-center space-x-2 text-sm font-semibold text-slate-200 mb-3">
+          <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 text-xs flex items-center justify-center font-bold">1</span>
+          <span>Connect Data Source</span>
+        </div>
+
+        <!-- Upload Dropzone -->
+        <div id="upload-dropzone" class="border-2 border-dashed border-slate-700/80 hover:border-cyan-500/60 rounded-xl p-5 text-center cursor-pointer transition-all bg-slate-900/30 mb-3 group relative">
+          <input type="file" id="csv-file-input" accept=".csv" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+          <i data-lucide="upload-cloud" class="w-7 h-7 mx-auto text-slate-400 group-hover:text-cyan-400 transition-colors mb-1.5"></i>
+          <div class="text-xs font-semibold text-slate-200">Drag & drop your CSV here</div>
+          <div class="text-[10px] text-slate-400 mt-1">Auto-delimiter, dirty currencies & encoding sniffing</div>
+        </div>
+
+        <div class="relative flex py-2 items-center">
+          <div class="flex-grow border-t border-slate-800"></div>
+          <span class="flex-shrink mx-2 text-[10px] uppercase text-slate-500 font-semibold tracking-wider">or benchmark</span>
+          <div class="flex-grow border-t border-slate-800"></div>
+        </div>
+
+        <!-- Demo Benchmark Selector -->
+        <div class="mt-1 space-y-2">
+          <select id="demo-select" class="w-full glass-input text-xs">
+            <option value="">Loading benchmark datasets...</option>
+          </select>
+          <button id="load-demo-btn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg flex items-center justify-center transition-colors">
+            <i data-lucide="database" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i> Ingest Benchmark Dataset
+          </button>
+        </div>
+      </div>
+
+      <!-- Prediction Goal Card -->
+      <div class="glass-card p-5">
+        <div class="flex items-center space-x-2 text-sm font-semibold text-slate-200 mb-3">
+          <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 text-xs flex items-center justify-center font-bold">2</span>
+          <span>Prediction Goal & Target</span>
+        </div>
+
+        <button id="autodetect-btn" class="w-full py-2 mb-3 bg-gradient-to-r from-indigo-950 to-purple-950 hover:from-indigo-900 hover:to-purple-900 border border-indigo-500/30 text-indigo-300 text-xs font-semibold rounded-lg flex items-center justify-center transition-all">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-indigo-400"></i> Auto-Detect Domain & Objectives
+        </button>
+
+        <label class="block text-xs font-medium text-slate-400 mb-1">Describe Goal in Plain English</label>
+        <textarea id="goal-input" rows="3" class="w-full glass-input text-xs mb-3 resize-none" placeholder="e.g. predict customer churn&#10;forecast monthly billing charges&#10;detect credit default"></textarea>
+
+        <label class="block text-xs font-medium text-slate-400 mb-1">Target Column (Optional Fuzzy Override)</label>
+        <input type="text" id="target-col-input" class="w-full glass-input text-xs" placeholder="e.g. churn, exited, default_risk" />
+      </div>
+
+      <!-- Execution Action -->
+      <button id="train-btn" disabled class="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-indigo-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center space-x-2">
+        <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+        <span>Launch Autonomous ML Pipeline</span>
+      </button>
+
+      <!-- Progress status -->
+      <div id="train-progress" class="glass-card p-4 hidden space-y-2">
+        <div class="flex justify-between text-xs font-medium">
+          <span id="status-text" class="text-cyan-400 flex items-center"><span class="live-pulse mr-2"></span> Executing pipeline...</span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+          <div id="progress-bar" class="bg-gradient-to-r from-cyan-500 to-indigo-500 h-full rounded-full transition-all duration-300" style="width: 30%"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Workspace Area (8 Columns) -->
+    <section class="lg:col-span-8 space-y-5">
+      
+      <!-- 4-Pillar Workspace Selector -->
+      <div class="glass-card p-1.5 flex flex-wrap sm:flex-nowrap gap-1">
+        <button class="workspace-btn active flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 border border-transparent" data-workspace="core">
+          <span>📊</span>
+          <span>Core Intelligence</span>
+        </button>
+        <button class="workspace-btn flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 border border-transparent" data-workspace="automl">
+          <span>🤖</span>
+          <span>AutoML & Explanations</span>
+        </button>
+        <button class="workspace-btn flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 border border-transparent" data-workspace="adaptive">
+          <span>🧬</span>
+          <span>Adaptive AI Engines</span>
+        </button>
+        <button class="workspace-btn flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 border border-transparent" data-workspace="governance">
+          <span>🛡️</span>
+          <span>Governance & MLOps</span>
+        </button>
+      </div>
+
+      <!-- Sub-Tab Pills Navigation Bar -->
+      <div id="subtab-bar" class="flex flex-wrap gap-1.5 border-b border-slate-800/80 pb-2"></div>
+
+      <!-- Dynamic Content Area -->
+      <div id="tab-content" class="min-h-[500px]">
+        <!-- Populated dynamically via JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 py-4 bg-slate-950/60 mt-auto">
+    <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500">
+      <div>Data Intelligence Assistant &bull; Fullstack Enterprise Edition</div>
+      <div class="mt-2 sm:mt-0 flex space-x-4">
+        <span>Dual Edition: Streamlit (Port 8501) & Fullstack FastAPI (Port 8000)</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Module Script -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

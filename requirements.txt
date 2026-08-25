@@ -1,0 +1,44 @@
+# ─── Core (required) ──────────────────────────────────────────────────────────
+streamlit==1.45.1
+pandas==2.3.1
+numpy==2.3.1
+scikit-learn==1.7.0
+requests==2.33.1
+
+# ─── Visualization ────────────────────────────────────────────────────────────
+plotly==6.1.2
+seaborn==0.13.2
+matplotlib==3.10.3
+
+# ─── Optional: Explainability ─────────────────────────────────────────────────
+# Uncomment to enable SHAP-based feature importance
+# shap==0.47.0
+
+# ─── Optional: Extra models ───────────────────────────────────────────────────
+xgboost==3.0.2
+lightgbm==4.6.0
+
+# ─── Optional: Semantic goal parsing (heavy — pulls in torch) ─────────────────
+# Uncomment if you want semantic NLP goal matching
+# sentence-transformers==4.1.0
+
+# ─── Optional: SQL ingestion ──────────────────────────────────────────────────
+sqlalchemy==2.0.41
+# psycopg2-binary==2.9.10   # PostgreSQL driver
+# pymysql==1.1.1            # MySQL driver
+
+# ─── Optional: AWS S3 ─────────────────────────────────────────────────────────
+# boto3==1.38.30
+
+# ─── Optional: Google Cloud Storage ──────────────────────────────────────────
+# google-cloud-storage==3.1.0
+
+# ─── Optional: Google BigQuery ────────────────────────────────────────────────
+# google-cloud-bigquery==3.34.0
+# db-dtypes==1.4.2
+
+# ─── Optional: Azure Blob Storage ────────────────────────────────────────────
+# azure-storage-blob==12.25.1
+
+# ─── Optional: Snowflake ──────────────────────────────────────────────────────
+# snowflake-connector-python==3.15.0

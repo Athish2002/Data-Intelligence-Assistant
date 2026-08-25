@@ -1,0 +1,20 @@
+# Development and testing tools (not needed in production)
+-r requirements.txt
+
+# Testing
+pytest==8.4.0
+pytest-cov==6.1.0
+pytest-mock==3.14.1
+
+# Linting + formatting (Ruff replaces flake8, isort, pyupgrade)
+ruff==0.11.13
+
+# Type checking
+mypy==1.16.0
+pandas-stubs==2.2.4.250224
+
+# Security scanning
+bandit==1.8.5
+
+# Pre-commit hooks runner
+pre-commit==4.2.0
