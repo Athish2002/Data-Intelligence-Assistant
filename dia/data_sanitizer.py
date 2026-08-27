@@ -22,6 +22,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .exceptions import DataLoadError
+
 log = logging.getLogger("dia.sanitizer")
 
 _COMMON_ENCODINGS = ("utf-8-sig", "utf-8", "latin-1", "cp1252", "iso-8859-1")
@@ -76,13 +78,16 @@ def robust_parse_csv_bytes(raw_bytes: bytes) -> tuple[pd.DataFrame, dict[str, An
     except Exception as e:
         repair_log.append(f"Standard parser failed ({str(e)[:40]}); attempting python-engine fallback.")
         buf.seek(0)
-        df = pd.read_csv(
-            buf,
-            encoding=detected_encoding,
-            sep=None,
-            engine="python",
-            on_bad_lines="skip",
-        )
+        try:
+            df = pd.read_csv(
+                buf,
+                encoding=detected_encoding,
+                sep=None,
+                engine="python",
+                on_bad_lines="skip",
+            )
+        except Exception as fallback_exc:
+            raise DataLoadError(f"Could not parse the file as CSV: {fallback_exc}") from fallback_exc
 
     # 3. Sanitize and clean the resulting DataFrame
     clean_df, sanitize_report = sanitize_dataframe(df)

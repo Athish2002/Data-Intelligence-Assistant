@@ -6,10 +6,10 @@ Ingestion source: public HTTP/HTTPS URL pointing to a CSV.
 
 from __future__ import annotations
 
-import io
 import ipaddress
 import logging
 import socket
+from typing import Any
 from urllib.parse import urlparse
 
 import pandas as pd

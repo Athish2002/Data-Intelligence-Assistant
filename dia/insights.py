@@ -81,10 +81,10 @@ def generate_smart_insights(
                     type_ = "positive" if corr > 0 else "negative"
                     
                     median_val = df[col].median()
-                    
+
                     insights.append({
                         "title": f"Impact of {col}",
-                        "description": f"Records with {direction} `{col}` are {strength} more likely to have `{target_col}` = **{target_name}**. (Point-Biserial correlation: {corr:.2f})",
+                        "description": f"Records with {direction} `{col}` (relative to the median of {median_val:,.2f}) are {strength} more likely to have `{target_col}` = **{target_name}**. (Point-Biserial correlation: {corr:.2f})",
                         "type": type_
                     })
         except Exception:

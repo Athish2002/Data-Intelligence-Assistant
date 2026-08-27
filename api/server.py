@@ -11,7 +11,6 @@ Exposes full-fidelity endpoints for:
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import os
@@ -22,23 +21,20 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sklearn.metrics import confusion_matrix, roc_curve
 
 from dia.active_learning import sample_uncertain_predictions
 from dia.bandit_optimizer import run_contextual_bandit_simulation
-from dia.business_metrics import calculate_classification_roi
 from dia.causal_engine import estimate_uplift_t_learner, generate_counterfactual
 from dia.chat_analyst import answer_with_rag
-from dia.column_resolver import rank_target_candidates_advanced, resolve_column
-from dia.compliance import format_compliance_dossier_markdown, scan_dataset_privacy
-from dia.data_profiler import detect_target_type, profile_dataframe
+from dia.compliance import scan_dataset_privacy
+from dia.data_profiler import detect_target_type
 from dia.data_quality import format_contract_markdown, generate_data_contract
-from dia.data_sanitizer import sanitize_dataframe
 from dia.demo_datasets import DEMO_BENCHMARKS, get_demo_dataset
 from dia.dictionary_store import delete_entry, load_entries, save_entries
-from dia.drift_monitor import calculate_drift_report, calculate_psi
+from dia.drift_monitor import calculate_drift_report
 from dia.exceptions import DataLoadError, ValidationError
 from dia.gdpr import format_gdpr_audit_markdown, generate_ropa_record
 from dia.graph_engine import construct_and_analyze_entity_graph
@@ -47,11 +43,6 @@ from dia.ingestion.data_dictionary import DataDictionarySource
 from dia.ingestion.local_csv import LocalCSVSource
 from dia.llm import PROVIDER_REGISTRY
 from dia.llm_context import infer_dataset_context_locally
-from dia.mlops_registry import (
-    benchmark_model_latency,
-    generate_mlflow_run_manifest,
-    generate_model_card_markdown,
-)
 from dia.nlp_processor import detect_text_columns, extract_lexical_features
 from dia.pipeline_coordinator import PipelineCoordinator
 from dia.retrieval import build_session_index
@@ -485,7 +476,6 @@ def run_automl_pipeline(payload: TrainPipelineRequest) -> TrainPipelineResponse:
         log.warning("Failed to rebuild RAG index after training; keeping the ingest-time index.", exc_info=True)
 
     train_res = pipeline_res["train_result"]
-    explanation = pipeline_res["explanation"]
     readiness = pipeline_res["readiness"]
     compliance = pipeline_res["compliance_report"]
     task_type = pipeline_res["final_task_type"]

@@ -9,7 +9,6 @@ and performs point-in-time joins to guarantee zero temporal data leakage.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 
 import pandas as pd

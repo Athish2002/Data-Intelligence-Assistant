@@ -6,9 +6,7 @@ Unit tests for dia/data_profiler.py
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
-import pytest
 
 from dia.data_profiler import (
     detect_target_type,

@@ -10,9 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
-import numpy as np
 import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -69,6 +67,7 @@ def extract_lexical_features(series: pd.Series, prefix: str) -> pd.DataFrame:
         f"{prefix}_uppercase_ratio": uppercase_ratio,
         f"{prefix}_digit_ratio": digit_ratio,
         f"{prefix}_exclamations": exclamation_count,
+        f"{prefix}_questions": question_count,
         f"{prefix}_sentiment_score": sentiment,
     })
 

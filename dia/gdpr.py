@@ -8,7 +8,6 @@ Article 25 (Privacy by Design), and Article 30 (Record of Processing Activities 
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -16,7 +15,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from dia.compliance import scan_dataset_privacy, mask_dataframe_pii
+from dia.compliance import scan_dataset_privacy
 
 log = logging.getLogger("dia.gdpr")
 

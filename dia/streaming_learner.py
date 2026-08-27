@@ -13,8 +13,7 @@ import time
 from typing import Any
 
 import numpy as np
-import pandas as pd
-from sklearn.linear_model import PassiveAggressiveClassifier, PassiveAggressiveRegressor, SGDClassifier, SGDRegressor
+from sklearn.linear_model import SGDClassifier, SGDRegressor
 from sklearn.metrics import accuracy_score, mean_squared_error
 
 log = logging.getLogger("dia.streaming")

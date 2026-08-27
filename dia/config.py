@@ -20,7 +20,7 @@ MAX_COLS: int = int(os.getenv("DIA_MAX_COLS", "10000"))       # 10 K columns
 
 # ─── Model training ───────────────────────────────────────────────────────────
 
-MAX_MODELS: int = int(os.getenv("DIA_MAX_MODELS", "10"))
+MAX_MODELS: int = int(os.getenv("DIA_MAX_MODELS", "4"))
 TEST_SPLIT_RATIO: float = float(os.getenv("DIA_TEST_SPLIT", "0.20"))
 RANDOM_STATE: int = int(os.getenv("DIA_RANDOM_STATE", "42"))
 

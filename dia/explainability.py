@@ -12,6 +12,7 @@ Priority chain:
 from __future__ import annotations
 
 import warnings
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -107,7 +108,8 @@ def _try_shap(model, X_test: np.ndarray, feature_names: list[str], top_n: int) -
 def _plotly_importance(
     series: pd.Series,
     title: str = "Feature Importance",
-) -> "plotly.graph_objects.Figure":
+) -> Any:
+    """Returns a plotly.graph_objects.Figure (typed Any since plotly is an optional dependency)."""
     import plotly.graph_objects as go  # type: ignore
 
     df = series.reset_index()
@@ -145,7 +147,8 @@ def _plotly_importance(
 def _seaborn_importance(
     series: pd.Series,
     title: str = "Feature Importance",
-) -> "matplotlib.figure.Figure":
+) -> Any:
+    """Returns a matplotlib.figure.Figure (typed Any since matplotlib/seaborn are optional dependencies)."""
     import matplotlib.pyplot as plt  # type: ignore
     import seaborn as sns  # type: ignore
 

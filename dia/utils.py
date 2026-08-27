@@ -11,8 +11,6 @@ import re
 from typing import Sequence
 
 from .config import (
-    BINARY_MAX_UNIQUE,
-    HIGH_CARD_RATIO,
     MAX_FILE_BYTES,
     MAX_MODELS,
 )

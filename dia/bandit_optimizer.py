@@ -12,7 +12,6 @@ import logging
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
 log = logging.getLogger("dia.bandit")
 
@@ -131,4 +130,5 @@ def run_contextual_bandit_simulation(
         "relative_policy_lift_pct": relative_lift_pct,
         "exploration_rate_alpha": alpha_exploration,
         "cumulative_reward_history": [int(r) for r in cum_bandit[::max(1, len(cum_bandit)//30)]],
+        "cumulative_regret_history": [int(r) for r in regret[::max(1, len(regret)//30)]],
     }

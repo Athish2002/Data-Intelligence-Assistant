@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from dia.data_profiler import profile_dataframe, infer_column_roles, generate_readiness_report, detect_target_type

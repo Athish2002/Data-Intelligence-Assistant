@@ -9,10 +9,8 @@ locally with zero API dependencies, instant sub-millisecond response, and zero n
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 log = logging.getLogger("dia.context_analyzer")
@@ -91,9 +89,6 @@ def infer_dataset_context_locally(df: pd.DataFrame) -> dict[str, Any]:
     Performs fast, 100% offline semantic inference of dataset domain and top ML goals.
     Uses column name tokenization, type inspection, and statistical distributions.
     """
-    cols = [str(c).lower().replace(" ", "_") for c in df.columns]
-    cols_set = set(cols)
-
     best_domain = "General Business Analytics"
     max_matches = 0
     matched_objectives = []

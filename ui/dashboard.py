@@ -8,13 +8,11 @@ Each function is independent and can be called in sequence from app.py.
 from __future__ import annotations
 
 import html
-import io
 
-import numpy as np
 import pandas as pd
 import streamlit as st
 
-from dia.utils import is_plotly_available, is_seaborn_available, confidence_label
+from dia.utils import is_plotly_available, is_seaborn_available
 from dia.business_metrics import calculate_classification_roi, calculate_regression_impact, generate_actionable_recommendations
 from dia.fairness import extract_surrogate_rules, check_disparate_impact
 

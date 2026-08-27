@@ -70,7 +70,7 @@ def generate_data_contract(df: pd.DataFrame, target_col: str) -> dict:
                 })
             expectations.append({
                 "expectation_type": "expect_column_values_to_be_of_type",
-                "kwargs": {"column": col, "type_": "number"}
+                "kwargs": {"column": col, "type_": dtype_str}
             })
 
         # Categorical sets (if low cardinality)
@@ -87,7 +87,7 @@ def generate_data_contract(df: pd.DataFrame, target_col: str) -> dict:
                 })
             expectations.append({
                 "expectation_type": "expect_column_values_to_be_of_type",
-                "kwargs": {"column": col, "type_": "string"}
+                "kwargs": {"column": col, "type_": dtype_str}
             })
 
     contract = {

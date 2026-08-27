@@ -16,7 +16,6 @@ from __future__ import annotations
 import re
 from typing import Optional, Sequence
 
-import pandas as pd
 
 from .utils import is_sentence_transformers_available
 
@@ -106,7 +105,7 @@ def _infer_target_candidates(goal: str, columns: Sequence[str]) -> list[str]:
     Heuristically rank columns by how likely they are the prediction target.
     Leverages synonym clusters, normalized sub-token matching, and fuzzy resolution.
     """
-    from .column_resolver import resolve_column, normalize_string, _SYNONYM_CLUSTERS
+    from .column_resolver import resolve_column, normalize_string
 
     goal_tokens = re.findall(r"[a-z]+", goal.lower())
     ranked: list[tuple[str, float]] = []

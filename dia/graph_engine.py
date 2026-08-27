@@ -12,7 +12,6 @@ import logging
 from typing import Any
 
 import networkx as nx
-import numpy as np
 import pandas as pd
 
 log = logging.getLogger("dia.graph")
@@ -86,6 +85,7 @@ def construct_and_analyze_entity_graph(
             "node_id": node,
             "pagerank": round(float(score), 5),
             "degree": int(G.degree(node)),
+            "degree_centrality": round(float(degree_centrality.get(node, 0.0)), 5),
             "betweenness": round(float(betweenness.get(node, 0.0)), 5),
         }
         for node, score in sorted(pagerank_scores.items(), key=lambda x: x[1], reverse=True)[:15]

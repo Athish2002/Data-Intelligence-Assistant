@@ -5,6 +5,10 @@ Comprehensive integration test suite for FastAPI REST API endpoints.
 Verifies all 4 workspaces: Core, AutoML, Adaptive AI Engines, and Governance.
 """
 
+import pytest
+from fastapi import HTTPException
+
+from dia.utils import is_torch_available
 from api.server import (
     chat_with_data,
     get_health,
@@ -20,11 +24,9 @@ from api.server import (
     get_active_learning_queue,
     get_autoencoder_analysis,
     simulate_bandits,
-    get_online_learning,
     generate_synthetic,
     get_data_contract_suite,
     get_gdpr_audit,
-    get_drift_monitor,
     get_all_artifacts,
     export_artifact,
 )
@@ -125,10 +127,15 @@ def test_automl_training_and_inference_flow():
     al_res = get_active_learning_queue(session_id)
     assert al_res.status == "success"
 
-    # 7. Deep Autoencoder
-    ae_res = get_autoencoder_analysis(session_id)
-    assert ae_res.status == "success"
-    assert ae_res.reconstruction_mae >= 0
+    # 7. Deep Autoencoder (optional — needs torch, which is intentionally not a hard dependency)
+    if is_torch_available():
+        ae_res = get_autoencoder_analysis(session_id)
+        assert ae_res.status == "success"
+        assert ae_res.reconstruction_mae >= 0
+    else:
+        with pytest.raises(HTTPException) as exc_info:
+            get_autoencoder_analysis(session_id)
+        assert exc_info.value.status_code == 501
 
     # 8. Contextual Bandits
     ban_res = simulate_bandits(BanditSimRequest(session_id=session_id, n_steps=20))

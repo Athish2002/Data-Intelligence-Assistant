@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -46,7 +46,7 @@ from sklearn.ensemble import (
     GradientBoostingClassifier, GradientBoostingRegressor,
     VotingClassifier, VotingRegressor,
 )
-from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
+from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.svm import SVC, SVR
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.neural_network import MLPClassifier, MLPRegressor
@@ -54,13 +54,13 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import (
     accuracy_score, f1_score, mean_absolute_error,
     mean_squared_error, precision_score, r2_score, recall_score,
-    average_precision_score, confusion_matrix
+    average_precision_score
 )
 from sklearn.model_selection import (
     train_test_split, cross_validate, StratifiedKFold, KFold, RandomizedSearchCV
 )
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import LabelEncoder, RobustScaler, TargetEncoder, OneHotEncoder, OrdinalEncoder
+from sklearn.preprocessing import LabelEncoder, RobustScaler, OneHotEncoder, OrdinalEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.utils.class_weight import compute_sample_weight

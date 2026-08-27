@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, _tree
+from sklearn.tree import _tree
 
 log = logging.getLogger("dia.sql_transpiler")
 
@@ -69,7 +69,6 @@ def transpile_model_to_sql(
     Supports single trees and ensemble averages (Random Forest / GBDT).
     """
     is_clf = task_type == "classification"
-    trees_sql = []
 
     if hasattr(model, "tree_"):
         # Single Decision Tree

@@ -166,8 +166,7 @@ def _resolve_by_column_values(query: str, df: pd.DataFrame) -> tuple[str | None,
         # Only inspect categorical/low-cardinality columns
         if series.nunique() <= 50:
             val_samples = [str(v).lower().strip() for v in series.dropna().unique()]
-            val_text = " ".join(val_samples)
-            
+
             # Check if query tokens appear inside the column values
             for token in query_tokens:
                 if len(token) >= 3 and any(token in val for val in val_samples):

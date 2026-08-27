@@ -11,9 +11,7 @@ Generates a rich profile of a DataFrame:
 from __future__ import annotations
 
 import re
-from typing import Optional
 
-import numpy as np
 import pandas as pd
 
 from .utils import confidence_label

@@ -6,7 +6,6 @@ Hardware detection and training estimation utilities.
 
 import os
 import subprocess
-import time
 
 def get_cpu_cores() -> int:
     """Returns the total number of logical CPU cores."""

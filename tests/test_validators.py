@@ -6,7 +6,6 @@ Unit tests for dia/validators.py — the input validation layer.
 
 from __future__ import annotations
 
-import io
 
 import pandas as pd
 import pytest

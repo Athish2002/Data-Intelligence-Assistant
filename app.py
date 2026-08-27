@@ -61,7 +61,6 @@ from dia.goal_parser import parse_goal
 from dia.hardware import get_cpu_cores, is_gpu_available, estimate_training_time
 from dia.ingestion import SOURCE_REGISTRY
 from dia.model_trainer import CLASSIFICATION_MODELS, REGRESSION_MODELS, train_and_evaluate
-from dia.utils import limit_models
 from dia.validators import detect_pii_columns, validate_goal_text, validate_target_column
 from dia.insights import generate_smart_insights
 from dia.code_generator import (

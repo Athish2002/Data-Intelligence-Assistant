@@ -37,7 +37,6 @@ def generate_counterfactual(
     # Pre-calculate feature standard deviations and ranges for normalization
     stds = np.std(X_reference, axis=0)
     stds[stds == 0] = 1.0
-    medians = np.median(X_reference, axis=0)
     mins = np.min(X_reference, axis=0)
     maxs = np.max(X_reference, axis=0)
 
@@ -47,11 +46,14 @@ def generate_counterfactual(
     else:
         orig_proba = None
 
+    orig_confidence = float(np.max(orig_proba)) if orig_proba is not None else None
+
     if orig_pred == desired_outcome:
         return {
             "status": "already_desired",
             "message": "Instance already satisfies the desired outcome.",
             "original_prediction": orig_pred,
+            "original_prediction_confidence": orig_confidence,
             "counterfactual_prediction": orig_pred,
             "perturbations": [],
         }
@@ -120,6 +122,7 @@ def generate_counterfactual(
     return {
         "status": "success" if found else "approximate",
         "original_prediction": orig_pred,
+        "original_prediction_confidence": orig_confidence,
         "counterfactual_prediction": cf_pred,
         "desired_outcome": desired_outcome,
         "total_features_modified": len(changes),

@@ -8,11 +8,9 @@ Uniqueness, Quantile Thresholds) and evaluates pipeline data quality certificati
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 log = logging.getLogger("dia.expectations")

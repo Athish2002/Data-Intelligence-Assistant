@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from dia.insights import generate_smart_insights
 
 def test_generate_smart_insights_regression():
