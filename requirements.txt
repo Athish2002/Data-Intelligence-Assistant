@@ -35,9 +35,17 @@ networkx==3.5
 # ─── Statistics ───────────────────────────────────────────────────────────────────────────────────────────────
 scipy==1.15.3
 
-# ─── Optional: Semantic goal parsing (heavy — pulls in torch) ─────────────────
-# Uncomment if you want semantic NLP goal matching
+# ─── Optional: Semantic goal parsing & RAG embeddings (heavy — pulls in torch) ─
+# Uncomment to enable semantic NLP goal matching and embedding-based RAG
+# retrieval (dia/retrieval.py). Without it, both degrade to zero-dependency
+# keyword/lexical matching rather than failing.
 # sentence-transformers==4.1.0
+
+# ─── Optional: LLM providers (chat copilot RAG generation) ────────────────────
+# Ollama (local) and Groq (hosted, free tier) need no extra package — both are
+# called directly over `requests`, already a hard dependency above. Gemini
+# (hosted, free tier) needs its SDK:
+# google-generativeai==0.8.5
 
 # ─── Optional: SQL ingestion ──────────────────────────────────────────────────
 sqlalchemy==2.0.41

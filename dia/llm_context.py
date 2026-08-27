@@ -162,18 +162,18 @@ def get_dataset_context_and_objectives(df: pd.DataFrame, api_key: str | None = N
     """
     if api_key and api_key.strip():
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key.strip())
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            
+            from .llm.gemini_provider import GeminiProvider
+
             prompt = f"""
             Analyze dataset schema:
             Columns: {df.columns.tolist()}
             Data sample: {df.head(2).to_dict(orient='records')}
-            
+
             Return JSON with keys 'domain' and 'objectives' (list of 3 strings).
             """
-            response = model.generate_content(prompt)
+            response = GeminiProvider(api_key=api_key.strip()).generate(
+                [{"role": "user", "content": prompt}]
+            )
             raw_text = response.text.strip()
             if "```json" in raw_text:
                 raw_text = raw_text.split("```json")[1].split("```")[0].strip()

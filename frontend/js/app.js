@@ -1415,10 +1415,21 @@ async function handleChatQuery() {
 
   try {
     const res = await ApiClient.chat(state.sessionId, query);
+    const sourcesHtml = (res.sources && res.sources.length)
+      ? `
+        <details class="text-slate-400">
+          <summary class="cursor-pointer text-indigo-400">📎 Sources (${_escapeHtml(res.engine || 'retrieval_only')})</summary>
+          <ul class="list-disc list-inside space-y-1 mt-1">
+            ${res.sources.map(src => `<li><code class="text-slate-500">${_escapeHtml(src.source_type)}</code> — ${_escapeHtml(src.snippet)}</li>`).join('')}
+          </ul>
+        </details>
+      `
+      : '';
     msgBox.innerHTML += `
       <div class="text-left">
         <div class="inline-block p-3 bg-slate-900 border border-slate-800 text-slate-200 rounded-lg space-y-2">
           <div>${res.content}</div>
+          ${sourcesHtml}
         </div>
       </div>
     `;
@@ -1426,6 +1437,12 @@ async function handleChatQuery() {
   } catch (err) {
     msgBox.innerHTML += `<div class="text-rose-400 text-left">Error: ${err.message}</div>`;
   }
+}
+
+function _escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text == null ? '' : String(text);
+  return div.innerHTML;
 }
 
 // ─── Utility Notifications ───────────────────────────────────────────────────

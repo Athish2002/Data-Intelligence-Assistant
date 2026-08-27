@@ -30,18 +30,22 @@ from dia.active_learning import sample_uncertain_predictions
 from dia.bandit_optimizer import run_contextual_bandit_simulation
 from dia.business_metrics import calculate_classification_roi
 from dia.causal_engine import estimate_uplift_t_learner, generate_counterfactual
-from dia.chat_analyst import execute_natural_language_query
+from dia.chat_analyst import answer_with_rag
 from dia.column_resolver import rank_target_candidates_advanced, resolve_column
 from dia.compliance import format_compliance_dossier_markdown, scan_dataset_privacy
-from dia.data_profiler import profile_dataframe
+from dia.data_profiler import detect_target_type, profile_dataframe
 from dia.data_quality import format_contract_markdown, generate_data_contract
 from dia.data_sanitizer import sanitize_dataframe
 from dia.demo_datasets import DEMO_BENCHMARKS, get_demo_dataset
+from dia.dictionary_store import delete_entry, load_entries, save_entries
 from dia.drift_monitor import calculate_drift_report, calculate_psi
+from dia.exceptions import DataLoadError, ValidationError
 from dia.gdpr import format_gdpr_audit_markdown, generate_ropa_record
 from dia.graph_engine import construct_and_analyze_entity_graph
 from dia.hardware import get_cpu_cores, is_gpu_available
+from dia.ingestion.data_dictionary import DataDictionarySource
 from dia.ingestion.local_csv import LocalCSVSource
+from dia.llm import PROVIDER_REGISTRY
 from dia.llm_context import infer_dataset_context_locally
 from dia.mlops_registry import (
     benchmark_model_latency,
@@ -50,6 +54,7 @@ from dia.mlops_registry import (
 )
 from dia.nlp_processor import detect_text_columns, extract_lexical_features
 from dia.pipeline_coordinator import PipelineCoordinator
+from dia.retrieval import build_session_index
 from dia.streaming_learner import simulate_streaming_incremental_fit
 from dia.synthetic_data import generate_synthetic_dataset
 from dia.time_series import detect_time_series_column, train_time_series_forecaster
@@ -71,11 +76,16 @@ from .schemas import (
     DataContractResponse,
     DemoDatasetItem,
     DemoIngestRequest,
+    DictionaryEntry,
+    DictionaryListResponse,
+    DictionaryUploadResponse,
     DriftMonitorResponse,
     GdprAuditResponse,
     GraphAnalysisResponse,
     HealthResponse,
     IngestResponse,
+    LLMProvidersResponse,
+    LLMProviderStatus,
     NlpAnalysisResponse,
     OnlineLearningResponse,
     PredictRequest,
@@ -206,6 +216,8 @@ def ingest_demo_dataset(payload: DemoIngestRequest) -> IngestResponse:
         "target": target,
         "sanitize_report": {"total_cells_repaired": 0, "status": "clean_benchmark"},
         "pipeline_result": None,
+        "context": context,
+        "rag_index": build_session_index(df, dictionary_entries=load_entries()),
     }
 
     return IngestResponse(
@@ -255,6 +267,8 @@ async def upload_csv_file(file: UploadFile = File(...)) -> IngestResponse:
         "target": None,
         "sanitize_report": ingest_res.meta.get("sanitize_report", {}),
         "pipeline_result": None,
+        "context": context,
+        "rag_index": build_session_index(df, dictionary_entries=load_entries()),
     }
 
     return IngestResponse(
@@ -455,6 +469,20 @@ def run_automl_pipeline(payload: TrainPipelineRequest) -> TrainPipelineResponse:
     sess["pipeline_result"] = pipeline_res
     sess["goal"] = payload.goal
     sess["target"] = pipeline_res["target_col"]
+
+    # Upgrade the retrieval index now that readiness/target info exists —
+    # same call-twice pattern as the rest of the pipeline: cheap to recompute,
+    # never blocks training if it fails for any reason.
+    try:
+        sess["rag_index"] = build_session_index(
+            df,
+            readiness=pipeline_res.get("readiness"),
+            target_col=pipeline_res["target_col"],
+            target_type_info=detect_target_type(df, pipeline_res["target_col"]),
+            dictionary_entries=load_entries(),
+        )
+    except Exception:
+        log.warning("Failed to rebuild RAG index after training; keeping the ingest-time index.", exc_info=True)
 
     train_res = pipeline_res["train_result"]
     explanation = pipeline_res["explanation"]
@@ -1093,13 +1121,20 @@ def get_all_artifacts(session_id: str) -> ArtifactsResponse:
 
 @app.post("/api/v1/chat", response_model=ChatResponse, tags=["Copilot"])
 def chat_with_data(payload: ChatRequest) -> ChatResponse:
-    """Answers natural language analytical questions on the dataset."""
+    """
+    Answers natural language analytical questions on the dataset.
+
+    Always grounded by the session's retrieval index when one exists; adds LLM
+    reasoning on top of that when a provider (Ollama/Groq/Gemini) is available,
+    and falls back to the deterministic keyword-matched answer otherwise —
+    see dia.chat_analyst.answer_with_rag for the full fallback chain.
+    """
     sess = _get_session(payload.session_id)
     df = sess["df"]
     target = sess.get("target") or df.columns[-1]
 
     try:
-        res = execute_natural_language_query(df, payload.query, target)
+        res = answer_with_rag(df, payload.query, target, sess.get("rag_index"))
         table_dict = res["table"].to_dict(orient="records") if res.get("table") is not None else None
         chart_str = res["figure"].to_json() if res.get("figure") is not None else None
 
@@ -1109,9 +1144,96 @@ def chat_with_data(payload: ChatRequest) -> ChatResponse:
             content=res["text"],
             table_data=table_dict,
             chart_json=chart_str,
+            sources=res.get("sources") or None,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat Copilot Error: {str(e)}") from e
+
+
+@app.post("/api/v1/dictionary/upload", response_model=DictionaryUploadResponse, tags=["Copilot"])
+async def upload_data_dictionary(file: UploadFile = File(...)) -> DictionaryUploadResponse:
+    """
+    Uploads a business-glossary CSV (columns: term, definition) that grounds the
+    chat copilot across all future sessions. Every upload is scanned for likely
+    PII before anything is written; uploads that trip the scanner are rejected
+    and never touch disk (see dia.compliance.scan_dataset_privacy).
+    """
+    raw_bytes = await file.read()
+
+    class _MockUpload:
+        def __init__(self, data: bytes, name: str) -> None:
+            self.data = data
+            self.name = name
+
+        def read(self) -> bytes:
+            return self.data
+
+    try:
+        result = DataDictionarySource().load(uploaded_file=_MockUpload(raw_bytes, file.filename))
+    except (ValidationError, DataLoadError) as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+    if not result.meta["safe_to_persist"]:
+        return DictionaryUploadResponse(
+            status="rejected",
+            n_terms_parsed=result.meta["n_terms"],
+            n_terms_saved=0,
+            safe_to_persist=False,
+            rejected_reason=(
+                "Possible PII detected in the glossary — nothing was saved. Review the "
+                "flagged column(s) and remove sensitive content before re-uploading."
+            ),
+        )
+
+    n_saved = save_entries(result.df.to_dict("records"), source_label=result.source_label)
+    return DictionaryUploadResponse(
+        status="success",
+        n_terms_parsed=result.meta["n_terms"],
+        n_terms_saved=n_saved,
+        safe_to_persist=True,
+    )
+
+
+@app.get("/api/v1/dictionary", response_model=DictionaryListResponse, tags=["Copilot"])
+def list_data_dictionary() -> DictionaryListResponse:
+    """Lists every locally persisted data-dictionary term."""
+    entries = load_entries()
+    return DictionaryListResponse(
+        status="success",
+        entries=[
+            DictionaryEntry(term=e["term"], definition=e["definition"], source_label=e.get("source_label"))
+            for e in entries
+        ],
+        count=len(entries),
+    )
+
+
+@app.delete("/api/v1/dictionary/{term}", tags=["Copilot"])
+def delete_data_dictionary_entry(term: str) -> dict[str, Any]:
+    """Deletes one term from the locally persisted data dictionary."""
+    if not delete_entry(term):
+        raise HTTPException(status_code=404, detail=f"Term '{term}' was not found in the data dictionary.")
+    return {"status": "success", "deleted_term": term}
+
+
+@app.get("/api/v1/llm/providers", response_model=LLMProvidersResponse, tags=["Copilot"])
+def list_llm_providers() -> LLMProvidersResponse:
+    """
+    Live availability of each pluggable LLM backend. Ollama's status is a real
+    network ping (it can start/stop mid-session), so this is computed fresh on
+    every call rather than cached — see dia.llm.PROVIDER_REGISTRY.
+    """
+    statuses: list[LLMProviderStatus] = []
+    default_key: str | None = None
+    for key, entry in PROVIDER_REGISTRY.items():
+        try:
+            available = bool(entry["cls"].is_available())
+        except Exception:
+            available = False
+        if available and default_key is None:
+            default_key = key
+        statuses.append(LLMProviderStatus(key=key, label=entry["label"], available=available, requires=entry["requires"]))
+    return LLMProvidersResponse(providers=statuses, default_provider=default_key)
 
 
 @app.get("/api/v1/export/{session_id}/{format_type}", tags=["Code & Artifact Exports"])

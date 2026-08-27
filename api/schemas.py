@@ -340,3 +340,40 @@ class ChatResponse(BaseModel):
     content: str
     table_data: list[dict[str, Any]] | None = None
     chart_json: str | None = None
+    sources: list[dict[str, Any]] | None = None
+
+
+# ─── Data Dictionary ─────────────────────────────────────────────────────────
+
+class DictionaryUploadResponse(BaseModel):
+    status: str  # "success" | "rejected"
+    n_terms_parsed: int
+    n_terms_saved: int
+    safe_to_persist: bool
+    rejected_reason: str | None = None
+
+
+class DictionaryEntry(BaseModel):
+    term: str
+    definition: str
+    source_label: str | None = None
+
+
+class DictionaryListResponse(BaseModel):
+    status: str
+    entries: list[DictionaryEntry]
+    count: int
+
+
+# ─── LLM Providers ───────────────────────────────────────────────────────────
+
+class LLMProviderStatus(BaseModel):
+    key: str
+    label: str
+    available: bool
+    requires: str | None = None
+
+
+class LLMProvidersResponse(BaseModel):
+    providers: list[LLMProviderStatus]
+    default_provider: str | None = None

@@ -75,7 +75,13 @@ from dia.code_generator import (
 )
 from dia.data_quality import generate_data_contract, format_contract_markdown
 from dia.experimentation import calculate_ab_test_sample_size
-from dia.chat_analyst import execute_natural_language_query
+from dia.chat_analyst import answer_with_rag
+from dia.dictionary_store import delete_entry as dictionary_delete_entry
+from dia.dictionary_store import load_entries as dictionary_load_entries
+from dia.dictionary_store import save_entries as dictionary_save_entries
+from dia.ingestion.data_dictionary import DataDictionarySource
+from dia.llm import PROVIDER_REGISTRY
+from dia.retrieval import build_session_index
 from dia.drift_monitor import calculate_drift_report
 from dia.compliance import scan_dataset_privacy, format_compliance_dossier_markdown
 from dia.gdpr import (
@@ -278,13 +284,61 @@ with st.sidebar:
 
     st.divider()
 
+    # ── Step 1b: Data Dictionary (optional) ──────────────────────────────────
+    with st.expander("📖 Data Dictionary (optional — grounds the AI Chat Copilot)"):
+        st.caption(
+            "Upload a business glossary (columns: term, definition) once — it's cached "
+            "locally on this machine and reused across every future session, so the "
+            "chat copilot can explain domain terms without you re-uploading them."
+        )
+        dict_file = st.file_uploader("Glossary CSV", type=["csv"], key="dict_uploader")
+        if dict_file is not None and st.button("💾 Save to Local Dictionary", key="dict_save_btn"):
+            try:
+                dict_result = DataDictionarySource().load(uploaded_file=dict_file)
+                if dict_result.meta["safe_to_persist"]:
+                    n_saved = dictionary_save_entries(
+                        dict_result.df.to_dict("records"), source_label=dict_result.source_label
+                    )
+                    st.success(f"Saved {n_saved} term(s) to the local dictionary.")
+                else:
+                    st.error(
+                        "Possible PII detected in the glossary — nothing was saved. "
+                        "Review the flagged column(s) and remove sensitive content before re-uploading."
+                    )
+                    st.json(dict_result.meta["pii_gate_report"]["detected_pii"])
+            except (ValidationError, DIAError) as e:
+                st.error(str(e))
+
+        existing_terms = dictionary_load_entries()
+        if existing_terms:
+            st.divider()
+            st.caption(f"📚 {len(existing_terms)} term(s) currently persisted locally:")
+            for entry in existing_terms:
+                t_col, d_col, x_col = st.columns([2, 5, 1])
+                t_col.markdown(f"**{entry['term']}**")
+                d_col.caption(entry["definition"])
+                if x_col.button("🗑️", key=f"dict_del_{entry['term']}"):
+                    dictionary_delete_entry(entry["term"])
+                    st.rerun()
+
+    st.divider()
+
     # ── Step 2: Goal ──────────────────────────────────────────────────────────
     st.markdown('<span class="step-badge">2</span> **Prediction Goal**', unsafe_allow_html=True)
     
     # Auto-detect objectives feature (Local & Offline by default)
     with st.expander("🎯 Auto-Detect Domain & Goals (Instant Local AI)", expanded=True):
         st.markdown("Instantly analyzes your schema, types, and value distributions **locally (0ms latency, zero API limits)** to detect domain and recommend ML goals.")
-        
+
+        st.divider()
+        gemini_key = st.text_input(
+            "🔑 Optional Cloud LLM (Gemini API Key)",
+            type="password",
+            key="gemini_key_input",
+            help="Optional. The assistant already runs 100% offline without this.",
+        )
+        st.divider()
+
         if st.button("🔍 Auto-Detect Objectives Now", key="auto_detect_btn"):
             try:
                 with st.spinner("Analyzing schema locally..."):
@@ -302,7 +356,7 @@ with st.sidebar:
                             
                     if df_peek is not None:
                         from dia.llm_context import get_dataset_context_and_objectives
-                        ai_res = get_dataset_context_and_objectives(df_peek)
+                        ai_res = get_dataset_context_and_objectives(df_peek, api_key=gemini_key)
                         st.session_state["ai_suggestions"] = ai_res
             except Exception as e:
                 st.error(f"Could not load data for preview: {e}")
@@ -316,9 +370,6 @@ with st.sidebar:
                     st.session_state["goal_input"] = obj
                     st.rerun()
                     
-        with st.expander("🔑 Optional Cloud LLM (Gemini API)", expanded=False):
-            gemini_key = st.text_input("Gemini API Key (Optional)", type="password", key="gemini_key_input", help="Optional. The assistant already runs 100% offline.")
-                
     goal_raw = st.text_area(
         "Describe your ML goal in plain English",
         placeholder="e.g. predict customer churn\nforecast next month's sales\nclassify loan default",
@@ -427,318 +478,340 @@ if not run_analysis and "analysis_done" not in st.session_state:
         unsafe_allow_html=True,
     )
 
-if not run_analysis:
+if not run_analysis and "analysis_done" not in st.session_state:
     st.stop()
 
-# Clear previous results on new run
-for key in ("analysis_done", "df", "meta", "goal_info", "annotated_profile",
-            "target_col", "final_task_type", "readiness", "train_result", 
-            "explanation", "insights", "code_script"):
-    st.session_state.pop(key, None)
+if run_analysis:
+    # Clear previous results on new run
+    for key in ("analysis_done", "df", "meta", "goal_info", "annotated_profile",
+                "target_col", "final_task_type", "readiness", "train_result",
+                "explanation", "insights", "code_script", "rag_index"):
+        st.session_state.pop(key, None)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#   ANALYSIS PIPELINE
-# ═══════════════════════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════════════
+    #   ANALYSIS PIPELINE
+    # ═══════════════════════════════════════════════════════════════════════════════
 
-status = st.status("🔄 Running analysis…", expanded=True)
+    status = st.status("🔄 Running analysis…", expanded=True)
 
-def _safe_status_update(lbl: str, st_val: str, exp: bool | None = None):
-    try:
-        if hasattr(status, "update"):
-            if exp is not None:
-                status.update(label=lbl, state=st_val, expanded=exp)
+    def _safe_status_update(lbl: str, st_val: str, exp: bool | None = None):
+        try:
+            if hasattr(status, "update"):
+                if exp is not None:
+                    status.update(label=lbl, state=st_val, expanded=exp)
+                else:
+                    status.update(label=lbl, state=st_val)
+        except Exception:
+            pass
+
+    with status:
+        progress_bar = st.progress(0)
+        
+        try:
+            # ── Phase 1: Ingestion (0 - 20%) ──────────────────────────────────────
+            st.write("📡 **Phase 1:** Loading data...")
+            progress_bar.progress(5)
+            
+            goal = validate_goal_text(goal_raw)
+            
+            if source_key == "demo_sample":
+                from dia.demo_datasets import get_demo_dataset
+                demo_name = source_params.get("demo_name", "Telecom Customer Churn")
+                df, demo_goal, demo_target = get_demo_dataset(demo_name)
+                meta = {
+                    "n_rows": df.shape[0],
+                    "n_cols": df.shape[1],
+                    "file_size_mb": round(float(df.memory_usage(deep=True).sum() / (1024 * 1024)), 2),
+                    "encoding": "in-memory",
+                }
+                source_label = f"Demo Dataset — {demo_name}"
             else:
-                status.update(label=lbl, state=st_val)
-    except Exception:
-        pass
+                ingestion_cls = source_info["cls"]
+                if ingestion_cls is None:
+                    st.error(
+                        f"The selected source requires **{source_info['requires']}** to be installed. "
+                        f"Run: `pip install {source_info['requires']}`"
+                    )
+                    st.stop()
 
-with status:
-    progress_bar = st.progress(0)
-    
-    try:
-        # ── Phase 1: Ingestion (0 - 20%) ──────────────────────────────────────
-        st.write("📡 **Phase 1:** Loading data...")
-        progress_bar.progress(5)
-        
-        goal = validate_goal_text(goal_raw)
-        
-        if source_key == "demo_sample":
-            from dia.demo_datasets import get_demo_dataset
-            df, demo_goal, demo_target = get_demo_dataset(source_params.get("demo_name", "Telecom Customer Churn"))
-            meta = {
-                "n_rows": df.shape[0],
-                "n_cols": df.shape[1],
-                "file_size_mb": round(float(df.memory_usage(deep=True).sum() / (1024 * 1024)), 2),
-                "encoding": "in-memory",
-            }
-        else:
-            ingestion_cls = source_info["cls"]
-            if ingestion_cls is None:
-                st.error(
-                    f"The selected source requires **{source_info['requires']}** to be installed. "
-                    f"Run: `pip install {source_info['requires']}`"
+                ingestion_result = ingestion_cls().load(**source_params)
+                df = ingestion_result.df
+                meta = ingestion_result.meta
+                source_label = ingestion_result.source_label
+                meta.setdefault("n_rows", df.shape[0])
+                meta.setdefault("n_cols", df.shape[1])
+                meta.setdefault("file_size_mb", "N/A")
+                meta.setdefault("encoding", "N/A")
+            
+            pii_cols = detect_pii_columns(list(df.columns))
+            if pii_cols:
+                st.warning(
+                    f"⚠️ **Possible PII detected** in columns: "
+                    f"{', '.join(f'`{html.escape(c)}`' for c in pii_cols[:5])}. "
+                    "Ensure you have the right to use this data and that it is anonymised."
                 )
-                st.stop()
+                
+            progress_bar.progress(20)
 
-            ingestion_result = ingestion_cls().load(**source_params)
-            df = ingestion_result.df
-            meta = ingestion_result.meta
-            meta.setdefault("n_rows", df.shape[0])
-            meta.setdefault("n_cols", df.shape[1])
-            meta.setdefault("file_size_mb", "N/A")
-            meta.setdefault("encoding", "N/A")
-        
-        pii_cols = detect_pii_columns(list(df.columns))
-        if pii_cols:
-            st.warning(
-                f"⚠️ **Possible PII detected** in columns: "
-                f"{', '.join(f'`{html.escape(c)}`' for c in pii_cols[:5])}. "
-                "Ensure you have the right to use this data and that it is anonymised."
+            # ── Phase 2: Profiling & Goal Parsing (20 - 40%) ──────────────────────
+            st.write("🔍 **Phase 2:** Profiling dataset and parsing goal...")
+            
+            goal_info = parse_goal(goal, columns=df.columns.tolist())
+            profile = profile_dataframe(df)
+            annotated_profile = infer_column_roles(df, profile)
+            
+            progress_bar.progress(40)
+
+            # ── Phase 3: Target Detection & Readiness (40 - 60%) ──────────────────
+            st.write("🎯 **Phase 3:** Detecting target and checking data readiness...")
+            
+            from dia.column_resolver import rank_target_candidates_advanced
+            advanced_ranked = rank_target_candidates_advanced(goal, df)
+            if advanced_ranked:
+                target_col = advanced_ranked[0]["column"]
+                st.caption(f"🎯 **Target Auto-Resolved:** `{target_col}` (Confidence: {advanced_ranked[0]['confidence']:.0%})")
+            else:
+                candidates = [c for c in goal_info.get("target_candidates", []) if c in df.columns]
+                target_col = candidates[0] if candidates else df.columns[-1]
+
+            validate_target_column(target_col, df)
+
+            target_type_info = detect_target_type(df, target_col)
+            final_task_type = target_type_info["task_type"]
+            
+            readiness = generate_readiness_report(
+                df, annotated_profile, goal_info, target_col, final_task_type
+            )
+
+            # Build the RAG retrieval index from schema/profiling + the local data
+            # dictionary. Never blocks the pipeline if it fails for any reason —
+            # the chat tab treats a missing index as "stay in deterministic mode".
+            try:
+                rag_index = build_session_index(
+                    df,
+                    annotated_profile=annotated_profile,
+                    readiness=readiness,
+                    target_col=target_col,
+                    target_type_info=target_type_info,
+                    pii_columns=pii_cols,
+                    dictionary_entries=dictionary_load_entries(),
+                )
+            except Exception:
+                log.warning("Failed to build the RAG retrieval index; chat will stay in deterministic mode.", exc_info=True)
+                rag_index = None
+
+            progress_bar.progress(60)
+
+            # ── Phase 4: Model Training (60 - 80%) ────────────────────────────────
+            st.write(f"🤖 **Phase 4:** Training models for {final_task_type}...")
+            
+            valid_registry = (
+                CLASSIFICATION_MODELS if final_task_type == "classification" else REGRESSION_MODELS
+            )
+            task_model_keys = [k for k in selected_model_keys if k in valid_registry]
+            if not task_model_keys:
+                task_model_keys = list(valid_registry.keys())[:2]
+                
+            n_rows, n_cols = df.shape
+            est_time = estimate_training_time(n_rows, n_cols, len(task_model_keys), use_gpu)
+            st.info(f"⏳ **Estimated training time:** {est_time}")
+                
+            train_result = train_and_evaluate(
+                df=df,
+                target_col=target_col,
+                task_type=final_task_type,
+                selected_model_keys=task_model_keys,
+                use_gpu=use_gpu,
+                n_jobs=n_jobs,
+                handle_imbalance=handle_imbalance,
+                apply_cv=apply_cv,
+                enable_hpo=enable_hpo,
+                hpo_iter=hpo_iter,
+                enable_autofe=enable_autofe,
+                calibrate_probs=calibrate_probs,
+                build_ensemble=build_ensemble,
             )
             
-        progress_bar.progress(20)
+            progress_bar.progress(80)
 
-        # ── Phase 2: Profiling & Goal Parsing (20 - 40%) ──────────────────────
-        st.write("🔍 **Phase 2:** Profiling dataset and parsing goal...")
-        
-        goal_info = parse_goal(goal, columns=df.columns.tolist())
-        profile = profile_dataframe(df)
-        annotated_profile = infer_column_roles(df, profile)
-        
-        progress_bar.progress(40)
-
-        # ── Phase 3: Target Detection & Readiness (40 - 60%) ──────────────────
-        st.write("🎯 **Phase 3:** Detecting target and checking data readiness...")
-        
-        from dia.column_resolver import rank_target_candidates_advanced
-        advanced_ranked = rank_target_candidates_advanced(goal, df)
-        if advanced_ranked:
-            target_col = advanced_ranked[0]["column"]
-            st.caption(f"🎯 **Target Auto-Resolved:** `{target_col}` (Confidence: {advanced_ranked[0]['confidence']:.0%})")
-        else:
-            candidates = [c for c in goal_info.get("target_candidates", []) if c in df.columns]
-            target_col = candidates[0] if candidates else df.columns[-1]
-
-        validate_target_column(target_col, df)
-
-        target_type_info = detect_target_type(df, target_col)
-        final_task_type = target_type_info["task_type"]
-        
-        readiness = generate_readiness_report(
-            df, annotated_profile, goal_info, target_col, final_task_type
-        )
-        
-        progress_bar.progress(60)
-
-        # ── Phase 4: Model Training (60 - 80%) ────────────────────────────────
-        st.write(f"🤖 **Phase 4:** Training models for {final_task_type}...")
-        
-        valid_registry = (
-            CLASSIFICATION_MODELS if final_task_type == "classification" else REGRESSION_MODELS
-        )
-        task_model_keys = [k for k in selected_model_keys if k in valid_registry]
-        if not task_model_keys:
-            task_model_keys = list(valid_registry.keys())[:2]
+            # ── Phase 5: Insights & Code Exports (80 - 100%) ─────────────────────
+            st.write("💡 **Phase 5:** Generating insights, data contracts, and microservice exports...")
             
-        n_rows, n_cols = df.shape
-        est_time = estimate_training_time(n_rows, n_cols, len(task_model_keys), use_gpu)
-        st.info(f"⏳ **Estimated training time:** {est_time}")
+            best_idx = next(
+                (i for i, r in enumerate(train_result["results"])
+                 if r["model_key"] == train_result["best_model_key"]),
+                0,
+            )
+            explanation = generate_explanation(
+                model=train_result["best_model"],
+                X_test=train_result["X_test_processed"],
+                feature_names=train_result["feature_names"],
+                importance_series=train_result["results"][best_idx]["importance"],
+            )
             
-        train_result = train_and_evaluate(
-            df=df,
-            target_col=target_col,
-            task_type=final_task_type,
-            selected_model_keys=task_model_keys,
-            use_gpu=use_gpu,
-            n_jobs=n_jobs,
-            handle_imbalance=handle_imbalance,
-            apply_cv=apply_cv,
-            enable_hpo=enable_hpo,
-            hpo_iter=hpo_iter,
-            enable_autofe=enable_autofe,
-            calibrate_probs=calibrate_probs,
-            build_ensemble=build_ensemble,
-        )
-        
-        progress_bar.progress(80)
+            insights = generate_smart_insights(df, target_col, final_task_type)
+            
+            # Enterprise Data Contracts, Compliance & Production Code Generation
+            data_contract_json = generate_data_contract(df, target_col)
+            data_contract_md = format_contract_markdown(data_contract_json)
+            
+            compliance_report = scan_dataset_privacy(df)
+            compliance_md = format_compliance_dossier_markdown(compliance_report)
+            
+            ropa_record = generate_ropa_record(df, target_col, final_task_type, source_label)
+            ropa_md = format_gdpr_audit_markdown(ropa_record)
+            
+            # MLOps Latency Benchmarking, MLflow Manifest & Model Card
+            latency_stats = benchmark_model_latency(
+                train_result["best_model"],
+                train_result["X_test_processed"]
+            )
+            best_metrics = train_result["results"][best_idx]["metrics"]
+            mlflow_manifest = generate_mlflow_run_manifest(
+                model_name=train_result["best_model_label"],
+                target_col=target_col,
+                task_type=final_task_type,
+                metrics=best_metrics,
+                params=train_result.get("best_params", {}),
+                feature_names=train_result["feature_names"],
+                df=df,
+                latency_stats=latency_stats,
+            )
+            model_card_md = generate_model_card_markdown(
+                model_name=train_result["best_model_label"],
+                target_col=target_col,
+                task_type=final_task_type,
+                metrics=best_metrics,
+                feature_names=train_result["feature_names"],
+                df=df,
+                latency_stats=latency_stats,
+            )
 
-        # ── Phase 5: Insights & Code Exports (80 - 100%) ─────────────────────
-        st.write("💡 **Phase 5:** Generating insights, data contracts, and microservice exports...")
-        
-        best_idx = next(
-            (i for i, r in enumerate(train_result["results"])
-             if r["model_key"] == train_result["best_model_key"]),
-            0,
-        )
-        explanation = generate_explanation(
-            model=train_result["best_model"],
-            X_test=train_result["X_test_processed"],
-            feature_names=train_result["feature_names"],
-            importance_series=train_result["results"][best_idx]["importance"],
-        )
-        
-        insights = generate_smart_insights(df, target_col, final_task_type)
-        
-        # Enterprise Data Contracts, Compliance & Production Code Generation
-        data_contract_json = generate_data_contract(df, target_col)
-        data_contract_md = format_contract_markdown(data_contract_json)
-        
-        compliance_report = scan_dataset_privacy(df)
-        compliance_md = format_compliance_dossier_markdown(compliance_report)
-        
-        ropa_record = generate_ropa_record(df, target_col, final_task_type, ingestion_result.source_label)
-        ropa_md = format_gdpr_audit_markdown(ropa_record)
-        
-        # MLOps Latency Benchmarking, MLflow Manifest & Model Card
-        latency_stats = benchmark_model_latency(
-            train_result["best_model"],
-            train_result["X_test_processed"]
-        )
-        best_metrics = train_result["results"][best_idx]["metrics"]
-        mlflow_manifest = generate_mlflow_run_manifest(
-            model_name=train_result["best_model_label"],
-            target_col=target_col,
-            task_type=final_task_type,
-            metrics=best_metrics,
-            params=train_result.get("best_params", {}),
-            feature_names=train_result["feature_names"],
-            df=df,
-            latency_stats=latency_stats,
-        )
-        model_card_md = generate_model_card_markdown(
-            model_name=train_result["best_model_label"],
-            target_col=target_col,
-            task_type=final_task_type,
-            metrics=best_metrics,
-            feature_names=train_result["feature_names"],
-            df=df,
-            latency_stats=latency_stats,
-        )
+            # Executive Report & Active Learning Queue
+            executive_html = generate_executive_html_report(
+                goal=goal,
+                target_col=target_col,
+                task_type=final_task_type,
+                train_result=train_result,
+                readiness=readiness,
+                compliance_report=compliance_report,
+                latency_stats=latency_stats,
+            )
+            uncertain_samples = sample_uncertain_predictions(
+                train_result["best_model"],
+                df,
+                train_result["X_test_processed"]
+            )
+            ts_date_col = detect_time_series_column(df)
+            text_cols = detect_text_columns(df)
 
-        # Executive Report & Active Learning Queue
-        executive_html = generate_executive_html_report(
-            goal=goal,
-            target_col=target_col,
-            task_type=final_task_type,
-            train_result=train_result,
-            readiness=readiness,
-            compliance_report=compliance_report,
-            latency_stats=latency_stats,
-        )
-        uncertain_samples = sample_uncertain_predictions(
-            train_result["best_model"],
-            df,
-            train_result["X_test_processed"]
-        )
-        ts_date_col = detect_time_series_column(df)
-        text_cols = detect_text_columns(df)
+            code_script = generate_pipeline_code(
+                source_label=source_label,
+                target_col=target_col,
+                task_type=final_task_type,
+                best_model_key=train_result["best_model_key"],
+                model_label=train_result["best_model_label"],
+                best_params=train_result.get("best_params", {}),
+            )
+            
+            airflow_dag = generate_airflow_dag(
+                source_label=source_label,
+                target_col=target_col,
+                task_type=final_task_type,
+                best_model_key=train_result["best_model_key"],
+                model_label=train_result["best_model_label"]
+            )
 
-        code_script = generate_pipeline_code(
-            source_label=ingestion_result.source_label,
-            target_col=target_col,
-            task_type=final_task_type,
-            best_model_key=train_result["best_model_key"],
-            model_label=train_result["best_model_label"],
-            best_params=train_result.get("best_params", {}),
-        )
-        
-        airflow_dag = generate_airflow_dag(
-            source_label=ingestion_result.source_label,
-            target_col=target_col,
-            task_type=final_task_type,
-            best_model_key=train_result["best_model_key"],
-            model_label=train_result["best_model_label"]
-        )
+            fastapi_code = generate_fastapi_app(
+                target_col=target_col,
+                task_type=final_task_type,
+                model_label=train_result["best_model_label"],
+                raw_feature_cols=train_result.get("raw_feature_cols"),
+            )
+            dockerfile_code = generate_dockerfile()
+            docker_compose_code = generate_docker_compose()
+            ci_cd_workflow = generate_github_actions_pipeline(train_result["best_model_label"], target_col)
+            k8s_manifests = generate_k8s_manifests(train_result["best_model_label"])
+            
+            progress_bar.progress(100)
 
-        fastapi_code = generate_fastapi_app(
-            target_col=target_col,
-            task_type=final_task_type,
-            model_label=train_result["best_model_label"],
-            raw_feature_cols=train_result.get("raw_feature_cols"),
-        )
-        dockerfile_code = generate_dockerfile()
-        docker_compose_code = generate_docker_compose()
-        ci_cd_workflow = generate_github_actions_pipeline(train_result["best_model_label"], target_col)
-        k8s_manifests = generate_k8s_manifests(train_result["best_model_label"])
-        
-        progress_bar.progress(100)
+            # ── Store results in session state ────────────────────────────────────
+            st.session_state.update({
+                "analysis_done": True,
+                "df": df,
+                "meta": meta,
+                "goal_info": goal_info,
+                "goal": goal,
+                "annotated_profile": annotated_profile,
+                "target_col": target_col,
+                "final_task_type": final_task_type,
+                "readiness": readiness,
+                "train_result": train_result,
+                "explanation": explanation,
+                "insights": insights,
+                "code_script": code_script,
+                "airflow_dag": airflow_dag,
+                "fastapi_code": fastapi_code,
+                "dockerfile_code": dockerfile_code,
+                "docker_compose_code": docker_compose_code,
+                "ci_cd_workflow": ci_cd_workflow,
+                "k8s_manifests": k8s_manifests,
+                "data_contract_json": data_contract_json,
+                "data_contract_md": data_contract_md,
+                "compliance_report": compliance_report,
+                "compliance_md": compliance_md,
+                "ropa_record": ropa_record,
+                "ropa_md": ropa_md,
+                "latency_stats": latency_stats,
+                "mlflow_manifest": mlflow_manifest,
+                "model_card_md": model_card_md,
+                "executive_html": executive_html,
+                "uncertain_samples": uncertain_samples,
+                "ts_date_col": ts_date_col,
+                "text_cols": text_cols,
+                "source_label": source_label,
+                "chat_history": [],
+                "rag_index": rag_index,
+            })
 
-        # ── Store results in session state ────────────────────────────────────
-        st.session_state.update({
-            "analysis_done": True,
-            "df": df,
-            "meta": meta,
-            "goal_info": goal_info,
-            "goal": goal,
-            "annotated_profile": annotated_profile,
-            "target_col": target_col,
-            "final_task_type": final_task_type,
-            "readiness": readiness,
-            "train_result": train_result,
-            "explanation": explanation,
-            "insights": insights,
-            "code_script": code_script,
-            "airflow_dag": airflow_dag,
-            "fastapi_code": fastapi_code,
-            "dockerfile_code": dockerfile_code,
-            "docker_compose_code": docker_compose_code,
-            "ci_cd_workflow": ci_cd_workflow,
-            "k8s_manifests": k8s_manifests,
-            "data_contract_json": data_contract_json,
-            "data_contract_md": data_contract_md,
-            "compliance_report": compliance_report,
-            "compliance_md": compliance_md,
-            "ropa_record": ropa_record,
-            "ropa_md": ropa_md,
-            "latency_stats": latency_stats,
-            "mlflow_manifest": mlflow_manifest,
-            "model_card_md": model_card_md,
-            "executive_html": executive_html,
-            "uncertain_samples": uncertain_samples,
-            "ts_date_col": ts_date_col,
-            "text_cols": text_cols,
-            "source_label": ingestion_result.source_label,
-            "chat_history": [],
-        })
+        except ValidationError as exc:
+            _safe_status_update("❌ Validation Error", "error")
+            st.error(f"**Validation Error:** {html.escape(str(exc))}")
+            log.warning("Validation error: %s", exc)
+            st.stop()
+        except (IngestionError, ConfigurationError) as exc:
+            _safe_status_update("❌ Data Source Error", "error")
+            st.error(f"**Data Source Error:** {html.escape(str(exc))}")
+            log.error("Ingestion/config error: %s", exc)
+            st.stop()
+        except ModelTrainingError as exc:
+            _safe_status_update("❌ Training Error", "error")
+            st.error(f"**Training Error:** {html.escape(str(exc))}")
+            log.error("Training error: %s", exc)
+            st.stop()
+        except DIAError as exc:
+            _safe_status_update("❌ Error", "error")
+            st.error(f"**Error:** {html.escape(str(exc))}")
+            log.error("DIA error: %s", exc)
+            st.stop()
+        except Exception as exc:  # noqa: BLE001
+            _safe_status_update("❌ Unexpected Error", "error")
+            # Show generic message to user; log full traceback server-side
+            st.error(
+                "An unexpected error occurred. "
+                "Please check your data source configuration and try again."
+            )
+            log.exception("Unexpected error: %s", exc)
+            with st.expander("🐛 Technical details (for debugging)"):
+                st.code(traceback.format_exc())
+            st.stop()
 
-    except ValidationError as exc:
-        _safe_status_update("❌ Validation Error", "error")
-        st.error(f"**Validation Error:** {html.escape(str(exc))}")
-        log.warning("Validation error: %s", exc)
-        st.stop()
-    except (IngestionError, ConfigurationError) as exc:
-        _safe_status_update("❌ Data Source Error", "error")
-        st.error(f"**Data Source Error:** {html.escape(str(exc))}")
-        log.error("Ingestion/config error: %s", exc)
-        st.stop()
-    except ModelTrainingError as exc:
-        _safe_status_update("❌ Training Error", "error")
-        st.error(f"**Training Error:** {html.escape(str(exc))}")
-        log.error("Training error: %s", exc)
-        st.stop()
-    except DIAError as exc:
-        _safe_status_update("❌ Error", "error")
-        st.error(f"**Error:** {html.escape(str(exc))}")
-        log.error("DIA error: %s", exc)
-        st.stop()
-    except Exception as exc:  # noqa: BLE001
-        _safe_status_update("❌ Unexpected Error", "error")
-        # Show generic message to user; log full traceback server-side
-        st.error(
-            "An unexpected error occurred. "
-            "Please check your data source configuration and try again."
-        )
-        log.exception("Unexpected error: %s", exc)
-        with st.expander("🐛 Technical details (for debugging)"):
-            st.code(traceback.format_exc())
-        st.stop()
-
-if hasattr(status, "update"):
-    try:
-        status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
-    except Exception:
-        pass
+    if hasattr(status, "update"):
+        try:
+            status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1418,6 +1491,12 @@ elif workspace == "🛡️ Governance, MLOps & Production":
                 s["chat_history"] = []
                 st.rerun()
 
+        active_providers = [k for k, v in PROVIDER_REGISTRY.items() if v["cls"].is_available()]
+        if active_providers:
+            st.caption(f"🧠 LLM reasoning active via **{PROVIDER_REGISTRY[active_providers[0]]['label']}**.")
+        else:
+            st.caption("🔌 No LLM provider available — answering in retrieval-grounded offline mode.")
+
         for msg in s.get("chat_history", []):
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
@@ -1425,6 +1504,10 @@ elif workspace == "🛡️ Governance, MLOps & Production":
                     st.dataframe(msg["table"], use_container_width=True)
                 if msg.get("figure") is not None:
                     st.plotly_chart(msg["figure"], use_container_width=True)
+                if msg.get("sources"):
+                    with st.expander(f"📎 Sources ({msg.get('engine', 'retrieval_only')})"):
+                        for src in msg["sources"]:
+                            st.caption(f"`{src['source_type']}` — {src['snippet']}")
 
         user_prompt = st.chat_input("Ask a question about your data...")
         if quick_query:
@@ -1436,16 +1519,22 @@ elif workspace == "🛡️ Governance, MLOps & Production":
                 st.markdown(user_prompt)
 
             with st.chat_message("assistant"):
-                res = execute_natural_language_query(s["df"], user_prompt, s["target_col"])
+                res = answer_with_rag(s["df"], user_prompt, s["target_col"], s.get("rag_index"))
                 st.markdown(res["text"])
                 if res["table"] is not None:
                     st.dataframe(res["table"], use_container_width=True)
                 if res["figure"] is not None:
                     st.plotly_chart(res["figure"], use_container_width=True)
+                if res.get("sources"):
+                    with st.expander(f"📎 Sources ({res.get('engine', 'retrieval_only')})"):
+                        for src in res["sources"]:
+                            st.caption(f"`{src['source_type']}` — {src['snippet']}")
 
                 s["chat_history"].append({
                     "role": "assistant",
                     "content": res["text"],
                     "table": res["table"],
-                    "figure": res["figure"]
+                    "figure": res["figure"],
+                    "sources": res.get("sources"),
+                    "engine": res.get("engine"),
                 })

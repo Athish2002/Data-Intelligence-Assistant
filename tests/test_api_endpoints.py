@@ -6,11 +6,13 @@ Verifies all 4 workspaces: Core, AutoML, Adaptive AI Engines, and Governance.
 """
 
 from api.server import (
+    chat_with_data,
     get_health,
     list_demo_datasets,
     ingest_demo_dataset,
     get_data_profile,
     get_readiness_audit,
+    list_llm_providers,
     run_automl_pipeline,
     simulate_whatif,
     get_counterfactual,
@@ -27,6 +29,7 @@ from api.server import (
     export_artifact,
 )
 from api.schemas import (
+    ChatRequest,
     DemoIngestRequest,
     TrainPipelineRequest,
     SimulateRequest,
@@ -152,3 +155,22 @@ def test_automl_training_and_inference_flow():
     exp_res = export_artifact(session_id=session_id, format_type="python")
     assert exp_res.status_code == 200
     assert len(exp_res.body) > 0
+
+
+def test_chat_endpoint_includes_sources():
+    ingest_res = ingest_demo_dataset(DemoIngestRequest(demo_name="Telecom Customer Churn"))
+    session_id = ingest_res.session_id
+
+    # Phrased to lexically overlap with the always-present dataset-overview
+    # chunk, so retrieval finds a hit even without sentence-transformers
+    # installed (this environment runs the zero-dependency lexical fallback).
+    chat_res = chat_with_data(ChatRequest(session_id=session_id, query="How many rows and columns are in this dataset?"))
+    assert chat_res.status == "success"
+    assert chat_res.content
+    assert chat_res.sources
+
+
+def test_llm_providers_endpoint_lists_all_backends():
+    res = list_llm_providers()
+    keys = {p.key for p in res.providers}
+    assert keys == {"ollama", "groq", "gemini"}

@@ -86,7 +86,9 @@ Organised roughly the way the app presents them.
 | **SQL Transpiler** | Compiles trained decision trees into in-database `CASE` statements |
 | **Production Code Export** | Generates a runnable training script matching your chosen configuration |
 | **Executive Briefing** | Plain-English summary of what was inferred, which model won, and whether the data is trustworthy — downloadable as Markdown |
-| **AI Chat Copilot** | Natural-language queries over the dataset; deterministic offline mode by default, optional LLM reasoning |
+| **AI Chat Copilot (RAG)** | Natural-language queries grounded by retrieval over the dataset's schema/profiling stats and your data dictionary; deterministic keyword mode always works offline, upgrading to cited, LLM-composed answers when a provider is available |
+| **Data Dictionary** | Upload a business glossary (term → definition) once — PII-scanned, then cached locally and reused by the chat copilot across every future session |
+| **Pluggable LLM Providers** | Local (Ollama, free/offline) or hosted free-tier (Groq, Gemini) — tried in that order, degrading to fully offline if none are configured |
 
 > ⚠️ Not every feature above is equally mature — see [Project Status](#-project-status).
 
@@ -268,13 +270,35 @@ Final Plain-English Summary (downloadable)
 | Test split ratio | 20% | `dia/model_trainer.py → test_size` |
 | SHAP sample size | 200 rows | `dia/explainability.py → _try_shap()` |
 | Top features shown | 20 | `app.py → generate_explanation(top_n=20)` |
+| RAG chunks retrieved per query | 5 | `DIA_RAG_TOP_K` env var |
+| Ollama host / model | `http://localhost:11434` / `qwen3:8b` | `DIA_OLLAMA_HOST` / `DIA_OLLAMA_MODEL` |
+| Groq API key / model | *(unset)* / `openai/gpt-oss-120b` | `DIA_GROQ_API_KEY` / `DIA_GROQ_MODEL` |
+| Gemini API key / model | *(unset)* / `gemini-2.5-flash-lite` | `DIA_GEMINI_API_KEY` / `DIA_GEMINI_MODEL` |
+| Data dictionary storage path | `~/.dia/dictionary.sqlite3` | `DIA_DICTIONARY_DB_PATH` env var |
 
 ---
 
 ## 🔒 Privacy
 
-- **No data is stored**. Uploaded CSV files are read into memory and discarded when the session ends.
-- No network calls are made with your data.
+- **Your dataset is never stored.** Uploaded files, all derived rows, and any chat-retrieval
+  embeddings built from them live in memory only and are discarded when the session ends or
+  the app restarts.
+- **The one exception: the optional Data Dictionary.** If you upload a business glossary
+  (term → definition pairs) to ground the AI Chat Copilot, only those entries are saved
+  locally on this machine (`~/.dia/dictionary.sqlite3`) so you don't have to re-upload them
+  every session. Every upload is scanned for likely PII with the same engine used in the
+  Privacy & Compliance tab before anything is written; uploads that trip the scanner are
+  rejected and never touch disk. That scanner reliably catches values that are *entirely*
+  PII (e.g. a bare email address) but can miss PII embedded inside longer free-text
+  definitions — review your glossary text before uploading.
+- **No accounts, no server-side storage, no multi-user isolation.** This is a local,
+  single-user tool with no authentication layer; the dictionary store is not
+  access-controlled and should not be treated as shared infrastructure.
+- **LLM network calls depend on the engine you choose.** The default local engine (Ollama)
+  runs entirely on your machine — nothing is sent anywhere. If you opt into a hosted
+  free-tier provider (Groq or Gemini) with an API key, your question plus the relevant
+  retrieved schema statistics and glossary text (never raw dataset rows) are sent to that
+  provider's API.
 
 ---
 

@@ -21,6 +21,7 @@ don't crash the application — they only show an installation hint.
 from __future__ import annotations
 
 from .base import IngestionResult, IngestionSource
+from .data_dictionary import DataDictionarySource
 from .local_csv import LocalCSVSource
 from .url_ingestion import URLSource
 from .sql_ingestion import SQLSource
@@ -31,6 +32,7 @@ __all__ = [
     "LocalCSVSource",
     "URLSource",
     "SQLSource",
+    "DataDictionarySource",
 ]
 
 # Cloud sources are available at runtime if optional deps are installed
@@ -130,5 +132,23 @@ SOURCE_REGISTRY: dict[str, dict] = {
         "cls": SnowflakeSource,
         "available": SnowflakeSource is not None,
         "requires": "snowflake-connector-python",
+    },
+}
+
+# ─── Data dictionary registry (separate from SOURCE_REGISTRY) ────────────────
+# SOURCE_REGISTRY drives a mutually-exclusive "pick your one dataset" selector.
+# A data dictionary is an additive, optional second upload alongside the
+# dataset, not an alternative to it — mixing it into SOURCE_REGISTRY would
+# make it look like choosing "Data Dictionary" replaces your CSV. This sibling
+# dict leaves room for future alternative dictionary inputs (e.g. paste JSON)
+# without touching the dataset selector.
+
+DICTIONARY_SOURCE_REGISTRY: dict[str, dict] = {
+    "csv_upload": {
+        "label": "📖 Upload Glossary CSV",
+        "description": "Two columns: term, definition. Scanned for PII before saving.",
+        "cls": DataDictionarySource,
+        "available": True,
+        "requires": None,
     },
 }

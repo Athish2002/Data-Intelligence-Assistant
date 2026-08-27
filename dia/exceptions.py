@@ -34,5 +34,9 @@ class IngestionError(DIAError):
     """Raised when a cloud / SQL data source fails to connect or fetch."""
 
 
+class LLMProviderError(DIAError):
+    """Raised when an LLM provider call fails at runtime (timeout, rate limit, bad response)."""
+
+
 class PIIWarning(UserWarning):
     """Issued when potential PII columns are detected in the dataset."""

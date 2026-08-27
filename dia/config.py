@@ -46,3 +46,29 @@ CLOUD_TIMEOUT_S: int = int(os.getenv("DIA_CLOUD_TIMEOUT", "60"))
 
 HIGH_CARD_RATIO: float = float(os.getenv("DIA_HIGH_CARD_RATIO", "0.50"))
 BINARY_MAX_UNIQUE: int = 2
+
+# ─── Retrieval / RAG ──────────────────────────────────────────────────────────
+
+EMBEDDING_MODEL_NAME: str = os.getenv("DIA_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+RAG_TOP_K: int = int(os.getenv("DIA_RAG_TOP_K", "5"))
+
+# ─── LLM providers (optional — chat/RAG generation) ──────────────────────────
+
+OLLAMA_HOST: str = os.getenv("DIA_OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL: str = os.getenv("DIA_OLLAMA_MODEL", "qwen3:8b")
+OLLAMA_TIMEOUT_S: int = int(os.getenv("DIA_OLLAMA_TIMEOUT", "30"))
+
+GROQ_API_KEY: str = os.getenv("DIA_GROQ_API_KEY", "")
+GROQ_MODEL: str = os.getenv("DIA_GROQ_MODEL", "openai/gpt-oss-120b")
+
+GEMINI_API_KEY: str = os.getenv("DIA_GEMINI_API_KEY", "")
+GEMINI_MODEL: str = os.getenv("DIA_GEMINI_MODEL", "gemini-2.5-flash-lite")
+
+LLM_MAX_TOOL_ITERATIONS: int = int(os.getenv("DIA_LLM_MAX_TOOL_ITERATIONS", "3"))
+
+# ─── Local persistence (data dictionary only — datasets are never persisted) ──
+
+DICTIONARY_DB_PATH: str = os.getenv(
+    "DIA_DICTIONARY_DB_PATH",
+    os.path.join(os.path.expanduser("~"), ".dia", "dictionary.sqlite3"),
+)
