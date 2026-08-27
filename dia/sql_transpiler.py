@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+
 from sklearn.tree import _tree
 
 log = logging.getLogger("dia.sql_transpiler")

@@ -51,7 +51,7 @@ def simulate_streaming_incremental_fit(
             break
 
         X_b, y_b = X[start:end], y[start:end]
-        
+
         # Online test-then-train (Prequential evaluation)
         t0 = time.perf_counter()
         preds = model.predict(X_b)

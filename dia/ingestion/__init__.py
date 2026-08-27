@@ -23,8 +23,8 @@ from __future__ import annotations
 from .base import IngestionResult, IngestionSource
 from .data_dictionary import DataDictionarySource
 from .local_csv import LocalCSVSource
-from .url_ingestion import URLSource
 from .sql_ingestion import SQLSource
+from .url_ingestion import URLSource
 
 __all__ = [
     "IngestionResult",

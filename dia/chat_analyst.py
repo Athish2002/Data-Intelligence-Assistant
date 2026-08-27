@@ -82,7 +82,7 @@ def execute_natural_language_query(
                 fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=350, margin=dict(t=40, b=10, l=10, r=10))
                 result["figure"] = fig
             except Exception:
-                pass
+                log.debug("Could not render the correlation heatmap chart.", exc_info=True)
             return result
 
     # ── 2. Distribution / Histogram ───────────────────────────────────────────
@@ -107,7 +107,7 @@ def execute_natural_language_query(
                     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=350)
                     result["figure"] = fig
                 except Exception:
-                    pass
+                    log.debug("Could not render the distribution histogram chart.", exc_info=True)
                 return result
             else:
                 counts = s.value_counts().reset_index()
@@ -120,7 +120,7 @@ def execute_natural_language_query(
                     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=350)
                     result["figure"] = fig
                 except Exception:
-                    pass
+                    log.debug("Could not render the top-categories bar chart.", exc_info=True)
                 return result
 
     # ── 3. Groupby & Segment Analysis ─────────────────────────────────────────
@@ -133,7 +133,7 @@ def execute_natural_language_query(
             grouped = df.groupby(matched_group)[matched_metric].agg(["mean", "median", "count"]).round(2).reset_index()
             grouped.columns = [matched_group, f"Average {matched_metric}", f"Median {matched_metric}", "Count"]
             grouped = grouped.sort_values(by=f"Average {matched_metric}", ascending=False)
-            
+
             top_group = grouped.iloc[0][matched_group]
             top_val = grouped.iloc[0][f"Average {matched_metric}"]
             result["text"] = (
@@ -153,7 +153,7 @@ def execute_natural_language_query(
                 fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=350)
                 result["figure"] = fig
             except Exception:
-                pass
+                log.debug("Could not render the groupby bar chart.", exc_info=True)
             return result
 
     # ── 4. Average / Mean / Median / Max / Min ─────────────────────────────────
@@ -193,7 +193,7 @@ def execute_natural_language_query(
                 fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", height=350)
                 result["figure"] = fig
             except Exception:
-                pass
+                log.debug("Could not render the scatter plot chart.", exc_info=True)
             return result
 
     # ── 6. Fallback General Summary ───────────────────────────────────────────

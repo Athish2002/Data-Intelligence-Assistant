@@ -10,11 +10,11 @@ Run with:
 from __future__ import annotations
 
 import html
-import traceback
 import json
+import traceback
+
 import numpy as np
 import pandas as pd
-
 import streamlit as st
 
 # ─── Page config (must be first Streamlit call) ───────────────────────────────
@@ -42,6 +42,21 @@ inject_custom_theme()
 render_hero_banner()
 
 # ─── Remaining imports ────────────────────────────────────────────────────────
+from dia.active_learning import sample_uncertain_predictions
+from dia.bandit_optimizer import run_contextual_bandit_simulation
+from dia.canary_router import simulate_canary_routing
+from dia.causal_engine import estimate_uplift_t_learner, generate_counterfactual
+from dia.chat_analyst import answer_with_rag
+from dia.code_generator import (
+    generate_airflow_dag,
+    generate_docker_compose,
+    generate_dockerfile,
+    generate_fastapi_app,
+    generate_github_actions_pipeline,
+    generate_k8s_manifests,
+    generate_pipeline_code,
+)
+from dia.compliance import format_compliance_dossier_markdown, scan_dataset_privacy
 from dia.config import MAX_MODELS
 from dia.data_profiler import (
     detect_target_type,
@@ -49,6 +64,11 @@ from dia.data_profiler import (
     infer_column_roles,
     profile_dataframe,
 )
+from dia.data_quality import format_contract_markdown, generate_data_contract
+from dia.dictionary_store import delete_entry as dictionary_delete_entry
+from dia.dictionary_store import load_entries as dictionary_load_entries
+from dia.dictionary_store import save_entries as dictionary_save_entries
+from dia.drift_monitor import calculate_drift_report
 from dia.exceptions import (
     ConfigurationError,
     DIAError,
@@ -56,59 +76,45 @@ from dia.exceptions import (
     ModelTrainingError,
     ValidationError,
 )
-from dia.explainability import generate_explanation
-from dia.goal_parser import parse_goal
-from dia.hardware import get_cpu_cores, is_gpu_available, estimate_training_time
-from dia.ingestion import SOURCE_REGISTRY
-from dia.model_trainer import CLASSIFICATION_MODELS, REGRESSION_MODELS, train_and_evaluate
-from dia.validators import detect_pii_columns, validate_goal_text, validate_target_column
-from dia.insights import generate_smart_insights
-from dia.code_generator import (
-    generate_pipeline_code,
-    generate_airflow_dag,
-    generate_fastapi_app,
-    generate_dockerfile,
-    generate_docker_compose,
-    generate_github_actions_pipeline,
-    generate_k8s_manifests,
-)
-from dia.data_quality import generate_data_contract, format_contract_markdown
+from dia.expectations import generate_and_evaluate_expectations
 from dia.experimentation import calculate_ab_test_sample_size
-from dia.chat_analyst import answer_with_rag
-from dia.dictionary_store import delete_entry as dictionary_delete_entry
-from dia.dictionary_store import load_entries as dictionary_load_entries
-from dia.dictionary_store import save_entries as dictionary_save_entries
-from dia.ingestion.data_dictionary import DataDictionarySource
-from dia.llm import PROVIDER_REGISTRY
-from dia.retrieval import build_session_index
-from dia.drift_monitor import calculate_drift_report
-from dia.compliance import scan_dataset_privacy, format_compliance_dossier_markdown
+from dia.explainability import generate_explanation
+from dia.feature_store import generate_feature_store_definitions
 from dia.gdpr import (
-    generate_ropa_record,
     format_gdpr_audit_markdown,
+    generate_ropa_record,
     process_dsar_access_export,
     process_dsar_erasure_anonymization,
 )
+from dia.goal_parser import parse_goal
+from dia.graph_engine import construct_and_analyze_entity_graph
+from dia.hardware import estimate_training_time, get_cpu_cores, is_gpu_available
+from dia.ingestion import SOURCE_REGISTRY
+from dia.ingestion.data_dictionary import DataDictionarySource
+from dia.insights import generate_smart_insights
+from dia.llm import PROVIDER_REGISTRY
 from dia.mlops_registry import (
     benchmark_model_latency,
     generate_mlflow_run_manifest,
     generate_model_card_markdown,
 )
-from dia.causal_engine import generate_counterfactual, estimate_uplift_t_learner
-from dia.time_series import detect_time_series_column, train_time_series_forecaster
-from dia.nlp_processor import detect_text_columns, extract_lexical_features, extract_tfidf_dense_features
-from dia.synthetic_data import generate_synthetic_dataset
-from dia.streaming_learner import simulate_streaming_incremental_fit
-from dia.report_generator import generate_executive_html_report
-from dia.active_learning import sample_uncertain_predictions
-from dia.bandit_optimizer import run_contextual_bandit_simulation
-from dia.sql_transpiler import transpile_model_to_sql
-from dia.feature_store import generate_feature_store_definitions
-from dia.graph_engine import construct_and_analyze_entity_graph
-from dia.canary_router import simulate_canary_routing
-from dia.expectations import generate_and_evaluate_expectations
+from dia.model_trainer import CLASSIFICATION_MODELS, REGRESSION_MODELS, train_and_evaluate
+from dia.nlp_processor import (
+    detect_text_columns,
+    extract_lexical_features,
+    extract_tfidf_dense_features,
+)
 from dia.rbac import ROLE_PERMISSIONS
+from dia.report_generator import generate_executive_html_report
+from dia.retrieval import build_session_index
+from dia.sql_transpiler import transpile_model_to_sql
+from dia.streaming_learner import simulate_streaming_incremental_fit
+from dia.synthetic_data import generate_synthetic_dataset
+from dia.time_series import detect_time_series_column, train_time_series_forecaster
+from dia.ui_theme import render_mission_ribbon
+from dia.validators import detect_pii_columns, validate_goal_text, validate_target_column
 from ui.dashboard import (
+    render_business_impact,
     render_column_roles,
     render_explainability,
     render_final_summary,
@@ -116,11 +122,8 @@ from ui.dashboard import (
     render_overview,
     render_readiness_report,
     render_smart_insights,
-    render_business_impact,
 )
 from ui.simulator import render_simulator
-from dia.ui_theme import render_mission_ribbon
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #   SIDEBAR
@@ -324,7 +327,7 @@ with st.sidebar:
 
     # ── Step 2: Goal ──────────────────────────────────────────────────────────
     st.markdown('<span class="step-badge">2</span> **Prediction Goal**', unsafe_allow_html=True)
-    
+
     # Auto-detect objectives feature (Local & Offline by default)
     with st.expander("🎯 Auto-Detect Domain & Goals (Instant Local AI)", expanded=True):
         st.markdown("Instantly analyzes your schema, types, and value distributions **locally (0ms latency, zero API limits)** to detect domain and recommend ML goals.")
@@ -352,14 +355,14 @@ with st.sidebar:
                         else:
                             ingest_res = ingestion_cls().load(**source_params)
                             df_peek = ingest_res.df
-                            
+
                     if df_peek is not None:
                         from dia.llm_context import get_dataset_context_and_objectives
                         ai_res = get_dataset_context_and_objectives(df_peek, api_key=gemini_key)
                         st.session_state["ai_suggestions"] = ai_res
             except Exception as e:
                 st.error(f"Could not load data for preview: {e}")
-                
+
         if "ai_suggestions" in st.session_state:
             res = st.session_state["ai_suggestions"]
             st.success(f"🏢 **Domain:** `{res.get('domain', 'General Analytics')}`")
@@ -368,7 +371,7 @@ with st.sidebar:
                 if st.button(f"👉 {obj}", key=f"btn_obj_{i}"):
                     st.session_state["goal_input"] = obj
                     st.rerun()
-                    
+
     goal_raw = st.text_area(
         "Describe your ML goal in plain English",
         placeholder="e.g. predict customer churn\nforecast next month's sales\nclassify loan default",
@@ -418,19 +421,19 @@ with st.sidebar:
         has_gpu = is_gpu_available()
         total_cores = get_cpu_cores()
         default_cores = max(1, total_cores - 2) if total_cores > 2 else total_cores
-        
-        use_gpu = st.toggle("Use GPU Acceleration", value=has_gpu, disabled=not has_gpu, 
+
+        use_gpu = st.toggle("Use GPU Acceleration", value=has_gpu, disabled=not has_gpu,
                             help="Train models (XGBoost/LightGBM) on the GPU if detected.")
         if not has_gpu:
             st.caption("No NVIDIA GPU detected. Ensure `nvidia-smi` is available.")
-            
-        n_jobs = st.slider("CPU Cores (Threads)", min_value=1, max_value=total_cores, value=default_cores, 
+
+        n_jobs = st.slider("CPU Cores (Threads)", min_value=1, max_value=total_cores, value=default_cores,
                            help="Maximum number of CPU cores to use for model training.")
 
     with st.expander("🔬 Advanced ML Settings"):
-        handle_imbalance = st.toggle("Handle Class Imbalance (SMOTE/Weighting)", value=True, 
+        handle_imbalance = st.toggle("Handle Class Imbalance (SMOTE/Weighting)", value=True,
                                      help="Automatically penalize the model for missing rare minority classes (Crucial for Fraud/Churn).")
-        apply_cv = st.toggle("Use 5-Fold Cross Validation", value=True, 
+        apply_cv = st.toggle("Use 5-Fold Cross Validation", value=True,
                              help="Evaluate models more rigorously by testing them across 5 different splits. Slower, but more reliable.")
         enable_hpo = st.toggle("Tune Hyperparameters (HPO)", value=False,
                                help="Automatically search and tune hyperparameters (learning rate, depth, regularization) using Randomized Search.")
@@ -444,7 +447,7 @@ with st.sidebar:
                                    help="Automatically construct a soft voting/weighted ensemble combining top-performing models.")
         calibrate_probs = st.toggle("Calibrate Probabilities (Platt/Sigmoid)", value=False,
                                     help="Calibrate classification probabilities for precise financial ROI and risk metrics.")
-                             
+
     st.divider()
 
     # ── Run button ────────────────────────────────────────────────────────────
@@ -502,18 +505,18 @@ if run_analysis:
                 else:
                     status.update(label=lbl, state=st_val)
         except Exception:
-            pass
+            log.debug("Could not update the status widget (likely a stale/closed container).", exc_info=True)
 
     with status:
         progress_bar = st.progress(0)
-        
+
         try:
             # ── Phase 1: Ingestion (0 - 20%) ──────────────────────────────────────
             st.write("📡 **Phase 1:** Loading data...")
             progress_bar.progress(5)
-            
+
             goal = validate_goal_text(goal_raw)
-            
+
             if source_key == "demo_sample":
                 from dia.demo_datasets import get_demo_dataset
                 demo_name = source_params.get("demo_name", "Telecom Customer Churn")
@@ -542,7 +545,7 @@ if run_analysis:
                 meta.setdefault("n_cols", df.shape[1])
                 meta.setdefault("file_size_mb", "N/A")
                 meta.setdefault("encoding", "N/A")
-            
+
             pii_cols = detect_pii_columns(list(df.columns))
             if pii_cols:
                 st.warning(
@@ -550,21 +553,21 @@ if run_analysis:
                     f"{', '.join(f'`{html.escape(c)}`' for c in pii_cols[:5])}. "
                     "Ensure you have the right to use this data and that it is anonymised."
                 )
-                
+
             progress_bar.progress(20)
 
             # ── Phase 2: Profiling & Goal Parsing (20 - 40%) ──────────────────────
             st.write("🔍 **Phase 2:** Profiling dataset and parsing goal...")
-            
+
             goal_info = parse_goal(goal, columns=df.columns.tolist())
             profile = profile_dataframe(df)
             annotated_profile = infer_column_roles(df, profile)
-            
+
             progress_bar.progress(40)
 
             # ── Phase 3: Target Detection & Readiness (40 - 60%) ──────────────────
             st.write("🎯 **Phase 3:** Detecting target and checking data readiness...")
-            
+
             from dia.column_resolver import rank_target_candidates_advanced
             advanced_ranked = rank_target_candidates_advanced(goal, df)
             if advanced_ranked:
@@ -578,7 +581,7 @@ if run_analysis:
 
             target_type_info = detect_target_type(df, target_col)
             final_task_type = target_type_info["task_type"]
-            
+
             readiness = generate_readiness_report(
                 df, annotated_profile, goal_info, target_col, final_task_type
             )
@@ -604,18 +607,18 @@ if run_analysis:
 
             # ── Phase 4: Model Training (60 - 80%) ────────────────────────────────
             st.write(f"🤖 **Phase 4:** Training models for {final_task_type}...")
-            
+
             valid_registry = (
                 CLASSIFICATION_MODELS if final_task_type == "classification" else REGRESSION_MODELS
             )
             task_model_keys = [k for k in selected_model_keys if k in valid_registry]
             if not task_model_keys:
                 task_model_keys = list(valid_registry.keys())[:2]
-                
+
             n_rows, n_cols = df.shape
             est_time = estimate_training_time(n_rows, n_cols, len(task_model_keys), use_gpu)
             st.info(f"⏳ **Estimated training time:** {est_time}")
-                
+
             train_result = train_and_evaluate(
                 df=df,
                 target_col=target_col,
@@ -631,12 +634,12 @@ if run_analysis:
                 calibrate_probs=calibrate_probs,
                 build_ensemble=build_ensemble,
             )
-            
+
             progress_bar.progress(80)
 
             # ── Phase 5: Insights & Code Exports (80 - 100%) ─────────────────────
             st.write("💡 **Phase 5:** Generating insights, data contracts, and microservice exports...")
-            
+
             best_idx = next(
                 (i for i, r in enumerate(train_result["results"])
                  if r["model_key"] == train_result["best_model_key"]),
@@ -648,19 +651,19 @@ if run_analysis:
                 feature_names=train_result["feature_names"],
                 importance_series=train_result["results"][best_idx]["importance"],
             )
-            
+
             insights = generate_smart_insights(df, target_col, final_task_type)
-            
+
             # Enterprise Data Contracts, Compliance & Production Code Generation
             data_contract_json = generate_data_contract(df, target_col)
             data_contract_md = format_contract_markdown(data_contract_json)
-            
+
             compliance_report = scan_dataset_privacy(df)
             compliance_md = format_compliance_dossier_markdown(compliance_report)
-            
+
             ropa_record = generate_ropa_record(df, target_col, final_task_type, source_label)
             ropa_md = format_gdpr_audit_markdown(ropa_record)
-            
+
             # MLOps Latency Benchmarking, MLflow Manifest & Model Card
             latency_stats = benchmark_model_latency(
                 train_result["best_model"],
@@ -713,7 +716,7 @@ if run_analysis:
                 model_label=train_result["best_model_label"],
                 best_params=train_result.get("best_params", {}),
             )
-            
+
             airflow_dag = generate_airflow_dag(
                 source_label=source_label,
                 target_col=target_col,
@@ -732,7 +735,7 @@ if run_analysis:
             docker_compose_code = generate_docker_compose()
             ci_cd_workflow = generate_github_actions_pipeline(train_result["best_model_label"], target_col)
             k8s_manifests = generate_k8s_manifests(train_result["best_model_label"])
-            
+
             progress_bar.progress(100)
 
             # ── Store results in session state ────────────────────────────────────
@@ -810,7 +813,7 @@ if run_analysis:
         try:
             status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
         except Exception:
-            pass
+            log.debug("Could not mark the status widget complete (likely a stale/closed container).", exc_info=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -863,21 +866,21 @@ if workspace == "📊 Core Intelligence":
         "💡 Smart Insights & Drivers",
         "📝 Executive Summary",
     ])
-    
+
     with w_tabs[0]:
         render_overview(s["df"], s["meta"])
-        
+
     with w_tabs[1]:
         render_column_roles(s["annotated_profile"])
-        
+
     with w_tabs[2]:
         render_readiness_report(
             s["readiness"], s["goal_info"], s["target_col"], s["final_task_type"]
         )
-        
+
     with w_tabs[3]:
         render_smart_insights(s["insights"])
-        
+
     with w_tabs[4]:
         render_final_summary(
             df=s["df"],
@@ -902,32 +905,32 @@ elif workspace == "🤖 AutoML & Explainability":
         "👥 Active Learning Queue",
         "🧪 A/B Test Planner",
     ])
-    
+
     with w_tabs[0]:
         render_model_results(s["train_result"])
-        
+
     with w_tabs[1]:
         render_explainability(s["explanation"], s["train_result"]["best_model_label"])
-        
+
     with w_tabs[2]:
         render_business_impact(
             s["train_result"], s["df"], s["target_col"], s["final_task_type"], s["insights"]
         )
-        
+
     with w_tabs[3]:
         render_simulator(
-            df=s["df"], 
-            feature_names=s["train_result"].get("raw_feature_cols", s["train_result"]["feature_names"]), 
-            preprocessor=s["train_result"]["preprocessor"], 
-            model=s["train_result"]["best_model"], 
-            task_type=s["final_task_type"], 
+            df=s["df"],
+            feature_names=s["train_result"].get("raw_feature_cols", s["train_result"]["feature_names"]),
+            preprocessor=s["train_result"]["preprocessor"],
+            model=s["train_result"]["best_model"],
+            task_type=s["final_task_type"],
             label_encoder=s["train_result"]["label_encoder"]
         )
-        
+
     with w_tabs[4]:
         st.subheader("👥 Active Learning & Human-in-the-Loop (HITL) Queue")
         st.markdown(r"Intelligently surface borderline predictions ($0.45 \le p \le 0.55$) where model uncertainty is highest for human verification.")
-        
+
         unc_queue = s["uncertain_samples"].get("review_queue", [])
         if unc_queue:
             st.info(f"Identified {len(unc_queue)} high-uncertainty observations awaiting domain expert review.")
@@ -947,7 +950,7 @@ elif workspace == "🤖 AutoML & Explainability":
     with w_tabs[5]:
         st.subheader("🧪 A/B Test Planner (Experimentation Engine)")
         st.markdown("Before deploying the new model, calculate the required sample size and traffic to prove its effectiveness against the baseline rules-engine.")
-        
+
         col1, col2 = st.columns(2)
         with col1:
             base_conv = st.number_input("Current Baseline Conversion Rate (e.g. 0.10 for 10%)", value=0.10, min_value=0.01, max_value=0.99, step=0.01)
@@ -955,7 +958,7 @@ elif workspace == "🤖 AutoML & Explainability":
         with col2:
             stat_power = st.slider("Statistical Power", min_value=0.50, max_value=0.99, value=0.80, help="Probability of detecting an effect if there is one.")
             alpha = st.slider("Significance Level (Alpha)", min_value=0.01, max_value=0.10, value=0.05, help="Probability of a false positive.")
-            
+
         try:
             res = calculate_ab_test_sample_size(base_conv, expected_lift, stat_power, alpha)
             st.success(f"**Target Conversion Rate:** {res['target_rate']*100:.2f}% (Absolute MDE: {res['absolute_mde']*100:.2f}%)")
@@ -990,7 +993,7 @@ elif workspace == "🧬 Adaptive AI Engines":
     with w_tabs[tab_idx]:
         st.subheader("🎯 Causal Machine Learning & Counterfactual Interventions")
         st.markdown("Determine prescriptive minimal actionable interventions or estimate Uplift Treatment Effects.")
-        
+
         c_tab1, c_tab2 = st.tabs(["🔍 Counterfactual What-If", "👥 Causal Uplift (T-Learner)"])
         with c_tab1:
             row_sel = st.slider("Select Record Index to Analyze", 0, max(0, len(s["df"]) - 1), 0, key="cf_row_idx")
@@ -1262,7 +1265,7 @@ elif workspace == "🛡️ Governance, MLOps & Production":
             st.download_button("⬇️ Download `compliance_dossier.json`", data=json.dumps(s["compliance_report"], indent=2), file_name="compliance_dossier.json", mime="application/json")
         with c2:
             st.download_button("⬇️ Download `compliance_dossier.md`", data=s["compliance_md"], file_name="compliance_dossier.md", mime="text/markdown")
-            
+
         st.divider()
         st.subheader("🇪🇺 GDPR Article 30 - Record of Processing Activities (ROPA)")
         st.markdown(s["ropa_md"])
@@ -1419,11 +1422,11 @@ elif workspace == "🛡️ Governance, MLOps & Production":
     with w_tabs[5]:
         st.subheader("💻 Production Code & Deployment Export")
         export_type = st.radio(
-            "Select Export Target", 
+            "Select Export Target",
             [
-                "Standalone Python Script", 
-                "Apache Airflow DAG", 
-                "FastAPI REST API Microservice", 
+                "Standalone Python Script",
+                "Apache Airflow DAG",
+                "FastAPI REST API Microservice",
                 "Docker Deployment Bundle",
                 "GitHub Actions CI/CD Pipeline",
                 "Kubernetes GitOps Manifests",
@@ -1469,7 +1472,7 @@ elif workspace == "🛡️ Governance, MLOps & Production":
     with w_tabs[7]:
         st.subheader("💬 Autonomous Data Copilot")
         st.markdown("Ask any ad-hoc analytical or visualization questions about your dataset in plain natural language.")
-        
+
         quick_cols = st.columns(4)
         quick_query = None
         with quick_cols[0]:

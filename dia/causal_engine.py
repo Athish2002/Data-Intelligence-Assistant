@@ -62,7 +62,7 @@ def generate_counterfactual(
     found = False
 
     # Coordinate search
-    for iteration in range(max_iter):
+    for _iteration in range(max_iter):
         pred = model.predict(best_cf.reshape(1, -1))[0]
         if pred == desired_outcome:
             found = True
@@ -174,7 +174,7 @@ def estimate_uplift_t_learner(
     # Lost Cause: negative outcome regardless (p_treat < 0.5, p_ctrl < 0.5)
     # Sleeping Dog / Do-not-disturb: treatment causes negative outcome (p_treat < 0.5, p_ctrl >= 0.5)
     quadrants = []
-    for pt, pc in zip(p_treat, p_ctrl):
+    for pt, pc in zip(p_treat, p_ctrl, strict=True):
         if pt >= 0.5 and pc < 0.5:
             quadrants.append("Persuadables (High ROI Target)")
         elif pt >= 0.5 and pc >= 0.5:

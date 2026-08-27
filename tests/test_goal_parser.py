@@ -6,7 +6,6 @@ Unit tests for dia/goal_parser.py
 
 from __future__ import annotations
 
-
 from dia.goal_parser import parse_goal
 
 

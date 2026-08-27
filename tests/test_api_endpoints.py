@@ -8,38 +8,38 @@ Verifies all 4 workspaces: Core, AutoML, Adaptive AI Engines, and Governance.
 import pytest
 from fastapi import HTTPException
 
-from dia.utils import is_torch_available
+from api.schemas import (
+    BanditSimRequest,
+    ChatRequest,
+    CounterfactualRequest,
+    DemoIngestRequest,
+    RoiOptimizeRequest,
+    SimulateRequest,
+    SyntheticGenerateRequest,
+    TrainPipelineRequest,
+)
 from api.server import (
     chat_with_data,
-    get_health,
-    list_demo_datasets,
-    ingest_demo_dataset,
-    get_data_profile,
-    get_readiness_audit,
-    list_llm_providers,
-    run_automl_pipeline,
-    simulate_whatif,
-    get_counterfactual,
-    optimize_business_roi,
-    get_active_learning_queue,
-    get_autoencoder_analysis,
-    simulate_bandits,
-    generate_synthetic,
-    get_data_contract_suite,
-    get_gdpr_audit,
-    get_all_artifacts,
     export_artifact,
+    generate_synthetic,
+    get_active_learning_queue,
+    get_all_artifacts,
+    get_autoencoder_analysis,
+    get_counterfactual,
+    get_data_contract_suite,
+    get_data_profile,
+    get_gdpr_audit,
+    get_health,
+    get_readiness_audit,
+    ingest_demo_dataset,
+    list_demo_datasets,
+    list_llm_providers,
+    optimize_business_roi,
+    run_automl_pipeline,
+    simulate_bandits,
+    simulate_whatif,
 )
-from api.schemas import (
-    ChatRequest,
-    DemoIngestRequest,
-    TrainPipelineRequest,
-    SimulateRequest,
-    CounterfactualRequest,
-    RoiOptimizeRequest,
-    BanditSimRequest,
-    SyntheticGenerateRequest,
-)
+from dia.utils import is_torch_available
 
 
 def test_health_endpoint():

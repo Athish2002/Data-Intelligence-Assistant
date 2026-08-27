@@ -102,7 +102,7 @@ class TestDetectTargetType:
 
 class TestGenerateReadinessReport:
     def test_returns_expected_keys(self, churn_df: pd.DataFrame) -> None:
-        from dia.data_profiler import profile_dataframe, infer_column_roles
+        from dia.data_profiler import infer_column_roles, profile_dataframe
         gi = parse_goal("predict churn", columns=churn_df.columns.tolist())
         profile = profile_dataframe(churn_df)
         annotated = infer_column_roles(churn_df, profile)
@@ -111,7 +111,7 @@ class TestGenerateReadinessReport:
             assert key in r
 
     def test_score_is_bounded(self, churn_df: pd.DataFrame) -> None:
-        from dia.data_profiler import profile_dataframe, infer_column_roles
+        from dia.data_profiler import infer_column_roles, profile_dataframe
         gi = parse_goal("predict churn", columns=churn_df.columns.tolist())
         profile = profile_dataframe(churn_df)
         annotated = infer_column_roles(churn_df, profile)
@@ -119,7 +119,7 @@ class TestGenerateReadinessReport:
         assert 0 <= r["score"] <= 100
 
     def test_small_dataset_lowers_score(self) -> None:
-        from dia.data_profiler import profile_dataframe, infer_column_roles
+        from dia.data_profiler import infer_column_roles, profile_dataframe
         df = pd.DataFrame({"feat": range(50), "target": [0, 1] * 25})
         gi = parse_goal("predict target")
         profile = profile_dataframe(df)
@@ -128,7 +128,7 @@ class TestGenerateReadinessReport:
         assert r["score"] < 90  # penalty for small dataset
 
     def test_leakage_risk_includes_identifiers(self, churn_df: pd.DataFrame) -> None:
-        from dia.data_profiler import profile_dataframe, infer_column_roles
+        from dia.data_profiler import infer_column_roles, profile_dataframe
         gi = parse_goal("predict churn", columns=churn_df.columns.tolist())
         profile = profile_dataframe(churn_df)
         annotated = infer_column_roles(churn_df, profile)

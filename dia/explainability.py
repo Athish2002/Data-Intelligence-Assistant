@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .utils import is_plotly_available, is_shap_available, is_seaborn_available
+from .utils import is_plotly_available, is_seaborn_available, is_shap_available
 
 warnings.filterwarnings("ignore")
 

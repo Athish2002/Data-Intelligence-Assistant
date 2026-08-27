@@ -411,7 +411,7 @@ def get_readiness_audit(session_id: str) -> ReadinessResponse:
         c_arr = num_df.corr().abs().to_numpy(copy=True)
         np.fill_diagonal(c_arr, 0)
         c_cols = num_df.columns
-        high_corr_pairs = [(c_cols[i], c_cols[j]) for i, j in zip(*np.where(c_arr > 0.85)) if i < j]
+        high_corr_pairs = [(c_cols[i], c_cols[j]) for i, j in zip(*np.where(c_arr > 0.85), strict=True) if i < j]
 
     if not high_corr_pairs:
         checks.append(AuditCheckItem(category="Multicollinearity", title="Low Feature Redundancy", verdict="PASS", score=100, details="No extreme pairwise collinearity (>0.85) detected."))
@@ -531,7 +531,7 @@ def run_automl_pipeline(payload: TrainPipelineRequest) -> TrainPipelineResponse:
                     "thresholds": [round(float(x), 4) for x in thresholds[::max(1, len(thresholds)//50)]],
                 }
             except Exception:
-                pass
+                log.debug("Could not compute ROC curve for this session's best model.", exc_info=True)
 
     raw_insights = pipeline_res.get("insights", [])
     formatted_insights = []

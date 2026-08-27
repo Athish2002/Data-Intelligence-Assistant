@@ -8,7 +8,7 @@ All constants are imported from dia.config for single-source-of-truth.
 from __future__ import annotations
 
 import re
-from typing import Sequence
+from collections.abc import Sequence
 
 from .config import (
     MAX_FILE_BYTES,

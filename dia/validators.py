@@ -12,7 +12,8 @@ from __future__ import annotations
 import html
 import re
 import unicodedata
-from typing import TYPE_CHECKING, Any, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -28,9 +29,18 @@ __all__ = [
     "validate_target_column",
     "validate_model_selection",
     "validate_dataframe_shape",
+    "validate_sql_identifier",
     "sanitise_column_names",
     "detect_pii_columns",
 ]
+
+# A bare identifier or one schema-qualified level (e.g. "orders" or "public.orders").
+# Deliberately does not allow quoting/backticks/semicolons/whitespace — table names
+# are interpolated directly into SQL (SQL doesn't support parameter placeholders for
+# identifiers), so this is the injection guard for that one field. The free-text
+# `query` field is a different, intentionally-arbitrary-SQL feature and is not
+# covered by this validator.
+_SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
 
 # ─── PII tokens ───────────────────────────────────────────────────────────────
 
@@ -208,6 +218,31 @@ def validate_dataframe_shape(df: pd.DataFrame) -> None:
         raise ValidationError(
             f"Dataset has {n_cols:,} columns, exceeding the {MAX_COLS:,} column limit."
         )
+
+
+# ─── SQL identifier validation ────────────────────────────────────────────────
+
+def validate_sql_identifier(name: str, field_label: str = "table name") -> str:
+    """
+    Validate that *name* is safe to interpolate directly into SQL as an
+    identifier (table/schema name) — SQL has no parameter-placeholder syntax
+    for identifiers, so this is the injection guard for that one field.
+
+    Returns the stripped name unchanged. Only bare identifiers or one
+    schema-qualified level (e.g. "orders" or "public.orders") are accepted —
+    no quoting, semicolons, or whitespace.
+
+    Raises
+    ------
+    ValidationError
+    """
+    cleaned = name.strip()
+    if not _SQL_IDENTIFIER_RE.match(cleaned):
+        raise ValidationError(
+            f"Invalid {field_label} '{name}'. Only letters, digits, underscores, "
+            "and one optional 'schema.table' qualifier are allowed."
+        )
+    return cleaned
 
 
 # ─── Model selection validation ───────────────────────────────────────────────

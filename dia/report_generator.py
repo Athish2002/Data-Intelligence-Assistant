@@ -149,7 +149,7 @@ def generate_executive_html_report(
             <h1>🤖 Data Intelligence Assistant: Model Briefing</h1>
             <div class="meta">
                 <b>Goal:</b> {html.escape(goal)}<br>
-                <b>Target Variable:</b> <code>{html.escape(target_col)}</code> ({html.escape(task_type.capitalize())}) &bull; 
+                <b>Target Variable:</b> <code>{html.escape(target_col)}</code> ({html.escape(task_type.capitalize())}) &bull;
                 <b>Generated:</b> {timestamp}
             </div>
         </div>

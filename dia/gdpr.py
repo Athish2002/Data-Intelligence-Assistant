@@ -155,7 +155,7 @@ def process_dsar_erasure_anonymization(
 def format_gdpr_audit_markdown(ropa: dict[str, Any]) -> str:
     """Formats the GDPR Article 30 ROPA record as a formal Markdown Audit Document."""
     lines = [
-        f"# 🇪🇺 GDPR Article 30 - Record of Processing Activities (ROPA)",
+        "# 🇪🇺 GDPR Article 30 - Record of Processing Activities (ROPA)",
         f"**Record ID:** `{ropa['record_id']}` | **Generated (UTC):** `{ropa['timestamp_utc']}`",
         "",
         "## 1. Controller & Governance Information",

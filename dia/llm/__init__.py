@@ -12,6 +12,7 @@ as an error.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from ..exceptions import ConfigurationError
@@ -19,6 +20,8 @@ from .base import LLMProvider, LLMResponse
 from .gemini_provider import GeminiProvider
 from .groq_provider import GroqProvider
 from .ollama_provider import OllamaProvider
+
+log = logging.getLogger("dia.llm")
 
 __all__ = [
     "LLMProvider",
@@ -75,5 +78,6 @@ def get_default_provider() -> LLMProvider | None:
             if PROVIDER_REGISTRY[key]["cls"].is_available():
                 return PROVIDER_REGISTRY[key]["cls"]()
         except Exception:
+            log.debug("Provider '%s' availability check raised; trying the next one.", key, exc_info=True)
             continue
     return None

@@ -65,7 +65,7 @@ def robust_parse_csv_bytes(raw_bytes: bytes) -> tuple[pd.DataFrame, dict[str, An
             continue
 
     buf = io.BytesIO(raw_bytes)
-    
+
     # 2. Try standard read with detected parameters
     try:
         df = pd.read_csv(
@@ -122,7 +122,7 @@ def sanitize_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
         cleaned = re.sub(r"\s+", "_", cleaned).strip("_")
         if not cleaned or cleaned.startswith("Unnamed"):
             cleaned = "feature"
-        
+
         # Handle duplicates
         if cleaned in seen_cols:
             seen_cols[cleaned] += 1
@@ -153,7 +153,7 @@ def sanitize_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
         # Process object/string columns
         if series.dtype == object or pd.api.types.is_string_dtype(series):
             str_series = series.astype(str).str.strip()
-            
+
             # Standardize null strings
             null_matches = str_series.str.lower().isin(_NULL_STRINGS)
             null_count = int(null_matches.sum())
@@ -195,7 +195,7 @@ def _try_coerce_numeric_string(series: pd.Series) -> tuple[pd.Series, bool]:
         return series, False
 
     sample = series.head(100).tolist()
-    
+
     # Check if sample strings look like dirty numbers
     numeric_pattern = re.compile(r"^[\$€£¥₹]?\s*-?[\d,]+(?:\.\d+)?\s*[%kKmMbB]?$")
     match_count = sum(1 for s in sample if numeric_pattern.match(str(s).strip()))

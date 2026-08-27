@@ -38,7 +38,7 @@ def extract_lexical_features(series: pd.Series, prefix: str) -> pd.DataFrame:
     Extracts lexical, readability, and structural features from a text column.
     """
     s_clean = series.fillna("").astype(str)
-    
+
     char_len = s_clean.apply(len)
     word_count = s_clean.apply(lambda x: len(x.split()))
     avg_word_len = char_len / (word_count.replace(0, 1))
@@ -81,12 +81,12 @@ def extract_tfidf_dense_features(
     Extracts TF-IDF n-grams and compresses into dense latent semantic components.
     """
     s_clean = series.fillna("").astype(str)
-    
+
     # TF-IDF
     tfidf = TfidfVectorizer(max_features=100, stop_words="english", ngram_range=(1, 2))
     try:
         X_tfidf = tfidf.fit_transform(s_clean)
-        
+
         # SVD Compression
         n_comp = min(n_components, X_tfidf.shape[1], max(1, len(s_clean) - 1))
         svd = TruncatedSVD(n_components=n_comp, random_state=42)

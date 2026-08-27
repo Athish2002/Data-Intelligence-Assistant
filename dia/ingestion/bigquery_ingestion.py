@@ -72,8 +72,10 @@ class BigQuerySource(IngestionSource):
         if not query:
             raise ValidationError("A SQL query is required.")
 
-        # Enforce row limit by wrapping the query
-        limited_query = f"SELECT * FROM ({query}) _dia LIMIT {MAX_ROWS}"
+        # Enforce row limit by wrapping the query. `query` is intentionally-
+        # arbitrary user-supplied SQL (this source's whole purpose), run
+        # against the same project the user just authenticated against.
+        limited_query = f"SELECT * FROM ({query}) _dia LIMIT {MAX_ROWS}"  # noqa: S608
         log.info("Running BigQuery query on project=%s  len=%d", project, len(query))
 
         try:

@@ -9,6 +9,7 @@ Wasserstein Distance, and Isolation Forest anomaly scores between baseline and p
 from __future__ import annotations
 
 import logging
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -29,7 +30,7 @@ def calculate_psi(expected: pd.Series, actual: pd.Series, num_buckets: int = 10)
             bins = np.unique(bins)
             if len(bins) < 2:
                 return 0.0
-            
+
             exp_counts = pd.cut(expected, bins=bins, include_lowest=True).value_counts(normalize=True)
             act_counts = pd.cut(actual, bins=bins, include_lowest=True).value_counts(normalize=True)
         else:

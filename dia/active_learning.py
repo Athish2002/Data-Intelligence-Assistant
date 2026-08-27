@@ -56,7 +56,7 @@ def sample_uncertain_predictions(
 
         queue.append({
             "original_row_index": int(idx),
-            "model_prediction": int(pred_val) if isinstance(pred_val, (int, np.integer)) else float(pred_val),
+            "model_prediction": int(pred_val) if isinstance(pred_val, int | np.integer) else float(pred_val),
             "uncertainty_score": round(unc_val, 4),
             "status": "Awaiting Human Review",
             "features_preview": {k: v for k, v in list(row_dict.items())[:6]},

@@ -13,25 +13,34 @@ from typing import Any
 
 import pandas as pd
 
-from dia.data_profiler import profile_dataframe, infer_column_roles, generate_readiness_report, detect_target_type
-from dia.goal_parser import parse_goal
-from dia.insights import generate_smart_insights
-from dia.model_trainer import train_and_evaluate
-from dia.explainability import generate_explanation
+from dia.active_learning import sample_uncertain_predictions
 from dia.code_generator import (
-    generate_pipeline_code,
     generate_airflow_dag,
-    generate_fastapi_app,
-    generate_dockerfile,
     generate_docker_compose,
+    generate_dockerfile,
+    generate_fastapi_app,
     generate_github_actions_pipeline,
     generate_k8s_manifests,
+    generate_pipeline_code,
 )
-from dia.data_quality import generate_data_contract, format_contract_markdown
-from dia.compliance import scan_dataset_privacy, format_compliance_dossier_markdown
-from dia.gdpr import generate_ropa_record, format_gdpr_audit_markdown
-from dia.mlops_registry import benchmark_model_latency, generate_mlflow_run_manifest, generate_model_card_markdown
-from dia.active_learning import sample_uncertain_predictions
+from dia.compliance import format_compliance_dossier_markdown, scan_dataset_privacy
+from dia.data_profiler import (
+    detect_target_type,
+    generate_readiness_report,
+    infer_column_roles,
+    profile_dataframe,
+)
+from dia.data_quality import format_contract_markdown, generate_data_contract
+from dia.explainability import generate_explanation
+from dia.gdpr import format_gdpr_audit_markdown, generate_ropa_record
+from dia.goal_parser import parse_goal
+from dia.insights import generate_smart_insights
+from dia.mlops_registry import (
+    benchmark_model_latency,
+    generate_mlflow_run_manifest,
+    generate_model_card_markdown,
+)
+from dia.model_trainer import train_and_evaluate
 from dia.report_generator import generate_executive_html_report
 
 log = logging.getLogger("dia.coordinator")
@@ -56,7 +65,7 @@ class PipelineCoordinator:
         Executes all 5 core stages synchronously and produces the complete session state dictionary.
         """
         # Stage 0: Autonomous Malformed Data Repair & Sanitization
-        from dia.data_sanitizer import sanitize_dataframe, format_sanitization_report_markdown
+        from dia.data_sanitizer import format_sanitization_report_markdown, sanitize_dataframe
         clean_df, sanitize_report = sanitize_dataframe(df)
         sanitize_md = format_sanitization_report_markdown(sanitize_report)
 
@@ -90,7 +99,7 @@ class PipelineCoordinator:
 
         if not target_col:
             target_col = clean_df.columns[-1]
-        
+
         annotated_profile = infer_column_roles(clean_df, profile_df)
 
         detected_type_dict = detect_target_type(clean_df, target_col)
@@ -135,7 +144,7 @@ class PipelineCoordinator:
             feature_names=train_result.get("feature_names", []),
             importance_series=train_result["results"][best_idx].get("importance", pd.Series(dtype=float)),
         )
-        
+
         # Privacy & Compliance
         compliance_report = scan_dataset_privacy(clean_df)
         compliance_md = format_compliance_dossier_markdown(compliance_report)

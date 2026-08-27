@@ -75,7 +75,7 @@ def generate_mlflow_run_manifest(
     Generates a structured MLflow/Weights&Biases compatible Run Metadata artifact.
     """
     data_hash = compute_dataset_fingerprint(df)
-    run_id = f"run_{hashlib.md5(f'{model_name}_{datetime.now().isoformat()}'.encode()).hexdigest()[:12]}"
+    run_id = f"run_{hashlib.sha256(f'{model_name}_{datetime.now().isoformat()}'.encode()).hexdigest()[:12]}"
 
     return {
         "mlflow_version": "2.12.0_compat",
@@ -105,9 +105,9 @@ def generate_mlflow_run_manifest(
         },
         "hyperparameters": params,
         "metrics": {
-            k: round(v, 4) if isinstance(v, (int, float)) else v
+            k: round(v, 4) if isinstance(v, int | float) else v
             for k, v in metrics.items()
-            if isinstance(v, (int, float))
+            if isinstance(v, int | float)
         },
         "inference_benchmarks": latency_stats or {},
         "artifact_locations": {
@@ -131,7 +131,7 @@ def generate_model_card_markdown(
     Generates a Google Model Card v1 standard markdown document (Mitchell et al.).
     """
     latency = latency_stats or {"p50_ms": 1.5, "p99_ms": 4.2, "throughput_qps": 850.0}
-    
+
     lines = [
         f"# 📋 Model Card: {model_name} for '{target_col}' Prediction",
         "",
@@ -141,7 +141,7 @@ def generate_model_card_markdown(
         f"- **Target Variable:** `{target_col}`",
         f"- **Input Features ({len(feature_names)}):** {', '.join(feature_names[:10])}{'...' if len(feature_names) > 10 else ''}",
         f"- **Training Date (UTC):** `{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}`",
-        f"- **License:** Proprietary / Internal Corporate Use",
+        "- **License:** Proprietary / Internal Corporate Use",
         "",
         "## 2. Intended Use",
         f"- **Primary Intended Use:** Automated batch and real-time inference for operational decision support regarding `{target_col}`.",
@@ -153,7 +153,7 @@ def generate_model_card_markdown(
     ]
 
     for k, v in metrics.items():
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             lines.append(f"| **{k.replace('_', ' ').title()}** | `{v:.4f}` |")
 
     lines.extend([

@@ -40,29 +40,42 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import (
-    RandomForestClassifier, RandomForestRegressor,
-    ExtraTreesClassifier, ExtraTreesRegressor,
-    GradientBoostingClassifier, GradientBoostingRegressor,
-    VotingClassifier, VotingRegressor,
-)
-from sklearn.linear_model import LogisticRegression, Ridge
-from sklearn.svm import SVC, SVR
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
-from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import (
+    ExtraTreesClassifier,
+    ExtraTreesRegressor,
+    GradientBoostingClassifier,
+    GradientBoostingRegressor,
+    RandomForestClassifier,
+    RandomForestRegressor,
+    VotingClassifier,
+    VotingRegressor,
+)
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import (
-    accuracy_score, f1_score, mean_absolute_error,
-    mean_squared_error, precision_score, r2_score, recall_score,
-    average_precision_score
+    accuracy_score,
+    average_precision_score,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    precision_score,
+    r2_score,
+    recall_score,
 )
 from sklearn.model_selection import (
-    train_test_split, cross_validate, StratifiedKFold, KFold, RandomizedSearchCV
+    KFold,
+    RandomizedSearchCV,
+    StratifiedKFold,
+    cross_validate,
+    train_test_split,
 )
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import LabelEncoder, RobustScaler, OneHotEncoder, OrdinalEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, OrdinalEncoder, RobustScaler
+from sklearn.svm import SVC, SVR
 from sklearn.utils.class_weight import compute_sample_weight
 
 log = logging.getLogger("dia.model_trainer")
@@ -376,7 +389,7 @@ def _classification_metrics(y_true, y_pred, y_proba=None) -> dict:
             elif avg == "macro" and y_proba.shape[1] == n_classes:
                 metrics["ROC-AUC"] = round(float(roc_auc_score(y_true, y_proba, multi_class="ovr", average="macro")), 4)
         except Exception:
-            pass
+            log.debug("Could not compute ROC-AUC/PR-AUC for this model.", exc_info=True)
     return metrics
 
 
@@ -518,7 +531,7 @@ def train_and_evaluate(
                     else KFold(n_splits=3, shuffle=True, random_state=random_state)
                 )
                 scoring_hpo = 'roc_auc' if task_type == "classification" else 'r2'
-                
+
                 hpo_search = RandomizedSearchCV(
                     estimator=estimator,
                     param_distributions=param_dist,
@@ -529,7 +542,7 @@ def train_and_evaluate(
                     n_jobs=n_jobs,
                     error_score='raise',
                 )
-                
+
                 if sample_weight is not None:
                     try:
                         hpo_search.fit(X_train_proc, y_train, sample_weight=sample_weight)
@@ -537,7 +550,7 @@ def train_and_evaluate(
                         hpo_search.fit(X_train_proc, y_train)
                 else:
                     hpo_search.fit(X_train_proc, y_train)
-                    
+
                 estimator = hpo_search.best_estimator_
                 best_params = hpo_search.best_params_
 
@@ -546,20 +559,20 @@ def train_and_evaluate(
             if apply_cv:
                 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state) if task_type == "classification" else KFold(n_splits=5, shuffle=True, random_state=random_state)
                 scoring = 'roc_auc' if task_type == "classification" else 'r2'
-                
+
                 try:
                     cv_res = cross_validate(
-                        estimator, X_train_proc, y_train, 
-                        cv=cv, scoring=scoring, n_jobs=n_jobs, 
-                        params={'sample_weight': sample_weight} if sample_weight is not None else None, 
+                        estimator, X_train_proc, y_train,
+                        cv=cv, scoring=scoring, n_jobs=n_jobs,
+                        params={'sample_weight': sample_weight} if sample_weight is not None else None,
                         error_score='raise'
                     )
                 except TypeError:
                     try:
                         cv_res = cross_validate(
-                            estimator, X_train_proc, y_train, 
-                            cv=cv, scoring=scoring, n_jobs=n_jobs, 
-                            fit_params={'sample_weight': sample_weight} if sample_weight is not None else None, 
+                            estimator, X_train_proc, y_train,
+                            cv=cv, scoring=scoring, n_jobs=n_jobs,
+                            fit_params={'sample_weight': sample_weight} if sample_weight is not None else None,
                             error_score='raise'
                         )
                     except Exception:
@@ -603,7 +616,7 @@ def train_and_evaluate(
             else:
                 metrics = _regression_metrics(y_test, y_pred)
                 primary_score = metrics.get("R²", -np.inf)
-                
+
             metrics.update(cv_metrics)
 
             # Calculate Overfitting / Generalization Gap
@@ -715,12 +728,12 @@ def train_and_evaluate(
     # ── 3. Generate Justification Text ────────────────────────────────────────
     successful_models = [r for r in results if not r.get("error")]
     metric_name = "ROC-AUC" if task_type == "classification" and "ROC-AUC" in best_result["metrics"] else ("F1" if task_type == "classification" else "R²")
-    
+
     if len(successful_models) > 1:
         runner_up = sorted(successful_models, key=lambda x: x["metrics"].get(metric_name, -np.inf), reverse=True)[1]
         runner_up_score = runner_up["metrics"].get(metric_name, 0)
         diff = best_score - runner_up_score
-        
+
         if diff < 0.01:
             justification_text = f"**{best_result['label']}** was selected as the best model. It achieved an {metric_name} of **{best_score:.3f}**, in a statistical tie (< 1% difference) with {runner_up['label']} ({runner_up_score:.3f})."
         else:

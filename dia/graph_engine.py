@@ -65,7 +65,7 @@ def construct_and_analyze_entity_graph(
     # 2. Centrality Scores
     pagerank_scores = nx.pagerank(G, weight="weight")
     degree_centrality = nx.degree_centrality(G)
-    
+
     # Betweenness on sampled nodes if graph is large
     if n_nodes < 500:
         betweenness = nx.betweenness_centrality(G, weight="weight")

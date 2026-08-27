@@ -12,10 +12,13 @@ import html
 import pandas as pd
 import streamlit as st
 
+from dia.business_metrics import (
+    calculate_classification_roi,
+    calculate_regression_impact,
+    generate_actionable_recommendations,
+)
+from dia.fairness import check_disparate_impact, extract_surrogate_rules
 from dia.utils import is_plotly_available, is_seaborn_available
-from dia.business_metrics import calculate_classification_roi, calculate_regression_impact, generate_actionable_recommendations
-from dia.fairness import extract_surrogate_rules, check_disparate_impact
-
 
 # ─── Colour helpers ───────────────────────────────────────────────────────────
 
@@ -277,8 +280,8 @@ def render_model_results(train_result: dict) -> None:
     # Radar / bar chart comparing models
     valid_results = [r for r in results if r.get("metrics")]
     if len(valid_results) > 1 and is_plotly_available():
-        import plotly.graph_objects as go
         import plotly.express as px
+        import plotly.graph_objects as go
 
         metric_keys = list(valid_results[0]["metrics"].keys())
 
@@ -315,26 +318,26 @@ def render_model_results(train_result: dict) -> None:
 
     # ── Advanced Evaluation Plots ─────────────────────────────────────────────
     st.markdown("#### 📈 Best Model Evaluation Details")
-    
+
     if "y_true" in train_result and "y_pred" in train_result and is_plotly_available():
-        
+
         y_true = train_result["y_true"]
         y_pred = train_result["y_pred"]
-        
+
         if task_type == "classification":
             from sklearn.metrics import confusion_matrix
             cm = confusion_matrix(y_true, y_pred)
-            
+
             # Use label names if available
             le = train_result.get("label_encoder")
             if le is not None:
                 labels = le.classes_.astype(str)
             else:
                 labels = [str(i) for i in range(cm.shape[0])]
-                
+
             fig = px.imshow(
-                cm, 
-                text_auto=True, 
+                cm,
+                text_auto=True,
                 color_continuous_scale="Blues",
                 labels=dict(x="Predicted Label", y="True Label", color="Count"),
                 x=labels, y=labels,
@@ -342,14 +345,14 @@ def render_model_results(train_result: dict) -> None:
             )
             fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=40, b=10, l=10, r=10), height=350)
             st.plotly_chart(fig, use_container_width=True)
-            
+
         else:
             # Regression: Residual plot
             residuals = y_true - y_pred
             df_res = pd.DataFrame({"Predicted": y_pred, "Residuals": residuals})
-            
+
             fig = px.scatter(
-                df_res, x="Predicted", y="Residuals", 
+                df_res, x="Predicted", y="Residuals",
                 title="Residuals vs Predicted",
                 opacity=0.6,
                 color_discrete_sequence=["#3b82f6"]
@@ -375,23 +378,23 @@ def render_model_results(train_result: dict) -> None:
 def render_smart_insights(insights: list[dict]) -> None:
     st.subheader("💡 Automated Smart Insights")
     st.markdown("The assistant has analyzed relationships between your features and the target variable to surface these key insights:")
-    
+
     for item in insights:
         type_color = {
             "positive": "border-left: 4px solid #10b981;",
             "negative": "border-left: 4px solid #ef4444;",
             "neutral": "border-left: 4px solid #6366f1;"
         }.get(item["type"], "")
-        
+
         icon = {
             "positive": "📈",
             "negative": "📉",
             "neutral": "🔍"
         }.get(item["type"], "💡")
-        
+
         safe_title = html.escape(str(item.get("title", "")))
         safe_desc = html.escape(str(item.get("description", "")))
-        
+
         st.markdown(f"""
         <div style="background: var(--bg-card); padding: 1rem; border-radius: var(--radius); margin-bottom: 1rem; {type_color}">
             <h4 style="margin-top: 0;">{icon} {safe_title}</h4>
@@ -501,7 +504,7 @@ The assistant parsed this as a **{task_type}** problem with confidence **{goal_i
 def render_business_impact(train_result: dict, df: pd.DataFrame, target_col: str, task_type: str, insights: list[dict]):
     """Renders the business impact, ROI simulator, and fairness metrics."""
     st.subheader("💼 Business Impact & ROI Simulator")
-    
+
     # Archetype selector
     st.markdown("Select your primary business objective to tailor the financial simulator and recommendations:")
     archetype = st.selectbox(
@@ -514,14 +517,14 @@ def render_business_impact(train_result: dict, df: pd.DataFrame, target_col: str
             "fraud": "Risk & Fraud Detection"
         }[x]
     )
-    
+
     if task_type == "classification":
         st.markdown(
             "Simulate the financial impact of deploying this model. "
             "Adjust the parameters below to see how the model affects your bottom line compared to a baseline."
         )
         col1, col2 = st.columns(2)
-        
+
         if archetype == "retention":
             with col1:
                 ltv = st.number_input("Average Customer Lifetime Value ($)", min_value=0.0, value=1000.0, step=100.0)
@@ -539,7 +542,7 @@ def render_business_impact(train_result: dict, df: pd.DataFrame, target_col: str
             cost_fp, cost_fn, val_tp, val_tn = investigation_cost, txn_val, txn_val - investigation_cost, 0.0
         else:
             with col1:
-                cost_fp = st.number_input("Cost of a False Positive ($)", min_value=0.0, value=50.0, step=10.0, 
+                cost_fp = st.number_input("Cost of a False Positive ($)", min_value=0.0, value=50.0, step=10.0,
                                           help="E.g., money wasted targeting someone who won't convert.")
                 cost_fn = st.number_input("Cost of a False Negative ($)", min_value=0.0, value=500.0, step=50.0,
                                           help="E.g., revenue lost from missing a churner.")
@@ -547,38 +550,38 @@ def render_business_impact(train_result: dict, df: pd.DataFrame, target_col: str
                 val_tp = st.number_input("Value of a True Positive ($)", min_value=0.0, value=200.0, step=20.0,
                                          help="E.g., revenue gained from a successful intervention.")
                 val_tn = st.number_input("Value of a True Negative ($)", min_value=0.0, value=0.0, step=10.0)
-                
+
         roi_data = calculate_classification_roi(
             train_result["y_true"], train_result["y_pred"],
             cost_fp, cost_fn, val_tp, val_tn
         )
-        
+
         if "error" in roi_data:
             st.warning(roi_data["error"])
         else:
             m1, m2, m3 = st.columns(3)
-            m1.metric("Model Net ROI", f"${roi_data['net_roi']:,.2f}", 
+            m1.metric("Model Net ROI", f"${roi_data['net_roi']:,.2f}",
                       delta=f"${roi_data['model_savings']:,.2f} vs Baseline")
             m2.metric("Total Value Created", f"${roi_data['total_value']:,.2f}")
             m3.metric("Total Error Cost", f"${roi_data['total_cost']:,.2f}", delta_color="inverse")
-            
+
     else:
         st.markdown("Estimate the financial impact of prediction errors.")
         avg_target = df[target_col].mean() if pd.api.types.is_numeric_dtype(df[target_col]) else 0
         mae = train_result["best_metrics"].get("MAE", 0)
         n_preds = st.number_input("Number of Predictions per Month", min_value=1, value=10000, step=1000)
-        
+
         impact = calculate_regression_impact(mae, n_preds, avg_target)
-        
+
         m1, m2, m3 = st.columns(3)
         m1.metric("Average Error per Prediction", f"{impact['avg_error_per_prediction']:,.2f}")
         m2.metric("Total Monthly Error Cost", f"{impact['total_error']:,.2f}", delta_color="inverse")
         m3.metric("Error Margin", f"{impact['error_margin_pct']:.1f}% of Average Target")
 
     st.divider()
-    
+
     col_rec, col_fair = st.columns(2)
-    
+
     with col_rec:
         st.subheader("🎯 Actionable Recommendations")
         best_imp = train_result.get("best_importance")
@@ -591,38 +594,38 @@ def render_business_impact(train_result: dict, df: pd.DataFrame, target_col: str
         )
         for act in actions:
             st.info(act)
-            
+
         st.subheader("👤 Ideal Profile Rules")
         if task_type == "classification":
             rules = extract_surrogate_rules(
-                train_result["X_test_processed"], 
-                train_result["y_pred"], 
+                train_result["X_test_processed"],
+                train_result["y_pred"],
                 train_result["feature_names"]
             )
             with st.expander("View Surrogate Decision Tree Rules"):
                 st.code(rules, language="text")
         else:
             st.write("Profile rules are primarily supported for classification tasks.")
-            
+
     with col_fair:
         st.subheader("⚖️ Fairness & Risk Scan")
         st.markdown("Scans categorical groups for disparate impact (e.g. >15% accuracy drop).")
-        
+
         cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
         if target_col in cat_cols:
             cat_cols.remove(target_col)
-            
+
         try:
             X_all = train_result["preprocessor"].transform(df.drop(columns=[target_col]))
             y_all_pred = train_result["best_model"].predict(X_all)
-            
+
             if task_type == "classification":
                 y_all_true = train_result["label_encoder"].transform(df[target_col].astype(str))
             else:
                 y_all_true = pd.to_numeric(df[target_col], errors="coerce").fillna(0).values
-                
+
             alerts = check_disparate_impact(df, y_all_true, y_all_pred, cat_cols)
-            
+
             if not alerts:
                 st.success("✅ No significant disparate impact detected across major categorical groups.")
             else:

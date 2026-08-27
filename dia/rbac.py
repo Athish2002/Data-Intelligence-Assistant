@@ -7,7 +7,6 @@ Enforces security context and feature permissions across user personas.
 
 from __future__ import annotations
 
-
 # ─── RBAC Personas & Tab Access Permissions ───────────────────────────────────
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {

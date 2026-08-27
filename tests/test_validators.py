@@ -6,7 +6,6 @@ Unit tests for dia/validators.py — the input validation layer.
 
 from __future__ import annotations
 
-
 import pandas as pd
 import pytest
 
@@ -18,11 +17,11 @@ from dia.validators import (
     validate_goal_text,
     validate_magic_bytes,
     validate_model_selection,
+    validate_sql_identifier,
     validate_target_column,
     validate_uploaded_file,
 )
 from tests.conftest import MockUploadedFile
-
 
 # ─── validate_uploaded_file ───────────────────────────────────────────────────
 
@@ -125,6 +124,49 @@ class TestValidateDataframeShape:
 
     def test_valid_shape_passes(self, churn_df: pd.DataFrame) -> None:
         validate_dataframe_shape(churn_df)
+
+    def test_too_many_rows_raises(self) -> None:
+        from dia.config import MAX_ROWS
+
+        df = pd.DataFrame({"a": range(MAX_ROWS + 1), "b": range(MAX_ROWS + 1)})
+        with pytest.raises(ValidationError, match="row limit"):
+            validate_dataframe_shape(df)
+
+    def test_too_many_columns_raises(self) -> None:
+        from dia.config import MAX_COLS
+
+        df = pd.DataFrame({f"col_{i}": [1, 2] for i in range(MAX_COLS + 1)})
+        with pytest.raises(ValidationError, match="column limit"):
+            validate_dataframe_shape(df)
+
+
+# ─── validate_sql_identifier ───────────────────────────────────────────────────
+
+class TestValidateSqlIdentifier:
+    def test_bare_identifier_passes(self) -> None:
+        assert validate_sql_identifier("customers") == "customers"
+
+    def test_schema_qualified_identifier_passes(self) -> None:
+        assert validate_sql_identifier("public.customers") == "public.customers"
+
+    def test_strips_whitespace(self) -> None:
+        assert validate_sql_identifier("  customers  ") == "customers"
+
+    def test_rejects_injection_attempt(self) -> None:
+        with pytest.raises(ValidationError, match="Invalid table name"):
+            validate_sql_identifier("customers; DROP TABLE users;--")
+
+    def test_rejects_quoted_identifier(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_sql_identifier('"customers"')
+
+    def test_rejects_empty_string(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_sql_identifier("")
+
+    def test_custom_field_label_appears_in_message(self) -> None:
+        with pytest.raises(ValidationError, match="Invalid schema name"):
+            validate_sql_identifier("bad;name", field_label="schema name")
 
 
 # ─── validate_model_selection ─────────────────────────────────────────────────

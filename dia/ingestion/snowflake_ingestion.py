@@ -16,7 +16,7 @@ import pandas as pd
 
 from ..config import MAX_ROWS
 from ..exceptions import ConfigurationError, IngestionError, ValidationError
-from ..validators import sanitise_column_names, validate_dataframe_shape
+from ..validators import sanitise_column_names, validate_dataframe_shape, validate_sql_identifier
 from .base import IngestionResult, IngestionSource
 
 log = logging.getLogger("dia.ingestion.snowflake")
@@ -87,11 +87,17 @@ class SnowflakeSource(IngestionSource):
         if not query and not table_name:
             raise ValidationError("Provide either a SQL query or a table name.")
 
-        safe_sql = (
-            f"SELECT * FROM ({query}) _dia LIMIT {MAX_ROWS}"
-            if query
-            else f"SELECT * FROM {table_name} LIMIT {MAX_ROWS}"
-        )
+        if query:
+            # Intentionally-arbitrary user-supplied SQL (this source's whole
+            # purpose), run against the same warehouse the user just supplied
+            # credentials for. Only wrapped to apply a row limit.
+            safe_sql = f"SELECT * FROM ({query}) _dia LIMIT {MAX_ROWS}"  # noqa: S608
+        else:
+            # `table_name` is meant to be a bare identifier, not arbitrary SQL —
+            # validate it looks like one before interpolating (SQL has no
+            # parameter-placeholder syntax for identifiers).
+            table_name = validate_sql_identifier(table_name, field_label="table name")
+            safe_sql = f"SELECT * FROM {table_name} LIMIT {MAX_ROWS}"  # noqa: S608 — validated above
 
         log.info(
             "Connecting to Snowflake: account=%s  user=%s  db=%s",

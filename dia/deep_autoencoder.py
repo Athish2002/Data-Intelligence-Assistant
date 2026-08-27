@@ -85,7 +85,7 @@ def train_tabular_autoencoder(
     model.train()
     loss_history = []
 
-    for epoch in range(epochs):
+    for _epoch in range(epochs):
         epoch_losses = []
         for (batch_x,) in loader:
             optimizer.zero_grad()
@@ -105,10 +105,10 @@ def train_tabular_autoencoder(
 
     # Per-sample Mean Squared Reconstruction Error
     per_sample_mse = np.mean((X_processed - reconstructed_np) ** 2, axis=1)
-    
+
     # Per-feature reconstruction error (for attribution)
     per_feature_mse = np.mean((X_processed - reconstructed_np) ** 2, axis=0)
-    
+
     # Statistical Anomaly Threshold (95th percentile or Mean + 2 * Std)
     anomaly_threshold = float(np.percentile(per_sample_mse, 95))
     is_anomaly = per_sample_mse > anomaly_threshold
@@ -116,7 +116,7 @@ def train_tabular_autoencoder(
     # Feature attribution ranking
     feat_attribution = [
         {"feature": name, "reconstruction_error": round(float(err), 4)}
-        for name, err in zip(feature_names, per_feature_mse)
+        for name, err in zip(feature_names, per_feature_mse, strict=True)
     ]
     feat_attribution.sort(key=lambda x: x["reconstruction_error"], reverse=True)
 
@@ -126,7 +126,7 @@ def train_tabular_autoencoder(
         "latent_bottleneck_dimension": latent_dim,
         "training_epochs": epochs,
         "final_reconstruction_loss": round(float(loss_history[-1]), 5),
-        "loss_curve": [round(l, 5) for l in loss_history],
+        "loss_curve": [round(loss_val, 5) for loss_val in loss_history],
         "anomaly_threshold_mse": round(anomaly_threshold, 5),
         "total_anomalies_detected": int(np.sum(is_anomaly)),
         "anomaly_rate_pct": round(float(np.mean(is_anomaly) * 100), 1),

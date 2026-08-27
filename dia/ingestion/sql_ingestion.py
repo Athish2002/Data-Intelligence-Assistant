@@ -24,7 +24,7 @@ import pandas as pd
 
 from ..config import CLOUD_TIMEOUT_S, MAX_ROWS
 from ..exceptions import ConfigurationError, IngestionError, ValidationError
-from ..validators import sanitise_column_names, validate_dataframe_shape
+from ..validators import sanitise_column_names, validate_dataframe_shape, validate_sql_identifier
 from .base import IngestionResult, IngestionSource
 
 log = logging.getLogger("dia.ingestion.sql")
@@ -93,10 +93,18 @@ class SQLSource(IngestionSource):
         row_limit = min(limit, MAX_ROWS) if limit else MAX_ROWS
 
         if query:
-            # Wrap in a subquery to apply limit without modifying user SQL
-            safe_sql = f"SELECT * FROM ({query}) _dia_subq LIMIT {row_limit}"
+            # The query itself is an intentionally-arbitrary user-supplied SQL
+            # statement (this source's whole purpose), run against the same
+            # database the user just supplied credentials for — not a value
+            # smuggled in from a less-trusted party. Only wrapped to apply a
+            # row limit without rewriting the user's own SQL.
+            safe_sql = f"SELECT * FROM ({query}) _dia_subq LIMIT {row_limit}"  # noqa: S608
         else:
-            safe_sql = f"SELECT * FROM {table_name} LIMIT {row_limit}"
+            # Unlike `query`, `table_name` is meant to be a bare identifier, and
+            # SQL has no parameter-placeholder syntax for identifiers — validate
+            # it looks like one before interpolating.
+            table_name = validate_sql_identifier(table_name, field_label="table name")
+            safe_sql = f"SELECT * FROM {table_name} LIMIT {row_limit}"  # noqa: S608 — validated above
 
         log.info(
             "Connecting to SQL source: %s  query_len=%d",

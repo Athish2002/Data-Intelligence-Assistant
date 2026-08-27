@@ -57,7 +57,7 @@ def generate_synthetic_dataset(
                 # Clip to original reasonable min/max range
                 min_v, max_v = df[col].min(), df[col].max()
                 synth_nums[:, i] = np.clip(synth_nums[:, i], min_v - 0.1 * abs(min_v), max_v + 0.1 * abs(max_v))
-                
+
                 # If original was integer, round
                 if pd.api.types.is_integer_dtype(df[col]):
                     df_synth[col] = np.round(synth_nums[:, i]).astype(int)

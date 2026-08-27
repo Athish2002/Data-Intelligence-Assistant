@@ -6,8 +6,12 @@ Generates automated smart insights based on data profiling and correlation with 
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
+
+log = logging.getLogger("dia.insights")
 
 
 def generate_smart_insights(
@@ -18,13 +22,13 @@ def generate_smart_insights(
     Returns a list of dicts: [{"title": str, "description": str, "type": "positive"|"negative"|"neutral"}]
     """
     insights = []
-    
+
     # ── Handle Regression (Continuous Target) ─────────────────────────────────
     if task_type == "regression":
         try:
             target_series = pd.to_numeric(df[target_col], errors="coerce")
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            
+
             correlations = []
             for col in numeric_cols:
                 if col == target_col:
@@ -35,21 +39,21 @@ def generate_smart_insights(
                     corr = np.corrcoef(col_series[valid_idx], target_series[valid_idx])[0, 1]
                     if not np.isnan(corr):
                         correlations.append((col, corr))
-            
+
             correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-            
+
             for col, corr in correlations[:max_insights]:
                 strength = "strong" if abs(corr) > 0.6 else ("moderate" if abs(corr) > 0.3 else "weak")
                 direction = "positive" if corr > 0 else "negative"
                 type_ = "positive" if corr > 0 else "negative"
-                
+
                 insights.append({
                     "title": f"{direction.title()} correlation with {col}",
                     "description": f"There is a {strength} {direction} correlation ({corr:.2f}) between `{col}` and the target `{target_col}`. As `{col}` increases, the target tends to {'increase' if corr > 0 else 'decrease'}.",
                     "type": type_
                 })
         except Exception:
-            pass
+            log.debug("Could not compute regression-target insights.", exc_info=True)
 
     # ── Handle Classification (Categorical/Binary Target) ─────────────────────
     else:
@@ -59,9 +63,9 @@ def generate_smart_insights(
             if len(unique_targets) == 2:
                 target_series = (df[target_col] == unique_targets[1]).astype(int)
                 target_name = str(unique_targets[1])
-                
+
                 numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-                
+
                 correlations = []
                 for col in numeric_cols:
                     if col == target_col:
@@ -72,14 +76,14 @@ def generate_smart_insights(
                         corr = np.corrcoef(col_series[valid_idx], target_series[valid_idx])[0, 1]
                         if not np.isnan(corr):
                             correlations.append((col, corr))
-                            
+
                 correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-                
+
                 for col, corr in correlations[:max_insights]:
                     strength = "strongly" if abs(corr) > 0.15 else "slightly"
                     direction = "higher" if corr > 0 else "lower"
                     type_ = "positive" if corr > 0 else "negative"
-                    
+
                     median_val = df[col].median()
 
                     insights.append({
@@ -88,8 +92,8 @@ def generate_smart_insights(
                         "type": type_
                     })
         except Exception:
-            pass
-            
+            log.debug("Could not compute classification-target insights.", exc_info=True)
+
     # Fallback if no correlations found
     if not insights:
         insights.append({

@@ -132,7 +132,7 @@ def infer_dataset_context_locally(df: pd.DataFrame) -> dict[str, Any]:
             custom_objs.append(f"Classify multi-class category `{cat_cols[0]}`")
         if len(binary_cols) > 1:
             custom_objs.append(f"Classify secondary indicator `{binary_cols[1]}`")
-        
+
         if not custom_objs:
             custom_objs = [
                 f"Predict `{df.columns[-1]}` based on all correlated features",

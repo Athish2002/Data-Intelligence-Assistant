@@ -87,7 +87,7 @@ def run_contextual_bandit_simulation(
 
     for t in range(n_samples):
         x_t = X_contexts[t]
-        
+
         # LinUCB choice
         chosen_arm, ucb_scores = bandit.select_action(x_t)
         action_name = actions[chosen_arm]

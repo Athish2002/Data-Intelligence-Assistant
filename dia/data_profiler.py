@@ -16,7 +16,6 @@ import pandas as pd
 
 from .utils import confidence_label
 
-
 # ─── Column role definitions ──────────────────────────────────────────────────
 
 ROLE_ID = "identifier"
@@ -179,7 +178,7 @@ def _infer_role(
         try:
             pd.to_datetime(sample)
             return ROLE_DATE, 0.70, "Values look like dates (parsed successfully)."
-        except Exception:
+        except Exception:  # noqa: S110 — routine "is this parseable as a date" probe, not a failure
             pass
 
     # ── Duration / tenure ─────────────────────────────────────────────────────

@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import difflib
 import re
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import pandas as pd
 
@@ -81,7 +82,7 @@ def resolve_column(
 ) -> tuple[str | None, float, str]:
     """
     Finds the best matching column in a DataFrame or column list.
-    
+
     Returns
     -------
     (matched_column_name, confidence_score, resolution_reason)
@@ -185,7 +186,7 @@ def rank_target_candidates_advanced(
     """
     goal_lower = goal.lower()
     goal_tokens = re.findall(r"[a-z]+", goal_lower)
-    
+
     candidates: list[dict[str, Any]] = []
 
     for col in df.columns:
@@ -230,7 +231,7 @@ def rank_target_candidates_advanced(
 
     # Sort descending by confidence score
     candidates.sort(key=lambda x: x["confidence"], reverse=True)
-    
+
     # Fallback to last column if no matches
     if not candidates and len(df.columns) > 0:
         candidates.append({

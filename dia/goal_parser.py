@@ -14,11 +14,9 @@ Two strategies are implemented:
 from __future__ import annotations
 
 import re
-from typing import Optional, Sequence
-
+from collections.abc import Sequence
 
 from .utils import is_sentence_transformers_available
-
 
 # ─── Keyword rules ────────────────────────────────────────────────────────────
 
@@ -54,7 +52,7 @@ _REGRESSION_SEEDS = [
 ]
 
 
-def _keyword_match(goal: str) -> tuple[Optional[str], float]:
+def _keyword_match(goal: str) -> tuple[str | None, float]:
     """Return (task_type, confidence) based on keyword scanning."""
     goal_lower = goal.lower()
 
@@ -76,7 +74,7 @@ def _keyword_match(goal: str) -> tuple[Optional[str], float]:
         return "classification", 0.50
 
 
-def _semantic_match(goal: str) -> tuple[Optional[str], float]:
+def _semantic_match(goal: str) -> tuple[str | None, float]:
     """Return (task_type, confidence) using sentence-transformers cosine similarity."""
     try:
         from sentence_transformers import SentenceTransformer, util  # type: ignore
@@ -105,7 +103,7 @@ def _infer_target_candidates(goal: str, columns: Sequence[str]) -> list[str]:
     Heuristically rank columns by how likely they are the prediction target.
     Leverages synonym clusters, normalized sub-token matching, and fuzzy resolution.
     """
-    from .column_resolver import resolve_column, normalize_string
+    from .column_resolver import normalize_string, resolve_column
 
     goal_tokens = re.findall(r"[a-z]+", goal.lower())
     ranked: list[tuple[str, float]] = []
@@ -139,7 +137,7 @@ def _infer_target_candidates(goal: str, columns: Sequence[str]) -> list[str]:
 
 def parse_goal(
     goal: str,
-    columns: Optional[Sequence[str]] = None,
+    columns: Sequence[str] | None = None,
     use_semantic: bool = True,
 ) -> dict:
     """

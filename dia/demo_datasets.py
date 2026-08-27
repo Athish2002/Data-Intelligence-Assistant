@@ -5,6 +5,7 @@ Built-in enterprise demo datasets for zero-friction testing and validation.
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 
@@ -23,12 +24,12 @@ def get_demo_dataset(dataset_name: str) -> tuple[pd.DataFrame, str, str]:
         internet = np.random.choice(["DSL", "Fiber optic", "No"], size=n, p=[0.4, 0.45, 0.15])
         tech_support = np.random.choice(["Yes", "No"], size=n, p=[0.35, 0.65])
         payment = np.random.choice(["Electronic check", "Mailed check", "Bank transfer", "Credit card"], size=n)
-        
+
         # Realistic churn logic
         churn_logits = (
-            -1.5 
-            - 0.04 * tenure 
-            + 0.03 * (monthly_charges - 60) 
+            -1.5
+            - 0.04 * tenure
+            + 0.03 * (monthly_charges - 60)
             + 0.8 * (contract == "Month-to-month")
             + 0.6 * (tech_support == "No")
             + 0.5 * (internet == "Fiber optic")
@@ -56,7 +57,7 @@ def get_demo_dataset(dataset_name: str) -> tuple[pd.DataFrame, str, str]:
         age = np.random.randint(21, 70, size=n)
         loan_amount = np.random.uniform(2000, 45000, size=n)
         home_ownership = np.random.choice(["RENT", "OWN", "MORTGAGE"], size=n, p=[0.45, 0.15, 0.40])
-        
+
         default_logits = -2.0 - 0.006 * (credit_score - 600) + 4.0 * (debt_to_income - 0.3) + 0.00003 * loan_amount
         default_prob = 1.0 / (1.0 + np.exp(-default_logits))
         default = (np.random.rand(n) < default_prob).astype(int)
@@ -81,10 +82,10 @@ def get_demo_dataset(dataset_name: str) -> tuple[pd.DataFrame, str, str]:
         prices[0] = "€120.50"
         prices[1] = "£45.00"
         prices[2] = "$1.5k"
-        
+
         discounts = [f"{np.random.choice([0, 5, 10, 15, 20])}%" for _ in range(n)]
         lifetime_spend = [f"{np.random.uniform(0.5, 15.0):.1f}k" for _ in range(n)]
-        
+
         statuses = [np.random.choice(["active", "inactive", "N/A", "--", "?", "null"]) for _ in range(n)]
         booleans = [np.random.choice(["yes", "no", "true", "false", "t", "f"]) for _ in range(n)]
         returns = (np.random.rand(n) < 0.22).astype(int)
@@ -107,7 +108,7 @@ def get_demo_dataset(dataset_name: str) -> tuple[pd.DataFrame, str, str]:
         bathrooms = (bedrooms * 0.75 + np.random.uniform(0, 1, size=n)).clip(1, 4)
         age_years = np.random.randint(0, 60, size=n)
         location_tier = np.random.choice(["Urban Core", "Suburban Prime", "Rural"], size=n, p=[0.35, 0.45, 0.20])
-        
+
         tier_mult = np.where(location_tier == "Urban Core", 1.4, np.where(location_tier == "Suburban Prime", 1.1, 0.8))
         price = (120000 + sqft * 180 + bedrooms * 15000 + bathrooms * 22000 - age_years * 1200) * tier_mult + np.random.normal(0, 25000, size=n)
 

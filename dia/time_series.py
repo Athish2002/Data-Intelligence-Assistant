@@ -33,7 +33,7 @@ def detect_time_series_column(df: pd.DataFrame) -> str | None:
                 converted = pd.to_datetime(sample, errors="coerce")
                 if converted.notna().sum() > len(sample) * 0.8:
                     return col
-            except Exception:
+            except Exception:  # noqa: S110 — routine "is this parseable as a date" probe, not a failure
                 pass
     return None
 
@@ -123,7 +123,7 @@ def train_time_series_forecaster(
     future_forecasts = []
     last_known_features = df_ts[feature_cols].iloc[-1].values.copy()
     last_date = df_ts[date_col].iloc[-1]
-    
+
     # Infer frequency
     time_diff = df_ts[date_col].diff().median()
     if pd.isna(time_diff) or time_diff.total_seconds() == 0:
@@ -137,10 +137,10 @@ def train_time_series_forecaster(
     for step in range(1, forecast_horizon + 1):
         current_date += step_delta
         y_pred = float(model.predict(current_features.reshape(1, -1))[0])
-        
+
         # Uncertainty intervals (95% confidence bounds = +/- 1.96 * sigma)
         uncertainty = 1.96 * std_residuals * np.sqrt(1 + 0.05 * step)
-        
+
         future_forecasts.append({
             "date": current_date.strftime("%Y-%m-%d"),
             "forecast_value": round(y_pred, 2),

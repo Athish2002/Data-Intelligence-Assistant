@@ -6,6 +6,7 @@ for the Data Intelligence Assistant (DIA) enterprise interface.
 """
 
 from __future__ import annotations
+
 import streamlit as st
 
 
@@ -25,7 +26,7 @@ def inject_custom_theme() -> None:
     --emerald: #10b981;
     --amber: #f59e0b;
     --rose: #f43f5e;
-    
+
     --bg-dark: #090a0f;
     --card-bg: rgba(18, 20, 29, 0.75);
     --card-border: rgba(255, 255, 255, 0.08);

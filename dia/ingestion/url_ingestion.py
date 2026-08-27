@@ -24,7 +24,8 @@ from .local_csv import _parse_csv
 log = logging.getLogger("dia.ingestion.url")
 
 _ALLOWED_SCHEMES = {"http", "https"}
-_FORBIDDEN_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "169.254.169.254"}
+# SSRF blocklist — these are hosts we REFUSE to fetch from, not a bind address.
+_FORBIDDEN_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "169.254.169.254"}  # noqa: S104
 _MAX_REDIRECTS = 5
 
 
