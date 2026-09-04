@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import platform
 import uuid
 from typing import Any
 
@@ -30,8 +31,10 @@ from dia.bandit_optimizer import run_contextual_bandit_simulation
 from dia.causal_engine import estimate_uplift_t_learner, generate_counterfactual
 from dia.chat_analyst import answer_with_rag
 from dia.compliance import scan_dataset_privacy
+from dia.config import CORS_ORIGINS
 from dia.data_profiler import detect_target_type
 from dia.data_quality import format_contract_markdown, generate_data_contract
+from dia.data_sanitizer import sanitize_dataframe
 from dia.demo_datasets import DEMO_BENCHMARKS, get_demo_dataset
 from dia.dictionary_store import delete_entry, load_entries, save_entries
 from dia.drift_monitor import calculate_drift_report
@@ -41,6 +44,7 @@ from dia.graph_engine import construct_and_analyze_entity_graph
 from dia.hardware import get_cpu_cores, is_gpu_available
 from dia.ingestion.data_dictionary import DataDictionarySource
 from dia.ingestion.local_csv import LocalCSVSource
+from dia.ingestion.universal_loader import UniversalLoader
 from dia.llm import PROVIDER_REGISTRY
 from dia.llm_context import infer_dataset_context_locally
 from dia.nlp_processor import detect_text_columns, extract_lexical_features
@@ -111,7 +115,7 @@ app = FastAPI(
 # ─── CORS Middleware ─────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS if CORS_ORIGINS != ["*"] else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -156,6 +160,7 @@ def _detect_capabilities(df: pd.DataFrame) -> dict[str, bool]:
 
 # ─── System & Health Endpoints ───────────────────────────────────────────────
 
+@app.get("/health", response_model=HealthResponse, tags=["System"], include_in_schema=False)
 @app.get("/api/v1/health", response_model=HealthResponse, tags=["System"])
 def get_health() -> HealthResponse:
     """Returns system health, CPU core allocation, GPU availability, and session count."""
@@ -164,9 +169,14 @@ def get_health() -> HealthResponse:
         version="13.6.0",
         cpu_cores=get_cpu_cores(),
         gpu_available=is_gpu_available(),
-        platform="Windows",
+        platform=platform.system(),
         active_sessions_count=len(SESSION_STORE),
     )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
 
 
 @app.get("/api/v1/demos", response_model=list[DemoDatasetItem], tags=["Data Ingestion"])
@@ -225,41 +235,37 @@ def ingest_demo_dataset(payload: DemoIngestRequest) -> IngestResponse:
 
 
 @app.post("/api/v1/ingest/upload", response_model=IngestResponse, tags=["Data Ingestion"])
-async def upload_csv_file(file: UploadFile = File(...)) -> IngestResponse:
-    """Uploads, robustly parses, and auto-sanitizes any custom CSV file."""
-    if not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only .csv files are supported.")
-
+async def upload_dataset_file(file: UploadFile = File(...)) -> IngestResponse:
+    """Uploads, robustly parses, and auto-sanitizes CSV, TSV, Parquet, JSON, and Excel files."""
     raw_bytes = await file.read()
     if len(raw_bytes) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    class MockUpload:
-        def __init__(self, data: bytes, name: str):
-            self.data = data
-            self.name = name
-        def read(self):
-            return self.data
-
     try:
-        source = LocalCSVSource()
-        ingest_res = source.load(uploaded_file=MockUpload(raw_bytes, file.filename))
-        df = ingest_res.df
+        loader = UniversalLoader()
+        ingest_res = loader.load(raw_bytes=raw_bytes, filename=file.filename)
+        df, sanitize_report = sanitize_dataframe(ingest_res.df)
     except Exception as e:
-        raise HTTPException(status_code=422, detail=f"CSV Parsing Error: {str(e)}") from e
+        raise HTTPException(status_code=422, detail=f"File Ingestion Error: {str(e)}") from e
 
     session_id = str(uuid.uuid4())
     context = infer_dataset_context_locally(df)
     capabilities = _detect_capabilities(df)
 
+    # Enrich sanitize_report with universal loader details
+    sanitize_report["file_format"] = ingest_res.meta.get("file_format")
+    sanitize_report["encoding"] = ingest_res.meta.get("encoding")
+    sanitize_report["delimiter"] = ingest_res.meta.get("delimiter")
+
     SESSION_STORE[session_id] = {
         "df": df,
         "goal": context["objectives"][0] if context.get("objectives") else "Predict target outcome",
         "target": None,
-        "sanitize_report": ingest_res.meta.get("sanitize_report", {}),
+        "sanitize_report": sanitize_report,
         "pipeline_result": None,
         "context": context,
         "rag_index": build_session_index(df, dictionary_entries=load_entries()),
+        "meta": ingest_res.meta,
     }
 
     return IngestResponse(
@@ -268,7 +274,7 @@ async def upload_csv_file(file: UploadFile = File(...)) -> IngestResponse:
         n_cols=df.shape[1],
         columns=df.columns.tolist(),
         sample_data=df.head(10).replace({np.nan: None}).to_dict(orient="records"),
-        sanitize_report=ingest_res.meta.get("sanitize_report", {}),
+        sanitize_report=sanitize_report,
         detected_domain=context["domain"],
         suggested_objectives=context["objectives"],
         capabilities=capabilities,

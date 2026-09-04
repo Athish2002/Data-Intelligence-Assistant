@@ -72,3 +72,14 @@ DICTIONARY_DB_PATH: str = os.getenv(
     "DIA_DICTIONARY_DB_PATH",
     os.path.join(os.path.expanduser("~"), ".dia", "dictionary.sqlite3"),
 )
+
+# ─── Network, Server & Environment Configuration ──────────────────────────────
+
+HOST: str = os.getenv("DIA_HOST", "0.0.0.0")
+PORT: int = int(os.getenv("DIA_PORT", "8000"))
+CORS_ORIGINS: list[str] = [
+    origin.strip()
+    for origin in os.getenv("DIA_CORS_ORIGINS", "*").split(",")
+    if origin.strip()
+]
+

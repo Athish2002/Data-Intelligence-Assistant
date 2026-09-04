@@ -56,7 +56,7 @@ def scan_dataset_privacy(df: pd.DataFrame) -> dict[str, Any]:
 
         # 2. Value pattern check on sample of non-null strings
         value_matches = []
-        if df[col].dtype == object:
+        if df[col].dtype == object or pd.api.types.is_string_dtype(df[col]):
             sample_vals = df[col].dropna().astype(str).head(100).tolist()
             for pattern_name, pattern in _REGEX_PATTERNS.items():
                 match_count = sum(1 for v in sample_vals if pattern.match(v.strip()))

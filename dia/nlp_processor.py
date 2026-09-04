@@ -24,7 +24,7 @@ def detect_text_columns(df: pd.DataFrame, min_avg_words: float = 3.0) -> list[st
     """
     text_cols = []
     for col in df.columns:
-        if df[col].dtype == object:
+        if df[col].dtype == object or pd.api.types.is_string_dtype(df[col]):
             sample = df[col].dropna().astype(str).head(50)
             if not sample.empty:
                 avg_words = sample.apply(lambda x: len(x.split())).mean()

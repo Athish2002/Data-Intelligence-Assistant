@@ -24,12 +24,14 @@ from .base import IngestionResult, IngestionSource
 from .data_dictionary import DataDictionarySource
 from .local_csv import LocalCSVSource
 from .sql_ingestion import SQLSource
+from .universal_loader import UniversalLoader
 from .url_ingestion import URLSource
 
 __all__ = [
     "IngestionResult",
     "IngestionSource",
     "LocalCSVSource",
+    "UniversalLoader",
     "URLSource",
     "SQLSource",
     "DataDictionarySource",

@@ -13,7 +13,16 @@ import pandas as pd
 def get_demo_dataset(dataset_name: str) -> tuple[pd.DataFrame, str, str]:
     """
     Returns a realistic tabular benchmark dataset with suggested ML goal and target.
+    Accepts either benchmark IDs ('telecom', 'bank_credit') or full display names.
     """
+    key_map = {
+        "telecom": "Telecom Customer Churn",
+        "bank_credit": "Bank Credit Risk & Default",
+        "real_estate": "Real Estate Price Estimation",
+        "malformed_retail": "Dirty & Malformed Retail E-Commerce",
+    }
+    dataset_name = key_map.get(dataset_name.strip().lower(), dataset_name.strip())
+
     np.random.seed(42)
     n = 600
 

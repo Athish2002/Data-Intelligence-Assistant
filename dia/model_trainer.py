@@ -459,7 +459,22 @@ def train_and_evaluate(
         valid_keys = ["rf", "logreg"] if task_type == "classification" else ["rf", "linreg"]
 
     # ── 1. Prepare X and y ────────────────────────────────────────────────────
+    if target_col not in df.columns:
+        raise ValueError(f"Target column '{target_col}' was not found in dataset columns: {list(df.columns)}")
+
+    valid_target_rows = df[target_col].dropna()
+    if len(valid_target_rows) < 2:
+        raise ValueError(
+            f"Target column '{target_col}' has fewer than 2 valid non-null rows ({len(valid_target_rows)} valid rows). "
+            f"Please select a target column with sufficient data."
+        )
+
     df_clean = df.copy().dropna(subset=[target_col])
+    if len(df_clean) < 2:
+        raise ValueError(
+            f"Target column '{target_col}' has insufficient valid samples to train ({len(df_clean)} rows). "
+            f"Please select a valid target column."
+        )
 
     fe_columns = []
     if enable_autofe:
@@ -470,8 +485,14 @@ def train_and_evaluate(
         c for c in df_clean.columns
         if c != target_col
         and df_clean[c].nunique() > 1
-        and not (df_clean[c].dtype == object and df_clean[c].nunique() / len(df_clean) > 0.5)
+        and not ((df_clean[c].dtype == object or pd.api.types.is_string_dtype(df_clean[c])) and df_clean[c].nunique() / len(df_clean) > 0.5)
     ]
+
+    # Fallback: if all features got pruned, keep remaining columns
+    if not feature_cols:
+        feature_cols = [c for c in df_clean.columns if c != target_col]
+        if not feature_cols:
+            raise ValueError("No feature columns available to train on after excluding the target column.")
 
     X = df_clean[feature_cols]
     y_raw = df_clean[target_col]
@@ -481,14 +502,53 @@ def train_and_evaluate(
         le = LabelEncoder()
         y = le.fit_transform(y_raw.astype(str))
     else:
-        y = pd.to_numeric(y_raw, errors="coerce")
-        valid_mask = ~pd.isna(y)
-        X = X[valid_mask]
-        y = y[valid_mask].values
+        y_num = pd.to_numeric(
+            y_raw.astype(str).str.replace(r"[^\d.\-+eE]", "", regex=True),
+            errors="coerce"
+        )
+        valid_mask = ~pd.isna(y_num)
+        # If fewer than 2 valid numeric samples OR > 50% became NaN when converting,
+        # the target column is actually categorical/discrete! Auto-fallback to classification!
+        if valid_mask.sum() < 2 or (valid_mask.sum() / len(y_raw) < 0.5):
+            log.warning(
+                "Task type was '%s' but target column '%s' cannot be parsed as numeric (valid numeric ratio: %.1f%%). "
+                "Automatically switching task_type to 'classification'.",
+                task_type, target_col, (valid_mask.sum() / len(y_raw)) * 100
+            )
+            task_type = "classification"
+            model_registry = CLASSIFICATION_MODELS
+            le = LabelEncoder()
+            y = le.fit_transform(y_raw.astype(str))
+            # update valid keys if needed
+            valid_keys = [k for k in selected_model_keys if k in CLASSIFICATION_MODELS]
+            if not valid_keys:
+                valid_keys = ["rf", "logreg"]
+        else:
+            X = X[valid_mask]
+            y = y_num[valid_mask].values
+
+    if len(X) < 2 or len(y) < 2:
+        raise ValueError(
+            f"Target column '{target_col}' has insufficient valid samples to train ({len(X)} valid rows). "
+            f"Please verify that the target column contains valid, non-null values."
+        )
+
+    # Dynamically adjust test_size if dataset is very small to avoid empty train/test split
+    actual_test_size = test_size
+    if len(X) * actual_test_size < 1:
+        actual_test_size = 1 / len(X)
+    if len(X) * (1 - actual_test_size) < 1:
+        actual_test_size = 0.5
+
+    stratify_target = None
+    if task_type == "classification":
+        unique_classes, counts = np.unique(y, return_counts=True)
+        if len(unique_classes) <= 20 and np.all(counts >= 2):
+            stratify_target = y
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state,
-        stratify=y if task_type == "classification" and len(np.unique(y)) <= 20 else None,
+        X, y, test_size=actual_test_size, random_state=random_state,
+        stratify=stratify_target,
     )
 
     preprocessor = _build_preprocessor(X_train)

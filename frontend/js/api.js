@@ -32,7 +32,7 @@ export const ApiClient = {
     return await res.json();
   },
 
-  async uploadCSV(file) {
+  async uploadDataset(file) {
     const formData = new FormData();
     formData.append('file', file);
     const res = await fetch(`${API_BASE}/ingest/upload`, {
@@ -41,9 +41,13 @@ export const ApiClient = {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || 'CSV upload failed');
+      throw new Error(err.detail || 'Dataset upload failed');
     }
     return await res.json();
+  },
+
+  async uploadCSV(file) {
+    return this.uploadDataset(file);
   },
 
   async autoDetectObjectives(sessionId) {

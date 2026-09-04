@@ -24,7 +24,8 @@ _CLASSIFICATION_KEYWORDS = [
     "classif", "churn", "fraud", "spam", "cancer", "disease", "diagnos",
     "sentiment", "category", "categori", "label", "survive", "survival",
     "default", "risk", "detect", "predict whether", "predict if",
-    "binary", "multi-class", "anomaly",
+    "binary", "multi-class", "anomaly", "conversion", "converted",
+    "purchase", "buy", "bought", "lead", "propensity", "attrition", "subscribe",
 ]
 
 _REGRESSION_KEYWORDS = [
@@ -41,6 +42,8 @@ _CLASSIFICATION_SEEDS = [
     "detect fraud in transactions",
     "spam detection",
     "binary classification task",
+    "predict customer purchase conversion probability",
+    "classify customer default or churn risk",
 ]
 
 _REGRESSION_SEEDS = [

@@ -27,7 +27,7 @@ def detect_time_series_column(df: pd.DataFrame) -> str | None:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             return col
         # Try parsing strings as date if sample matches ISO/Date patterns
-        if df[col].dtype == object:
+        if df[col].dtype == object or pd.api.types.is_string_dtype(df[col]):
             sample = df[col].dropna().astype(str).head(20)
             try:
                 converted = pd.to_datetime(sample, errors="coerce")

@@ -57,7 +57,7 @@ feature_cols = [
     c for c in df.columns
     if c != target_col
     and df[c].nunique() > 1
-    and not (df[c].dtype == object and df[c].nunique() / len(df) > 0.5)
+    and not ((df[c].dtype == object or pd.api.types.is_string_dtype(df[c])) and df[c].nunique() / len(df) > 0.5)
 ]
 
 X = df[feature_cols]

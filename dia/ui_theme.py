@@ -18,40 +18,41 @@ def inject_custom_theme() -> None:
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-    --primary: #6366f1;
-    --primary-glow: rgba(99, 102, 241, 0.35);
-    --secondary: #a855f7;
-    --accent: #ec4899;
-    --cyan: #06b6d4;
-    --emerald: #10b981;
+    --primary: #00e575;
+    --primary-glow: rgba(0, 229, 117, 0.25);
+    --secondary: #ded7cb;
+    --accent: #f59e0b;
+    --cyan: #00e575;
+    --emerald: #00e575;
     --amber: #f59e0b;
     --rose: #f43f5e;
 
-    --bg-dark: #090a0f;
-    --card-bg: rgba(18, 20, 29, 0.75);
-    --card-border: rgba(255, 255, 255, 0.08);
-    --card-hover-border: rgba(99, 102, 241, 0.4);
-    --radius: 14px;
-    --radius-sm: 8px;
+    --bg-dark: #050505;
+    --card-bg: #0e0e0e;
+    --card-border: #1f1f1f;
+    --card-hover-border: #333333;
+    --radius: 8px;
+    --radius-sm: 6px;
 }
 
 html, body, [class*="css"] {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: -0.01em;
+    background-color: #050505 !important;
+    color: #ded7cb !important;
 }
 
 code, pre {
     font-family: 'JetBrains Mono', monospace !important;
 }
 
-/* Sidebar Glassmorphism */
+/* Sidebar Flat Architectural Black */
 section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #090a10 0%, #11131f 100%);
+    background: #080808 !important;
     border-right: 1px solid var(--card-border);
-    backdrop-filter: blur(20px);
 }
 section[data-testid="stSidebar"] * {
-    color: #e2e8f0 !important;
+    color: #ded7cb !important;
 }
 
 /* App Main Container */
@@ -59,54 +60,53 @@ section[data-testid="stSidebar"] * {
     padding-top: 1.5rem;
     padding-bottom: 3.5rem;
     max-width: 1350px;
+    background-color: #050505;
 }
 
-/* Glassmorphic Metric Cards */
+/* Flat Metric Cards */
 [data-testid="metric-container"] {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     border-radius: var(--radius);
     padding: 1.1rem 1.25rem;
-    box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(12px);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    transition: border-color 0.15s ease;
 }
 
 [data-testid="metric-container"]:hover {
     border-color: var(--card-hover-border);
-    transform: translateY(-2px);
-    box-shadow: 0 12px 30px -6px var(--primary-glow);
 }
 
-/* Buttons with Gradient Glow */
+/* Flat Phosphor Green Primary Buttons */
 .stButton > button {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    background: #00e575 !important;
+    color: #050505 !important;
+    border: 1px solid #00e575 !important;
     border-radius: var(--radius-sm) !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     padding: 0.55rem 1.25rem !important;
-    box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.35) !important;
-    transition: all 0.2s ease-in-out !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+    transition: background-color 0.15s ease !important;
 }
 
 .stButton > button:hover {
-    transform: translateY(-1px) scale(1.01) !important;
-    box-shadow: 0 6px 20px 0 rgba(124, 58, 237, 0.5) !important;
+    background: #00ff82 !important;
+    border-color: #00ff82 !important;
+    color: #000000 !important;
 }
 
 .stDownloadButton > button {
-    background: linear-gradient(135deg, #0d9488 0%, #059669 100%) !important;
-    color: #ffffff !important;
+    background: #141414 !important;
+    color: #f5f0e6 !important;
     border-radius: var(--radius-sm) !important;
-    border: none !important;
+    border: 1px solid #282828 !important;
     font-weight: 600 !important;
-    box-shadow: 0 4px 14px 0 rgba(13, 148, 136, 0.35) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
 }
 
 .stDownloadButton > button:hover {
-    transform: translateY(-1px) !important;
-    box-shadow: 0 6px 20px 0 rgba(5, 150, 105, 0.5) !important;
+    background: #1c1c1c !important;
+    border-color: #383838 !important;
 }
 
 /* Tabs Navigation Styling */

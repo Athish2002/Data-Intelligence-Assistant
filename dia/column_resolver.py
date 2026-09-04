@@ -63,6 +63,11 @@ _SYNONYM_CLUSTERS = {
         "satisfaction", "rating", "score", "nps", "sentiment", "feedback_score",
         "review_score", "csat"
     ],
+    "conversion": [
+        "conversion", "converted", "is_converted", "purchase", "purchased",
+        "is_purchased", "bought", "buyer", "ordered", "is_ordered", "buy",
+        "conversion_flag", "purchase_flag", "buy_flag", "order_flag", "target_flag", "success"
+    ],
 }
 
 

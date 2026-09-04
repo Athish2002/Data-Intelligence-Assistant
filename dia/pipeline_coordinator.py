@@ -97,13 +97,46 @@ class PipelineCoordinator:
                     target_col = resolved_col
                     break
 
+        # Intelligent Fallback: Search for semantic target indicators, or pick best candidate column
+        if not target_col:
+            target_keywords = [
+                "churn", "default", "fraud", "converted", "conversion", "purchase",
+                "bought", "target", "label", "class", "outcome", "status", "flag",
+                "risk", "sale", "price", "revenue", "response"
+            ]
+            # Try keyword match on column names
+            for col in reversed(clean_df.columns):
+                c_low = col.lower()
+                if any(kw in c_low for kw in target_keywords):
+                    if clean_df[col].dropna().nunique() >= 2:
+                        target_col = col
+                        break
+
+        if not target_col:
+            # Pick rightmost column with >= 2 unique non-null values that isn't an ID or Unnamed
+            for col in reversed(clean_df.columns):
+                c_low = col.lower()
+                if c_low.startswith("unnamed") or c_low.endswith(("_id", "id", "guid", "uuid")):
+                    continue
+                if clean_df[col].dropna().nunique() >= 2 and clean_df[col].dropna().shape[0] >= 2:
+                    target_col = col
+                    break
+
         if not target_col:
             target_col = clean_df.columns[-1]
 
         annotated_profile = infer_column_roles(clean_df, profile_df)
 
         detected_type_dict = detect_target_type(clean_df, target_col)
-        final_task_type = user_task_type or goal_info.get("task_type") or detected_type_dict.get("task_type", "classification")
+        detected_task = detected_type_dict.get("task_type", "classification")
+
+        # Ground truth: if target column is string/bool/categorical, it MUST be classification
+        if user_task_type:
+            final_task_type = user_task_type
+        elif detected_task == "classification":
+            final_task_type = "classification"
+        else:
+            final_task_type = goal_info.get("task_type") or detected_task
 
         # Stage 3: Data Readiness Audit & Smart Insights
         readiness = generate_readiness_report(

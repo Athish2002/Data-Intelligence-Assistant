@@ -39,150 +39,230 @@
   <!-- Custom Glassmorphism Stylesheet -->
   <link rel="stylesheet" href="css/style.css" />
 </head>
-<body class="bg-[#070b19] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-slate-950">
+<body class="min-h-screen flex flex-col antialiased selection:bg-[#00e575] selection:text-black" style="background-color: var(--bg-primary); color: var(--text-secondary);">
 
   <!-- Top Navbar -->
-  <header class="border-b border-white/5 bg-slate-950/70 backdrop-blur-xl sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 font-bold text-lg text-white">
-          🧠
-        </div>
-        <div>
-          <div class="flex items-center space-x-2">
-            <span class="font-bold text-base tracking-tight text-slate-100">Data Intelligence Assistant</span>
-            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-cyan-950 text-cyan-400 border border-cyan-500/30 rounded-full">Fullstack v13.6</span>
-          </div>
-          <p class="text-[11px] text-slate-400">Autonomous AutoML &bull; SHAP &bull; Causal ML &bull; GDPR &bull; Great Expectations</p>
-        </div>
+  <header class="border-b sticky top-0 z-40 px-4 h-12 flex items-center justify-between" style="border-color: var(--card-border); background-color: var(--bg-primary);">
+    <!-- Left brand + dock toggle -->
+    <div onclick="window.switchWorkspace && window.switchWorkspace('dashboard', 'overview')" class="flex items-center space-x-2 cursor-pointer group" title="Return to Executive Mission Control">
+      <button id="toggle-dock-btn" onclick="event.stopPropagation()" class="p-1.5 rounded hover:bg-white/5 transition-colors cursor-pointer" title="Toggle Ingestion Dock (⌘B / Ctrl+B)" style="color: var(--text-muted);">
+        <i data-lucide="panel-left" class="w-4 h-4"></i>
+      </button>
+      <div class="px-2 py-0.5 rounded text-[11px] font-mono font-black tracking-wider bg-[#00e575] text-[#050505] group-hover:scale-105 transition-transform">
+        DIA
       </div>
+      <div class="flex items-center space-x-2">
+        <span class="font-bold text-sm tracking-tight hidden sm:inline group-hover:text-[#00e575] transition-colors" style="color: var(--text-primary)">Data Intelligence Assistant</span>
+        <span class="text-[10px] uppercase font-mono font-bold tracking-wider px-1.5 py-0.5 rounded border hidden md:inline" style="background-color: var(--tag-bg); color: var(--tag-text); border-color: var(--card-border)">ENTERPRISE</span>
+      </div>
+    </div>
 
-      <div class="flex items-center space-x-4">
-        <div id="active-dataset-badge"></div>
-        <div id="system-health-badge" class="flex items-center px-3 py-1 bg-slate-900/80 border border-slate-800 rounded-full"></div>
-        <a href="/docs" target="_blank" class="text-xs text-slate-400 hover:text-cyan-300 flex items-center transition-colors">
-          <i data-lucide="book-open" class="w-3.5 h-3.5 mr-1"></i> Swagger API Docs
-        </a>
-      </div>
+    <!-- Center Command Bar Trigger (⌘K) -->
+    <div class="flex-1 max-w-sm mx-3 hidden sm:block">
+      <button id="command-palette-trigger" class="w-full flex items-center justify-between px-3 py-1 rounded border text-xs font-mono transition-all hover:border-[#333] cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-muted);">
+        <span class="flex items-center space-x-2 truncate">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-[#858076]"></i>
+          <span>Search models, datasets, workspaces...</span>
+        </span>
+        <span class="text-[10px] font-mono px-1.5 py-0.2 rounded border ml-2 flex-shrink-0" style="background-color: var(--tag-bg); border-color: var(--card-border); color: var(--text-muted);">
+          ⌘K
+        </span>
+      </button>
+    </div>
+
+    <!-- Right Controls (Strict Non-Colliding Flow) -->
+    <div class="flex items-center space-x-2 flex-shrink-0">
+      <div id="active-dataset-badge"></div>
+      <div id="active-model-badge"></div>
+      <div id="system-health-badge" class="hidden xl:flex items-center px-2 py-0.5 rounded border font-mono text-[11px]" style="background-color: var(--card-bg); border-color: var(--card-border); color: var(--text-muted)"></div>
+      
+      <!-- Inspector Toggle Button (⌘I) -->
+      <button id="toggle-inspector-btn" class="px-2.5 py-1 rounded border text-xs font-mono flex items-center space-x-1.5 hover:bg-white/5 transition-all cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Toggle Model & Feature Inspector (⌘I / Ctrl+I)">
+        <i data-lucide="sidebar" class="w-3.5 h-3.5 text-[#00e575]"></i>
+        <span class="hidden lg:inline">Inspector</span>
+      </button>
+
+      <!-- Dark / Light Mode Quick Switch -->
+      <button id="mode-toggle-btn" class="p-1.5 rounded border hover:bg-white/5 transition-all cursor-pointer flex items-center justify-center" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Toggle Dark / Light Mode">
+        <i id="mode-toggle-icon" data-lucide="moon" class="w-3.5 h-3.5 text-[#00e575]"></i>
+      </button>
+
+      <!-- Curated Theme Selector -->
+      <select id="theme-selector" class="glass-input text-xs py-1 px-2 font-mono cursor-pointer" style="border-color: var(--card-border); background-color: var(--card-bg); color: var(--text-primary);" title="Switch Visual Theme">
+        <option value="beige-black" selected>1. Beige Flat Black (Primary)</option>
+        <option value="tokyo-sand">2. Tokyo Sand (Light Mode)</option>
+      </select>
+
+      <a href="/docs" target="_blank" class="text-xs hover:opacity-80 flex items-center transition-opacity p-1.5" style="color: var(--text-muted)" title="Swagger API Docs">
+        <i data-lucide="book-open" class="w-3.5 h-3.5 text-[#00e575]"></i>
+      </a>
     </div>
   </header>
 
-  <!-- Main Grid Container -->
-  <main class="max-w-7xl mx-auto px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+  <!-- 3-Pane Workbench Architecture (Style 1) -->
+  <div id="workbench-container" class="flex-1 flex overflow-hidden w-full relative">
     
-    <!-- Left Sidebar: Controls & Ingestion (4 Columns) -->
-    <aside class="lg:col-span-4 space-y-5">
-      
-      <!-- Data Ingestion Card -->
-      <div class="glass-card p-5">
-        <div class="flex items-center space-x-2 text-sm font-semibold text-slate-200 mb-3">
-          <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 text-xs flex items-center justify-center font-bold">1</span>
-          <span>Connect Data Source</span>
+    <!-- 1. Left Dock (Collapsible Ingestion & Navigation) -->
+    <aside id="left-dock" class="w-80 border-r flex flex-col justify-between flex-shrink-0 transition-all duration-200 z-30 overflow-y-auto" style="background-color: var(--bg-primary); border-color: var(--card-border);">
+      <div class="p-3.5 space-y-3.5">
+        
+        <!-- Data Ingestion Card -->
+        <div class="glass-card p-3.5">
+          <div class="flex items-center justify-between text-xs font-mono font-bold uppercase tracking-wider mb-2" style="color: var(--text-muted);">
+            <span>DATA SOURCE</span>
+            <span class="text-xs font-mono font-bold text-[#00e575]">STEP 1</span>
+          </div>
+
+          <!-- Upload Dropzone -->
+          <div id="upload-dropzone" class="border border-dashed hover:border-[#00e575] rounded-lg p-3 text-center cursor-pointer transition-all mb-2.5 group relative" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+            <input type="file" id="csv-file-input" accept=".csv,.tsv,.parquet,.json,.jsonl,.xlsx,.xls" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+            <i data-lucide="upload-cloud" class="w-5 h-5 mx-auto text-[#858076] group-hover:text-[#00e575] transition-colors mb-1"></i>
+            <div class="text-sm font-semibold" style="color: var(--text-primary);">Drop Dataset or Click to Upload</div>
+            <div class="text-xs mt-0.5" style="color: var(--text-muted);">CSV, TSV, Parquet, JSON, Excel</div>
+          </div>
+
+          <div class="relative flex py-1.5 items-center">
+            <div class="flex-grow border-t" style="border-color: var(--card-border);"></div>
+            <span class="flex-shrink mx-2 text-[11px] uppercase font-mono tracking-widest font-semibold" style="color: var(--text-muted);">or benchmark</span>
+            <div class="flex-grow border-t" style="border-color: var(--card-border);"></div>
+          </div>
+
+          <!-- Demo Benchmark Selector -->
+          <div class="mt-1 space-y-2">
+            <select id="demo-select" class="w-full glass-input text-xs font-mono">
+              <option value="">Loading benchmarks...</option>
+            </select>
+            <button id="load-demo-btn" class="w-full py-2 border text-xs font-semibold rounded-md flex items-center justify-center transition-all hover:bg-white/5 active:scale-95 cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
+              <i data-lucide="database" class="w-4 h-4 mr-1.5 text-[#00e575]"></i> Ingest Benchmark
+            </button>
+          </div>
         </div>
 
-        <!-- Upload Dropzone -->
-        <div id="upload-dropzone" class="border-2 border-dashed border-slate-700/80 hover:border-cyan-500/60 rounded-xl p-5 text-center cursor-pointer transition-all bg-slate-900/30 mb-3 group relative">
-          <input type="file" id="csv-file-input" accept=".csv" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-          <i data-lucide="upload-cloud" class="w-7 h-7 mx-auto text-slate-400 group-hover:text-cyan-400 transition-colors mb-1.5"></i>
-          <div class="text-xs font-semibold text-slate-200">Drag & drop your CSV here</div>
-          <div class="text-[10px] text-slate-400 mt-1">Auto-delimiter, dirty currencies & encoding sniffing</div>
-        </div>
+        <!-- Prediction Goal Card -->
+        <div class="glass-card p-3.5">
+          <div class="flex items-center justify-between text-xs font-mono font-bold uppercase tracking-wider mb-2" style="color: var(--text-muted);">
+            <span>PREDICTION GOAL</span>
+            <span class="text-xs font-mono font-bold text-[#00e575]">STEP 2</span>
+          </div>
 
-        <div class="relative flex py-2 items-center">
-          <div class="flex-grow border-t border-slate-800"></div>
-          <span class="flex-shrink mx-2 text-[10px] uppercase text-slate-500 font-semibold tracking-wider">or benchmark</span>
-          <div class="flex-grow border-t border-slate-800"></div>
-        </div>
-
-        <!-- Demo Benchmark Selector -->
-        <div class="mt-1 space-y-2">
-          <select id="demo-select" class="w-full glass-input text-xs">
-            <option value="">Loading benchmark datasets...</option>
-          </select>
-          <button id="load-demo-btn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg flex items-center justify-center transition-colors">
-            <i data-lucide="database" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i> Ingest Benchmark Dataset
+          <button id="autodetect-btn" class="w-full py-2 mb-2 border text-xs font-semibold rounded-md flex items-center justify-center transition-all hover:bg-white/5 cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
+            <i data-lucide="sparkles" class="w-4 h-4 mr-1.5 text-[#00e575]"></i> Auto-Detect Objectives
           </button>
-        </div>
-      </div>
 
-      <!-- Prediction Goal Card -->
-      <div class="glass-card p-5">
-        <div class="flex items-center space-x-2 text-sm font-semibold text-slate-200 mb-3">
-          <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 text-xs flex items-center justify-center font-bold">2</span>
-          <span>Prediction Goal & Target</span>
+          <label class="block text-xs font-medium mb-1" style="color: var(--text-muted);">Describe Goal in Plain English</label>
+          <textarea id="goal-input" rows="2" class="w-full glass-input text-xs mb-2 resize-none" placeholder="e.g. Predict customer churn risk"></textarea>
+
+          <label class="block text-xs font-medium mb-1" style="color: var(--text-muted);">Target column (optional override)</label>
+          <input type="text" id="target-col-input" class="w-full glass-input text-xs" placeholder="e.g. churn_flag, default_risk" />
         </div>
 
-        <button id="autodetect-btn" class="w-full py-2 mb-3 bg-gradient-to-r from-indigo-950 to-purple-950 hover:from-indigo-900 hover:to-purple-900 border border-indigo-500/30 text-indigo-300 text-xs font-semibold rounded-lg flex items-center justify-center transition-all">
-          <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5 text-indigo-400"></i> Auto-Detect Domain & Objectives
+        <!-- Execution Action Button -->
+        <button id="train-btn" disabled class="w-full py-2.5 font-bold text-xs rounded-lg transition-all flex items-center justify-center space-x-2 uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95" style="background-color: var(--btn-primary-bg); color: var(--btn-primary-text);">
+          <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+          <span>Launch ML Pipeline</span>
         </button>
 
-        <label class="block text-xs font-medium text-slate-400 mb-1">Describe Goal in Plain English</label>
-        <textarea id="goal-input" rows="3" class="w-full glass-input text-xs mb-3 resize-none" placeholder="e.g. predict customer churn&#10;forecast monthly billing charges&#10;detect credit default"></textarea>
-
-        <label class="block text-xs font-medium text-slate-400 mb-1">Target Column (Optional Fuzzy Override)</label>
-        <input type="text" id="target-col-input" class="w-full glass-input text-xs" placeholder="e.g. churn, exited, default_risk" />
-      </div>
-
-      <!-- Execution Action -->
-      <button id="train-btn" disabled class="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-indigo-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center space-x-2">
-        <i data-lucide="play" class="w-4 h-4 fill-current"></i>
-        <span>Launch Autonomous ML Pipeline</span>
-      </button>
-
-      <!-- Progress status -->
-      <div id="train-progress" class="glass-card p-4 hidden space-y-2">
-        <div class="flex justify-between text-xs font-medium">
-          <span id="status-text" class="text-cyan-400 flex items-center"><span class="live-pulse mr-2"></span> Executing pipeline...</span>
+        <!-- Training Progress Indicator -->
+        <div id="train-progress" class="glass-card p-3 hidden space-y-1.5">
+          <div class="flex justify-between text-xs font-medium">
+            <span id="status-text" class="text-[#00e575] flex items-center"><span class="live-pulse mr-2"></span> Executing pipeline...</span>
+          </div>
+          <div class="w-full rounded-full h-1.5 overflow-hidden" style="background-color: var(--bg-secondary);">
+            <div id="progress-bar" class="bg-[#00e575] h-full rounded-full transition-all duration-300" style="width: 30%"></div>
+          </div>
         </div>
-        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-          <div id="progress-bar" class="bg-gradient-to-r from-cyan-500 to-indigo-500 h-full rounded-full transition-all duration-300" style="width: 30%"></div>
-        </div>
+
       </div>
     </aside>
 
-    <!-- Right Workspace Area (8 Columns) -->
-    <section class="lg:col-span-8 space-y-5">
+    <!-- 2. Center Fluid Analytical Canvas -->
+    <main id="center-canvas" class="flex-1 min-w-0 overflow-y-auto px-4 lg:px-6 py-3.5 space-y-3.5">
       
-      <!-- 4-Pillar Workspace Selector -->
-      <div class="glass-card p-1.5 flex flex-wrap sm:flex-nowrap gap-1">
-        <button class="workspace-btn active flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 border border-transparent" data-workspace="core">
-          <span>📊</span>
-          <span>Core Intelligence</span>
+      <!-- 5-Pillar Workspace Selector -->
+      <div id="workspace-nav" class="glass-card p-1 flex flex-wrap sm:flex-nowrap gap-1">
+        <button class="workspace-btn active flex-1 py-2 px-2.5 rounded text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="dashboard">
+          <span>🏠 Executive Dashboard</span>
         </button>
-        <button class="workspace-btn flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 border border-transparent" data-workspace="automl">
-          <span>🤖</span>
-          <span>AutoML & Explanations</span>
+        <button class="workspace-btn flex-1 py-2 px-2.5 rounded text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="core">
+          <span>1. Data Intelligence</span>
         </button>
-        <button class="workspace-btn flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 border border-transparent" data-workspace="adaptive">
-          <span>🧬</span>
-          <span>Adaptive AI Engines</span>
+        <button class="workspace-btn flex-1 py-2 px-2.5 rounded text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="automl">
+          <span>2. Autonomous ML</span>
         </button>
-        <button class="workspace-btn flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 border border-transparent" data-workspace="governance">
-          <span>🛡️</span>
-          <span>Governance & MLOps</span>
+        <button class="workspace-btn flex-1 py-2 px-2.5 rounded text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="adaptive">
+          <span>3. Adaptive AI</span>
+        </button>
+        <button class="workspace-btn flex-1 py-2 px-2.5 rounded text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="governance">
+          <span>4. Governance & MLOps</span>
         </button>
       </div>
 
-      <!-- Sub-Tab Pills Navigation Bar -->
-      <div id="subtab-bar" class="flex flex-wrap gap-1.5 border-b border-slate-800/80 pb-2"></div>
+      <!-- Sub-Tab Navigation Bar -->
+      <div id="subtab-bar" class="flex flex-wrap gap-1.5 border-b pb-2" style="border-color: var(--card-border);"></div>
 
       <!-- Dynamic Content Area -->
-      <div id="tab-content" class="min-h-[500px]">
+      <div id="tab-content" class="min-h-[420px]">
         <!-- Populated dynamically via JS -->
       </div>
-    </section>
+    </main>
 
-  </main>
-
-  <!-- Footer -->
-  <footer class="border-t border-white/5 py-4 bg-slate-950/60 mt-auto">
-    <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500">
-      <div>Data Intelligence Assistant &bull; Fullstack Enterprise Edition</div>
-      <div class="mt-2 sm:mt-0 flex space-x-4">
-        <span>Dual Edition: Streamlit (Port 8501) & Fullstack FastAPI (Port 8000)</span>
+    <!-- 3. Right Slide-Out Inspector Drawer -->
+    <aside id="inspector-drawer" class="w-88 xl:w-96 border-l flex flex-col flex-shrink-0 transition-all duration-200 z-30 hidden" style="background-color: var(--bg-primary); border-color: var(--card-border);">
+      <div class="p-3 border-b flex items-center justify-between" style="border-color: var(--card-border);">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+          <span class="text-xs font-mono font-bold uppercase tracking-wider" style="color: var(--text-primary);">MODEL & METRIC INSPECTOR</span>
+        </div>
+        <button id="close-inspector-btn" class="p-1 rounded hover:bg-white/10 text-xs cursor-pointer" style="color: var(--text-muted);">&times;</button>
       </div>
+      <div id="inspector-content" class="p-3.5 flex-1 overflow-y-auto space-y-3">
+        <!-- Dynamically rendered by JS -->
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Bottom HUD Status Line -->
+  <footer id="bottom-hud" class="h-7 border-t px-4 flex items-center justify-between text-[10px] font-mono z-40 select-none flex-shrink-0" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-muted);">
+    <div class="flex items-center space-x-3">
+      <span class="flex items-center space-x-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#00e575]"></span>
+        <span class="text-[#f5f0e6]">ENGINE: LIVE</span>
+      </span>
+      <span class="hidden sm:inline text-stone-700">|</span>
+      <span id="hud-dataset" class="hidden sm:inline">DATASET: None</span>
+      <span class="hidden md:inline text-stone-700">|</span>
+      <span id="hud-model" class="hidden md:inline">CHAMPION: None</span>
+    </div>
+    <div class="flex items-center space-x-3">
+      <span class="hidden lg:inline hover:text-white cursor-pointer" id="hud-cmd-shortcut">⌘K Command</span>
+      <span class="hidden lg:inline hover:text-white cursor-pointer" id="hud-dock-shortcut">⌘B Dock</span>
+      <span class="hidden lg:inline hover:text-white cursor-pointer" id="hud-inspector-shortcut">⌘I Inspector</span>
+      <span class="text-[#00e575]">Enterprise Edition</span>
     </div>
   </footer>
+
+  <!-- Quick Command Palette Modal (⌘K) -->
+  <div id="command-palette-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-start justify-center pt-20 px-4">
+    <div class="w-full max-w-xl rounded-xl border shadow-2xl overflow-hidden" style="background-color: var(--card-bg); border-color: var(--border-active);">
+      <div class="flex items-center px-4 py-3 border-b" style="border-color: var(--card-border);">
+        <i data-lucide="search" class="w-4 h-4 text-[#858076] mr-2.5"></i>
+        <input id="command-input" type="text" placeholder="Type a command or jump to workspace..." class="w-full bg-transparent text-xs outline-none font-mono" style="color: var(--text-primary);" autocomplete="off" />
+        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded border" style="background-color: var(--tag-bg); color: var(--text-muted); border-color: var(--card-border);">ESC</span>
+      </div>
+      <div id="command-results" class="max-h-80 overflow-y-auto p-2 space-y-1 text-xs font-mono">
+        <!-- Populated dynamically via JS -->
+      </div>
+      <div class="px-4 py-2 border-t flex items-center justify-between text-[10px] font-mono" style="border-color: var(--card-border); color: var(--text-muted);">
+        <span>Navigation: ↑ ↓ to select &bull; ↵ to execute</span>
+        <span>Data Intelligence Assistant</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Precision Custom Cursor Elements -->
+  <div id="cursor-dot"></div>
+  <div id="cursor-ring"></div>
 
   <!-- Module Script -->
   <script type="module" src="js/app.js"></script>
