@@ -114,6 +114,7 @@ def _infer_target_candidates(goal: str, columns: Sequence[str]) -> list[str]:
     for col in columns:
         score = 0.0
         col_norm = normalize_string(col)
+        matching_token_count = 0
 
         # 1. Match each goal token against column
         for token in goal_tokens:
@@ -122,10 +123,15 @@ def _infer_target_candidates(goal: str, columns: Sequence[str]) -> list[str]:
             matched_col, conf, _ = resolve_column(token, [col])
             if matched_col and conf > 0.6:
                 score = max(score, conf)
+                matching_token_count += 1
+
+        if matching_token_count > 1:
+            score += 0.05 * (matching_token_count - 1)
 
         # 2. Check if column matches generic target indicator terms
-        if any(term in col_norm for term in ["target", "label", "class", "output", "flag", "status"]):
-            score = max(score, 0.65)
+        if any(term in col_norm for term in ["target", "label", "class", "output", "flag", "status", "risk", "outcome", "churn", "default"]):
+            score = max(score, 0.70)
+            score += 0.06
 
         # 3. Downrank Primary Key / ID columns
         if col_norm.endswith("_id") or col_norm in ["id", "client_id", "user_id", "customer_id", "account_id", "cust_id", "cust_no", "applicant_id"]:
