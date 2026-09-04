@@ -53,6 +53,7 @@ def safe_n_jobs(requested: int = -1) -> int:
 
 import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import (
@@ -333,31 +334,172 @@ REGRESSION_MODELS: dict[str, dict] = {
 
 # ─── Preprocessing helpers ────────────────────────────────────────────────────
 
+class SafeCategoricalTransformer(BaseEstimator, TransformerMixin):
+    """
+    Transforms any incoming categorical/object data into uniform clean strings,
+    substituting nulls and NaNs with a deterministic sentinel string '__missing__'.
+    Guarantees scikit-learn OneHotEncoder / OrdinalEncoder will NEVER encounter
+    mixed types (e.g. ['int', 'str']) or unhashable objects.
+    """
+    def __init__(self, missing_sentinel: str = "__missing__"):
+        self.missing_sentinel = missing_sentinel
+        self.feature_names_in_ = None
+        self.n_features_in_ = 0
+
+    def fit(self, X, y=None):
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = np.array(X.columns, dtype=object)
+            self.n_features_in_ = len(X.columns)
+        else:
+            arr = np.asarray(X)
+            self.n_features_in_ = arr.shape[1] if arr.ndim > 1 else 1
+            self.feature_names_in_ = np.array([f"cat_{i}" for i in range(self.n_features_in_)], dtype=object)
+        return self
+
+    def transform(self, X):
+        if hasattr(X, "to_numpy"):
+            arr = X.to_numpy(dtype=object, copy=True)
+        else:
+            arr = np.array(X, dtype=object, copy=True)
+
+        if arr.ndim == 1:
+            arr = arr.reshape(-1, 1)
+
+        flat = arr.ravel()
+        null_set = {"nan", "none", "null", "<na>", "", "n/a", "?", "--", "missing"}
+        cleaned = [
+            self.missing_sentinel
+            if (pd.isna(v) or v is None or str(v).strip().lower() in null_set)
+            else str(v).strip()
+            for v in flat
+        ]
+        return np.array(cleaned, dtype=object).reshape(arr.shape)
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is not None:
+            return np.asarray(input_features, dtype=object)
+        if self.feature_names_in_ is not None:
+            return self.feature_names_in_
+        return np.array([f"cat_{i}" for i in range(self.n_features_in_)], dtype=object)
+
+
+class SafeNumericTransformer(BaseEstimator, TransformerMixin):
+    """
+    Sanitizes numerical features:
+    - Replaces inf, -inf with NaN.
+    - Clips extreme values outside [-1e15, 1e15] to prevent float64 overflow.
+    - Imputes NaN values with the median of training data, falling back to 0.0 if all-NaN.
+    - Scales numerical features with RobustScaler.
+    """
+    def __init__(self):
+        self.medians_: np.ndarray | None = None
+        self.scaler = RobustScaler()
+        self.feature_names_in_ = None
+        self.n_features_in_ = 0
+
+    def fit(self, X, y=None):
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = np.array(X.columns, dtype=object)
+            try:
+                arr = X.to_numpy(dtype=float, copy=True)
+            except (ValueError, TypeError):
+                arr = X.apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float, copy=True)
+        else:
+            try:
+                arr = np.array(X, dtype=float, copy=True)
+            except (ValueError, TypeError):
+                arr = pd.DataFrame(X).apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float, copy=True)
+
+        if arr.ndim == 1:
+            arr = arr.reshape(-1, 1)
+
+        self.n_features_in_ = arr.shape[1]
+
+        # Clean non-finite & clip
+        arr[np.isinf(arr)] = np.nan
+        arr = np.clip(arr, -1e15, 1e15)
+
+        # Compute column-wise medians
+        self.medians_ = np.zeros(self.n_features_in_, dtype=float)
+        for j in range(self.n_features_in_):
+            col_vals = arr[:, j]
+            valid_vals = col_vals[~np.isnan(col_vals)]
+            if len(valid_vals) > 0:
+                self.medians_[j] = float(np.median(valid_vals))
+            else:
+                self.medians_[j] = 0.0
+
+        imputed_arr = arr.copy()
+        for j in range(self.n_features_in_):
+            mask = np.isnan(imputed_arr[:, j])
+            imputed_arr[mask, j] = self.medians_[j]
+
+        self.scaler.fit(imputed_arr)
+        return self
+
+    def transform(self, X):
+        if hasattr(X, "columns"):
+            try:
+                arr = X.to_numpy(dtype=float, copy=True)
+            except (ValueError, TypeError):
+                arr = X.apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float, copy=True)
+        elif hasattr(X, "to_numpy"):
+            try:
+                arr = X.to_numpy(dtype=float, copy=True)
+            except (ValueError, TypeError):
+                arr = pd.DataFrame(X).apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float, copy=True)
+        else:
+            try:
+                arr = np.array(X, dtype=float, copy=True)
+            except (ValueError, TypeError):
+                arr = pd.DataFrame(X).apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float, copy=True)
+
+        if arr.ndim == 1:
+            arr = arr.reshape(-1, 1)
+
+        arr[np.isinf(arr)] = np.nan
+        arr = np.clip(arr, -1e15, 1e15)
+
+        for j in range(arr.shape[1]):
+            med = self.medians_[j] if (self.medians_ is not None and j < len(self.medians_)) else 0.0
+            mask = np.isnan(arr[:, j])
+            arr[mask, j] = med
+
+        return self.scaler.transform(arr)
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is not None:
+            return np.asarray(input_features, dtype=object)
+        if self.feature_names_in_ is not None:
+            return self.feature_names_in_
+        n_features = len(self.medians_) if self.medians_ is not None else 1
+        return np.array([f"num_{i}" for i in range(n_features)], dtype=object)
+
+
 def _build_preprocessor(X: pd.DataFrame):
-    """Build a ColumnTransformer with advanced encoding and robust scaling."""
+    """Build a hardened ColumnTransformer with advanced encoding, bounded dimensions, and robust scaling."""
     numeric_cols = X.select_dtypes(include=["number"]).columns.tolist()
     cat_cols_all = X.select_dtypes(include=["object", "category"]).columns.tolist()
 
     low_card_cols = []
     high_card_cols = []
     for col in cat_cols_all:
-        if X[col].nunique() < 10:
+        if X[col].nunique(dropna=True) <= 30:
             low_card_cols.append(col)
         else:
             high_card_cols.append(col)
 
     numeric_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", RobustScaler()),
+        ("safe_num", SafeNumericTransformer()),
     ])
 
     low_card_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+        ("safe_cat", SafeCategoricalTransformer()),
+        ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False, max_categories=30)),
     ])
 
     high_card_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("safe_cat", SafeCategoricalTransformer()),
         ("encoder", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
     ])
 
@@ -498,8 +640,8 @@ def train_and_evaluate(
     feature_cols = [
         c for c in df_clean.columns
         if c != target_col
-        and df_clean[c].nunique() > 1
-        and not ((df_clean[c].dtype == object or pd.api.types.is_string_dtype(df_clean[c])) and df_clean[c].nunique() / len(df_clean) > 0.5)
+        and df_clean[c].nunique(dropna=True) > 1
+        and not ((df_clean[c].dtype == object or pd.api.types.is_string_dtype(df_clean[c])) and df_clean[c].nunique() > 30 and df_clean[c].nunique() / len(df_clean) > 0.5)
     ]
 
     # Fallback: if all features got pruned, keep remaining columns
@@ -513,8 +655,15 @@ def train_and_evaluate(
 
     le = None
     if task_type == "classification":
+        y_clean_str = y_raw.astype(str).str.strip()
+        unique_classes = y_clean_str.unique()
+        if len(unique_classes) < 2:
+            raise ValueError(
+                f"Target column '{target_col}' has only 1 distinct class ({list(unique_classes)}). "
+                f"Classification models require at least 2 distinct classes to train."
+            )
         le = LabelEncoder()
-        y = le.fit_transform(y_raw.astype(str))
+        y = le.fit_transform(y_clean_str)
     else:
         y_num = pd.to_numeric(
             y_raw.astype(str).str.replace(r"[^\d.\-+eE]", "", regex=True),
@@ -531,8 +680,15 @@ def train_and_evaluate(
             )
             task_type = "classification"
             model_registry = CLASSIFICATION_MODELS
+            y_clean_str = y_raw.astype(str).str.strip()
+            unique_classes = y_clean_str.unique()
+            if len(unique_classes) < 2:
+                raise ValueError(
+                    f"Target column '{target_col}' has only 1 distinct class ({list(unique_classes)}). "
+                    f"Classification models require at least 2 distinct classes to train."
+                )
             le = LabelEncoder()
-            y = le.fit_transform(y_raw.astype(str))
+            y = le.fit_transform(y_clean_str)
             # update valid keys if needed
             valid_keys = [k for k in selected_model_keys if k in CLASSIFICATION_MODELS]
             if not valid_keys:
@@ -599,64 +755,106 @@ def train_and_evaluate(
             # ── HPO Tuning ────────────────────────────────────────────────────
             if enable_hpo and key in HPO_PARAM_GRIDS:
                 param_dist = HPO_PARAM_GRIDS[key]
-                cv_hpo = (
-                    StratifiedKFold(n_splits=3, shuffle=True, random_state=random_state)
-                    if task_type == "classification"
-                    else KFold(n_splits=3, shuffle=True, random_state=random_state)
-                )
-                scoring_hpo = 'roc_auc' if task_type == "classification" else 'r2'
+                if task_type == "classification":
+                    unique_cls, cls_counts = np.unique(y_train, return_counts=True)
+                    min_count = int(np.min(cls_counts)) if len(unique_cls) > 0 else 0
+                    if min_count >= 3:
+                        cv_hpo = StratifiedKFold(n_splits=3, shuffle=True, random_state=random_state)
+                    elif min_count >= 2:
+                        cv_hpo = StratifiedKFold(n_splits=2, shuffle=True, random_state=random_state)
+                    else:
+                        cv_hpo = KFold(n_splits=min(3, max(2, len(y_train))), shuffle=True, random_state=random_state)
 
-                hpo_search = RandomizedSearchCV(
-                    estimator=estimator,
-                    param_distributions=param_dist,
-                    n_iter=min(hpo_iter, 20),
-                    scoring=scoring_hpo,
-                    cv=cv_hpo,
-                    random_state=random_state,
-                    n_jobs=n_jobs,
-                    error_score='raise',
-                )
-
-                if sample_weight is not None:
-                    try:
-                        hpo_search.fit(X_train_proc, y_train, sample_weight=sample_weight)
-                    except Exception:
-                        hpo_search.fit(X_train_proc, y_train)
+                    if len(unique_cls) == 2 and min_count >= 2:
+                        scoring_hpo = 'roc_auc'
+                    elif len(unique_cls) > 2 and min_count >= 2:
+                        scoring_hpo = 'roc_auc_ovr'
+                    else:
+                        scoring_hpo = 'accuracy'
                 else:
-                    hpo_search.fit(X_train_proc, y_train)
+                    cv_hpo = KFold(n_splits=min(3, max(2, len(y_train))), shuffle=True, random_state=random_state)
+                    scoring_hpo = 'r2'
 
-                estimator = hpo_search.best_estimator_
-                best_params = hpo_search.best_params_
+                try:
+                    hpo_search = RandomizedSearchCV(
+                        estimator=estimator,
+                        param_distributions=param_dist,
+                        n_iter=min(hpo_iter, 20),
+                        scoring=scoring_hpo,
+                        cv=cv_hpo,
+                        random_state=random_state,
+                        n_jobs=n_jobs,
+                        error_score=np.nan,
+                    )
+
+                    if sample_weight is not None:
+                        try:
+                            hpo_search.fit(X_train_proc, y_train, sample_weight=sample_weight)
+                        except Exception:
+                            hpo_search.fit(X_train_proc, y_train)
+                    else:
+                        hpo_search.fit(X_train_proc, y_train)
+
+                    if hasattr(hpo_search, "best_estimator_") and hpo_search.best_estimator_ is not None:
+                        estimator = hpo_search.best_estimator_
+                        best_params = hpo_search.best_params_
+                except Exception as hpo_err:
+                    log.warning("HPO search encountered issue (%s), retaining base estimator", hpo_err)
 
             # ── Cross-Validation ──────────────────────────────────────────────
             cv_metrics = {}
             if apply_cv:
-                cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state) if task_type == "classification" else KFold(n_splits=5, shuffle=True, random_state=random_state)
-                scoring = 'roc_auc' if task_type == "classification" else 'r2'
+                if task_type == "classification":
+                    unique_cls, cls_counts = np.unique(y_train, return_counts=True)
+                    n_classes = len(unique_cls)
+                    min_count = int(np.min(cls_counts)) if n_classes > 0 else 0
+                    if min_count >= 5:
+                        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+                    elif min_count >= 2:
+                        cv = StratifiedKFold(n_splits=min_count, shuffle=True, random_state=random_state)
+                    else:
+                        cv = KFold(n_splits=min(5, max(2, len(y_train))), shuffle=True, random_state=random_state)
 
-                try:
-                    cv_res = cross_validate(
-                        estimator, X_train_proc, y_train,
-                        cv=cv, scoring=scoring, n_jobs=n_jobs,
-                        params={'sample_weight': sample_weight} if sample_weight is not None else None,
-                        error_score='raise'
-                    )
-                except TypeError:
+                    if n_classes == 2 and min_count >= 2:
+                        scoring = 'roc_auc'
+                    elif n_classes > 2 and min_count >= 2:
+                        scoring = 'roc_auc_ovr'
+                    else:
+                        scoring = 'accuracy'
+                else:
+                    cv = KFold(n_splits=min(5, max(2, len(y_train))), shuffle=True, random_state=random_state)
+                    scoring = 'r2'
+
+                cv_res = None
+                for candidate_scoring in [scoring, 'accuracy' if task_type == "classification" else 'r2']:
                     try:
                         cv_res = cross_validate(
                             estimator, X_train_proc, y_train,
-                            cv=cv, scoring=scoring, n_jobs=n_jobs,
-                            fit_params={'sample_weight': sample_weight} if sample_weight is not None else None,
-                            error_score='raise'
+                            cv=cv, scoring=candidate_scoring, n_jobs=n_jobs,
+                            params={'sample_weight': sample_weight} if sample_weight is not None else None,
+                            error_score=np.nan
                         )
+                        break
+                    except TypeError:
+                        try:
+                            cv_res = cross_validate(
+                                estimator, X_train_proc, y_train,
+                                cv=cv, scoring=candidate_scoring, n_jobs=n_jobs,
+                                fit_params={'sample_weight': sample_weight} if sample_weight is not None else None,
+                                error_score=np.nan
+                            )
+                            break
+                        except Exception:
+                            pass
                     except Exception:
-                        cv_res = cross_validate(estimator, X_train_proc, y_train, cv=cv, scoring=scoring, n_jobs=n_jobs, error_score='raise')
-                except Exception:
-                    cv_res = cross_validate(estimator, X_train_proc, y_train, cv=cv, scoring=scoring, n_jobs=n_jobs, error_score='raise')
+                        pass
 
-                cv_mean = float(np.mean(cv_res['test_score']))
-                cv_std = float(np.std(cv_res['test_score']))
-                cv_metrics = {"CV-Score": round(cv_mean, 4), "CV-Std": round(cv_std, 4)}
+                if cv_res is not None and 'test_score' in cv_res:
+                    valid_scores = [s for s in cv_res['test_score'] if not np.isnan(s)]
+                    if valid_scores:
+                        cv_mean = float(np.mean(valid_scores))
+                        cv_std = float(np.std(valid_scores))
+                        cv_metrics = {"CV-Score": round(cv_mean, 4), "CV-Std": round(cv_std, 4)}
 
             # Final fit on full training split
             if not (enable_hpo and key in HPO_PARAM_GRIDS):

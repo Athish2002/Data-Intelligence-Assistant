@@ -42,7 +42,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import RobustScaler, TargetEncoder, OneHotEncoder, LabelEncoder
+from sklearn.preprocessing import RobustScaler, TargetEncoder, OneHotEncoder, OrdinalEncoder, LabelEncoder
 
 # 1. Load Data
 # (Update this path to match your actual data source: {source_label})
@@ -87,20 +87,25 @@ X_train, X_test, y_train, y_test = train_test_split(
 numeric_cols = X_train.select_dtypes(include=["number"]).columns.tolist()
 cat_cols_all = X_train.select_dtypes(include=["object", "category"]).columns.tolist()
 
-low_card_cols = [c for c in cat_cols_all if X_train[c].nunique() < 10]
-high_card_cols = [c for c in cat_cols_all if X_train[c].nunique() >= 10]
+# Ensure uniform string types in categorical columns to prevent scikit-learn mixed-type TypeError
+for c in cat_cols_all:
+    X_train[c] = X_train[c].astype(str).replace({{"nan": "__missing__", "None": "__missing__", "<NA>": "__missing__"}})
+    X_test[c] = X_test[c].astype(str).replace({{"nan": "__missing__", "None": "__missing__", "<NA>": "__missing__"}})
+
+low_card_cols = [c for c in cat_cols_all if X_train[c].nunique() <= 30]
+high_card_cols = [c for c in cat_cols_all if X_train[c].nunique() > 30]
 
 numeric_pipe = Pipeline([
     ("imputer", SimpleImputer(strategy="median")),
     ("scaler", RobustScaler()),
 ])
 low_card_pipe = Pipeline([
-    ("imputer", SimpleImputer(strategy="most_frequent")),
-    ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+    ("imputer", SimpleImputer(strategy="constant", fill_value="__missing__")),
+    ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False, max_categories=30)),
 ])
 high_card_pipe = Pipeline([
-    ("imputer", SimpleImputer(strategy="most_frequent")),
-    ("encoder", TargetEncoder(target_type="auto", cv=5)),
+    ("imputer", SimpleImputer(strategy="constant", fill_value="__missing__")),
+    ("encoder", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
 ])
 
 transformers = []

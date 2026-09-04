@@ -822,7 +822,12 @@ def simulate_whatif(payload: SimulateRequest) -> SimulateResponse:
     task_type = pipe["final_task_type"]
 
     try:
-        input_df = pd.DataFrame([base_row])
+        raw_feature_cols = train_res.get("raw_feature_cols")
+        if raw_feature_cols:
+            filtered_row = {k: v for k, v in base_row.items() if k in raw_feature_cols}
+            input_df = pd.DataFrame([filtered_row])
+        else:
+            input_df = pd.DataFrame([base_row])
         X_proc = preprocessor.transform(input_df)
         pred = model.predict(X_proc)[0]
 

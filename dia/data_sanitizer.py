@@ -100,7 +100,14 @@ def robust_parse_csv_bytes(raw_bytes: bytes) -> tuple[pd.DataFrame, dict[str, An
 
 def sanitize_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
-    Cleans cell-level and schema-level malformations across an entire DataFrame.
+    Cleans cell-level and schema-level malformations across an entire DataFrame:
+    - Normalizes column names, trims invisible whitespace and control characters.
+    - Replaces Inf and -Inf with NaN and clips extreme float values outside [-1e15, 1e15].
+    - Standardizes ambiguous null representations ('N/A', '?', '--', etc.).
+    - Detects and coerces dirty numeric and currency strings ($1,200, 15%, 10k).
+    - Converts boolean strings ('yes'/'no', 'true'/'false') to 1/0 flags.
+    - Homogenizes mixed-type columns (e.g. ['int', 'str']) to uniform strings or numerics.
+    - Prunes 100% all-NaN columns to prevent empty-array pipeline crashes.
     """
     clean_df = df.copy()
     report: dict[str, Any] = {
@@ -109,6 +116,9 @@ def sanitize_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
         "imputed_null_counts": {},
         "boolean_converted_columns": [],
         "inf_replaced_count": 0,
+        "mixed_type_homogenized_columns": [],
+        "all_nan_dropped_columns": [],
+        "zero_variance_columns": [],
         "total_cells_repaired": 0,
     }
 
@@ -116,19 +126,20 @@ def sanitize_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     new_cols = []
     seen_cols: dict[str, int] = {}
     for col in clean_df.columns:
-        col_str = str(col).strip()
-        # Replace special chars with underscores
+        col_str = str(col).strip().replace("\u00a0", " ")
+        # Replace non-word chars with underscores
         cleaned = re.sub(r"[^\w\s]", "_", col_str)
         cleaned = re.sub(r"\s+", "_", cleaned).strip("_")
         if not cleaned or cleaned.startswith("Unnamed"):
             cleaned = "feature"
 
-        # Handle duplicates
-        if cleaned in seen_cols:
-            seen_cols[cleaned] += 1
-            unique_name = f"{cleaned}_{seen_cols[cleaned]}"
+        # Handle case-insensitive duplicates
+        clean_lower = cleaned.lower()
+        if clean_lower in seen_cols:
+            seen_cols[clean_lower] += 1
+            unique_name = f"{cleaned}_{seen_cols[clean_lower]}"
         else:
-            seen_cols[cleaned] = 0
+            seen_cols[clean_lower] = 0
             unique_name = cleaned
 
         if unique_name != str(col):
@@ -138,40 +149,54 @@ def sanitize_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     clean_df.columns = pd.Index(new_cols)
 
     # ── 2. Cell-level Null and Infinity Standardization ───────────────────────
-    # Replace Inf and -Inf
-    inf_mask = np.isneginf(clean_df.select_dtypes(include=[np.number])) | np.isposinf(clean_df.select_dtypes(include=[np.number]))
-    inf_count = int(inf_mask.sum().sum()) if not inf_mask.empty else 0
-    if inf_count > 0:
-        clean_df = clean_df.replace([np.inf, -np.inf], np.nan)
-        report["inf_replaced_count"] = inf_count
-        report["total_cells_repaired"] += inf_count
+    # Replace Inf and -Inf in numeric columns
+    numeric_dtypes = clean_df.select_dtypes(include=[np.number])
+    if not numeric_dtypes.empty:
+        inf_mask = np.isneginf(numeric_dtypes) | np.isposinf(numeric_dtypes)
+        inf_count = int(inf_mask.sum().sum())
+        if inf_count > 0:
+            clean_df = clean_df.replace([np.inf, -np.inf], np.nan)
+            report["inf_replaced_count"] = inf_count
+            report["total_cells_repaired"] += inf_count
+
+        # Clip extreme floats outside [-1e15, 1e15] to prevent 64-bit float overflows
+        for ncol in clean_df.select_dtypes(include=[np.number]).columns:
+            clean_df[ncol] = clean_df[ncol].clip(lower=-1e15, upper=1e15)
 
     # ── 3. Type-specific Column Sanitization ──────────────────────────────────
-    for col in clean_df.columns:
+    for col in list(clean_df.columns):
         series = clean_df[col]
 
         # Process object/string columns
         if series.dtype == object or pd.api.types.is_string_dtype(series):
-            str_series = series.astype(str).str.strip()
+            # Normalize whitespace and strip control characters
+            def _clean_str_cell(val: Any) -> Any:
+                if pd.isna(val) or val is None:
+                    return np.nan
+                s = str(val).replace("\u00a0", " ").strip()
+                s = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", s)
+                if s.lower() in _NULL_STRINGS:
+                    return np.nan
+                return s
 
-            # Standardize null strings
-            null_matches = str_series.str.lower().isin(_NULL_STRINGS)
-            null_count = int(null_matches.sum())
+            clean_df[col] = series.apply(_clean_str_cell)
+            null_count = int(clean_df[col].isna().sum() - series.isna().sum())
             if null_count > 0:
-                series_as_obj = clean_df[col].astype(object)
-                series_as_obj[null_matches] = np.nan
-                clean_df[col] = series_as_obj
                 report["imputed_null_counts"][col] = null_count
                 report["total_cells_repaired"] += null_count
-                str_series = clean_df[col].dropna().astype(str).str.strip()
 
-            if str_series.empty:
+            non_null = clean_df[col].dropna()
+            if non_null.empty:
                 continue
+
+            str_series = non_null.astype(str)
 
             # Check if column is a dirty numeric column (e.g. "$1,200.50", "15.4%", "10k")
             cleaned_num_series, is_numeric = _try_coerce_numeric_string(str_series)
             if is_numeric:
-                clean_df[col] = cleaned_num_series
+                num_col = pd.Series(np.nan, index=clean_df.index, dtype=float)
+                num_col.loc[non_null.index] = cleaned_num_series.values
+                clean_df[col] = num_col
                 report["coerced_numeric_columns"].append(col)
                 report["total_cells_repaired"] += len(str_series)
                 continue
@@ -179,9 +204,45 @@ def sanitize_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
             # Check if column is a boolean flag in disguise ("yes"/"no", "true"/"false")
             cleaned_bool_series, is_bool = _try_coerce_boolean_string(str_series)
             if is_bool:
-                clean_df[col] = cleaned_bool_series
+                bool_col = pd.Series(np.nan, index=clean_df.index, dtype=float)
+                bool_col.loc[non_null.index] = cleaned_bool_series.values
+                clean_df[col] = bool_col
                 report["boolean_converted_columns"].append(col)
                 report["total_cells_repaired"] += len(str_series)
+                continue
+
+            # Check mixed types in non-null entries
+            type_set = {type(v) for v in non_null}
+            # Attempt numeric conversion only if values are directly parseable as numeric without destroying strings
+            num_coerced = pd.to_numeric(str_series, errors="coerce")
+            valid_num_ratio = num_coerced.notna().sum() / max(1, len(str_series))
+
+            if valid_num_ratio >= 0.75 and any(isinstance(v, (int, float, np.number)) and not isinstance(v, bool) for v in non_null):
+                # Column is predominantly genuine numeric with occasional dirty/corrupted entries: coerce to float64
+                num_col = pd.Series(np.nan, index=clean_df.index, dtype=float)
+                num_col.loc[non_null.index] = num_coerced.values
+                clean_df[col] = num_col.clip(lower=-1e15, upper=1e15)
+                report["coerced_numeric_columns"].append(col)
+                report["total_cells_repaired"] += len(str_series)
+                continue
+
+            # Otherwise, strictly homogenize all non-null values to uniform clean Python strings!
+            # This guarantees scikit-learn OneHotEncoder / OrdinalEncoder will never see mixed types!
+            clean_df[col] = clean_df[col].astype(object).apply(lambda v: str(v) if pd.notna(v) and v is not None else np.nan)
+            if len(type_set) > 1 or any(not isinstance(v, str) for v in non_null):
+                report["mixed_type_homogenized_columns"].append(col)
+                report["total_cells_repaired"] += len(non_null)
+
+    # ── 4. Prune All-NaN Columns ──────────────────────────────────────────────
+    all_nan_cols = [c for c in clean_df.columns if clean_df[c].isna().all()]
+    if all_nan_cols and len(all_nan_cols) < len(clean_df.columns):
+        clean_df = clean_df.drop(columns=all_nan_cols)
+        report["all_nan_dropped_columns"] = all_nan_cols
+
+    # Detect zero-variance columns for audit reporting
+    for c in clean_df.columns:
+        if clean_df[c].nunique(dropna=True) <= 1:
+            report["zero_variance_columns"].append(c)
 
     return clean_df, report
 
@@ -277,4 +338,11 @@ def format_sanitization_report_markdown(report: dict[str, Any]) -> str:
     if report.get("inf_replaced_count", 0) > 0:
         lines.append(f"- **Infinite / Overflow Values Sanitized:** `{report['inf_replaced_count']:,}` values.")
 
+    if report.get("mixed_type_homogenized_columns"):
+        lines.append(f"- **Mixed-Type Categoricals Homogenized ({len(report['mixed_type_homogenized_columns'])}):** `{', '.join(report['mixed_type_homogenized_columns'])}`")
+
+    if report.get("all_nan_dropped_columns"):
+        lines.append(f"- **Empty (100% NaN) Columns Pruned ({len(report['all_nan_dropped_columns'])}):** `{', '.join(report['all_nan_dropped_columns'])}`")
+
     return "\n".join(lines)
+

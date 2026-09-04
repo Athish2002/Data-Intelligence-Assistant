@@ -34,6 +34,7 @@ def auto_engineer_features(
     """
     df_out = df.copy()
     candidate_features: dict[str, pd.Series] = {}
+    date_cols_extracted: list[str] = []
 
     # 1. Date/Time feature extraction
     for col in df_out.columns:
@@ -43,9 +44,11 @@ def auto_engineer_features(
             try:
                 dt_series = pd.to_datetime(df_out[col], errors="coerce")
                 if dt_series.notna().sum() > len(df_out) * 0.5:
+                    candidate_features[f"fe_{col}_year"] = dt_series.dt.year.fillna(0)
                     candidate_features[f"fe_{col}_month"] = dt_series.dt.month.fillna(0)
                     candidate_features[f"fe_{col}_dayofweek"] = dt_series.dt.dayofweek.fillna(0)
                     candidate_features[f"fe_{col}_is_weekend"] = dt_series.dt.dayofweek.isin([5, 6]).astype(int)
+                    date_cols_extracted.append(col)
             except Exception as e:
                 log.debug("Could not parse date column %s: %s", col, e)
 
@@ -82,14 +85,19 @@ def auto_engineer_features(
             candidate_features[f"fe_{c1}_x_{c2}"] = df_out[c1] * df_out[c2]
             # Safe ratio
             denominator = df_out[c2].replace(0, np.nan)
-            ratio = (df_out[c1] / denominator).fillna(df_out[c1].median())
+            ratio = (df_out[c1] / denominator).fillna(df_out[c1].median()).fillna(0.0)
             candidate_features[f"fe_ratio_{c1}_div_{c2}"] = ratio
+
+    if date_cols_extracted:
+        df_out.drop(columns=date_cols_extracted, inplace=True, errors="ignore")
 
     if not candidate_features:
         return df_out, []
 
     candidates_df = pd.DataFrame(candidate_features, index=df_out.index)
-    candidates_df = candidates_df.fillna(candidates_df.median(numeric_only=True))
+    candidates_df = candidates_df.replace([np.inf, -np.inf], np.nan)
+    candidates_df = candidates_df.fillna(candidates_df.median(numeric_only=True)).fillna(0.0)
+    candidates_df = candidates_df.clip(lower=-1e15, upper=1e15)
 
     # 4. Filter with Mutual Information against the target variable
     try:
