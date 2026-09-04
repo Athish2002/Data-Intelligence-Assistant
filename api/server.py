@@ -328,6 +328,8 @@ def ingest_demo_dataset(payload: DemoIngestRequest) -> IngestResponse:
         detected_domain=context["domain"],
         suggested_objectives=context["objectives"],
         capabilities=capabilities,
+        suggested_target=target,
+        goal=goal,
     )
 
 

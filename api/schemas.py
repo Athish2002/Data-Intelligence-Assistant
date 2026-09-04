@@ -87,6 +87,8 @@ class IngestResponse(BaseModel):
     detected_domain: str
     suggested_objectives: list[str]
     capabilities: dict[str, bool]
+    suggested_target: str | None = None
+    goal: str | None = None
 
 
 class DemoIngestRequest(BaseModel):

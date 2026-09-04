@@ -360,8 +360,14 @@ function handleIngestSuccess(res) {
     el.hudDataset.innerHTML = `DATASET: <strong style="color: var(--text-primary);">${res.detected_domain || 'Active'}</strong> (${res.n_rows} rows)`;
   }
 
-  if (res.suggested_objectives && res.suggested_objectives.length > 0) {
+  if (res.goal && el.goalInput) {
+    el.goalInput.value = res.goal;
+  } else if (res.suggested_objectives && res.suggested_objectives.length > 0 && el.goalInput) {
     el.goalInput.value = res.suggested_objectives[0];
+  }
+
+  if (res.suggested_target && el.targetColInput) {
+    el.targetColInput.value = res.suggested_target;
   }
 
   el.trainBtn.disabled = false;

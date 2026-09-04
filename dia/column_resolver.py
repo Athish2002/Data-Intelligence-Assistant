@@ -200,26 +200,38 @@ def rank_target_candidates_advanced(
         col_norm = normalize_string(col)
 
         # 1. Check direct query match against goal tokens
+        matching_token_count = 0
         for token in goal_tokens:
             if len(token) < 3:
                 continue
             matched_col, conf, reason = resolve_column(token, [col])
             if matched_col and conf > 0.6:
                 score = max(score, conf)
+                matching_token_count += 1
                 reasons.append(reason)
 
-        # 2. Check if column is a known generic target name ('label', 'target', 'class', 'status')
-        if any(term in col_norm for term in ["target", "label", "class", "output", "flag", "status"]):
-            score = max(score, 0.65)
+        if matching_token_count > 1:
+            score += 0.05 * (matching_token_count - 1)
+            reasons.append(f"Multiple goal keywords match column ({matching_token_count} matches)")
+
+        # 2. Check if column is a known target indicator name
+        if any(term in col_norm for term in ["target", "label", "class", "output", "flag", "status", "risk", "outcome", "churn", "default"]):
+            score = max(score, 0.70)
+            score += 0.06
             reasons.append(f"Target indicator column name ('{col}')")
 
-        # 3. Check value-based match
+        # 3. Check value-based match and binary/categorical preference for outcome goals
         if df[col].nunique() <= 30:
             val_samples = [str(v).lower() for v in df[col].dropna().unique()[:10]]
             for token in goal_tokens:
                 if len(token) >= 3 and any(token in v for v in val_samples):
                     score = max(score, 0.85)
                     reasons.append(f"Contains target values matching '{token}'")
+
+        # Prioritize binary flags (e.g. default_risk, churn_flag, is_fraud) when goal is outcome prediction
+        if df[col].nunique() == 2 and any(term in goal_lower for term in ["predict", "churn", "default", "risk", "fraud", "conversion", "outcome"]):
+            score += 0.08
+            reasons.append("Binary outcome variable matching predictive goal")
 
         # 4. Heavy penalty for Primary Key / ID columns
         if col_norm.endswith("_id") or col_norm in ["id", "client_id", "user_id", "customer_id", "account_id", "cust_id", "cust_no"]:

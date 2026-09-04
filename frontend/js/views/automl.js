@@ -190,8 +190,8 @@ export function renderAutoMLCurves() {
           <div id="roc-chart-container" class="w-full flex-1" style="min-height: 250px; max-height: 270px;"></div>
 
           <div class="flex items-center justify-between text-[10px] font-mono pt-2 border-t mt-1" style="border-color: var(--card-border); color: var(--text-muted);">
-            <span>Champion: <strong style="color: var(--text-primary);">${p.best_model_label}</strong></span>
-            <span>Operating Cutoff: <strong class="text-[#00e575]">&tau; = 0.50</strong></span>
+            <span class="truncate max-w-[210px]">Champion: <strong style="color: var(--text-primary);">${p.best_model_label}</strong></span>
+            <span class="shrink-0 text-right">Operating Cutoff: <strong class="text-[#00e575]">&tau; = 0.50</strong></span>
           </div>
         </div>
 
@@ -317,7 +317,7 @@ export function renderAutoMLCurves() {
       {
         height: 250,
         autosize: true,
-        margin: { l: 40, r: 15, t: 10, b: 35 },
+        margin: { l: 45, r: 25, t: 15, b: 40 },
         paper_bgcolor: 'transparent',
         plot_bgcolor: 'transparent',
         xaxis: {
@@ -335,14 +335,32 @@ export function renderAutoMLCurves() {
           tickfont: { size: 9 },
         },
         legend: {
-          x: 0.35,
-          y: 0.12,
-          font: { size: 10, color: '#f5f0e6' },
-          bgcolor: 'rgba(0,0,0,0.5)',
+          x: 0.05,
+          y: 0.95,
+          font: { size: 9, color: '#f5f0e6' },
+          bgcolor: 'rgba(0,0,0,0.6)',
+          bordercolor: 'rgba(255,255,255,0.1)',
+          borderwidth: 1,
         },
       },
       { responsive: true, displayModeBar: false }
     );
+  } else {
+    const rocEl = document.getElementById('roc-chart-container');
+    if (rocEl) {
+      rocEl.innerHTML = `
+        <div class="h-full flex flex-col items-center justify-center text-center p-5 rounded border border-dashed text-xs space-y-2" style="border-color: var(--card-border); background-color: var(--bg-secondary);">
+          <div class="w-8 h-8 rounded-full bg-[#00e575]/10 flex items-center justify-center border border-[#00e575]/30">
+            <i data-lucide="bar-chart-2" class="w-4 h-4 text-[#00e575]"></i>
+          </div>
+          <span class="font-mono font-bold text-slate-200">Continuous / Multi-Class Target Mode</span>
+          <p class="text-[11px] text-slate-400 max-w-xs leading-relaxed">
+            Standard ROC discrimination curves require binary targets. For this target, inspect the Diagnostic Contingency Matrix and Model Leaderboard scores.
+          </p>
+        </div>
+      `;
+      if (window.lucide) lucide.createIcons();
+    }
   }
 
   lucide.createIcons();
@@ -510,8 +528,15 @@ export function renderAutoMLSimulator() {
   const featureValues = {};
   const featureTypes = {};
 
-  // Extract features from dataset profile
-  if (d.profile && d.profile.columns_info) {
+  // Extract features from sample_data, profile, or columns list
+  if (d && d.sample_data && d.sample_data.length > 0) {
+    const row0 = d.sample_data[0];
+    Object.entries(row0).forEach(([col, val]) => {
+      if (col !== targetCol) {
+        featureValues[col] = val !== null && val !== undefined ? val : 0;
+      }
+    });
+  } else if (d && d.profile && d.profile.columns_info) {
     d.profile.columns_info.forEach((c) => {
       if (c.name !== targetCol) {
         featureTypes[c.name] = c.logical_type;
@@ -520,6 +545,12 @@ export function renderAutoMLSimulator() {
         } else {
           featureValues[c.name] = c.stats && c.stats.top_values && c.stats.top_values.length > 0 ? c.stats.top_values[0].value : 'default';
         }
+      }
+    });
+  } else if (d && d.columns) {
+    d.columns.forEach((col) => {
+      if (col !== targetCol) {
+        featureValues[col] = 0;
       }
     });
   }
