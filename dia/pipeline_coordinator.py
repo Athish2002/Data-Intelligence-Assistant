@@ -8,6 +8,7 @@ and memoized caching for end-to-end data intelligence workflows.
 
 from __future__ import annotations
 
+import gc
 import logging
 from typing import Any
 
@@ -256,7 +257,7 @@ class PipelineCoordinator:
             model_label=train_result.get("best_model_label", "Random Forest"),
         )
 
-        return {
+        result = {
             "df": clean_df,
             "meta": meta,
             "profile_df": profile_df,
@@ -291,3 +292,8 @@ class PipelineCoordinator:
             "k8s_manifests": k8s_manifests,
             "pipeline_executed": True,
         }
+
+        # Sweep temporary arrays and free heap pages
+        gc.collect()
+
+        return result

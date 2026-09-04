@@ -24,6 +24,48 @@ class HealthResponse(BaseModel):
     active_sessions_count: int
 
 
+class SessionDetailItem(BaseModel):
+    session_id: str
+    goal: str = ""
+    n_rows: int = 0
+    n_cols: int = 0
+    memory_mb: float = 0.0
+    has_pipeline: bool = False
+    best_model: str | None = None
+    age_seconds: float = 0.0
+    idle_seconds: float = 0.0
+    access_count: int = 1
+
+
+class SystemMetricsResponse(BaseModel):
+    status: str = "ok"
+    process_memory_rss_mb: float
+    process_memory_vms_mb: float
+    system_memory_total_gb: float
+    system_memory_used_gb: float
+    system_memory_available_gb: float
+    system_memory_percent: float
+    cpu_percent: float
+    cpu_cores_logical: int
+    active_sessions_count: int
+    max_sessions_capacity: int
+    session_ttl_minutes: int
+    python_version: str
+    platform_name: str
+    gpu_available: bool
+    thread_count: int
+    uptime_seconds: float
+    sessions_detail: list[SessionDetailItem] = []
+
+
+class SystemGcResponse(BaseModel):
+    status: str = "ok"
+    reclaimed_mb: float
+    unreachable_objects_collected: int
+    current_rss_mb: float
+    active_sessions_remaining: int
+
+
 # ─── Demo & Ingestion ────────────────────────────────────────────────────────
 
 class DemoDatasetItem(BaseModel):

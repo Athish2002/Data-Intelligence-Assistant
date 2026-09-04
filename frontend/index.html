@@ -73,8 +73,11 @@
     <!-- Right Controls (Strict Non-Colliding Flow) -->
     <div class="flex items-center space-x-2 flex-shrink-0">
       <div id="active-dataset-badge"></div>
-      <div id="active-model-badge"></div>
-      <div id="system-health-badge" class="hidden xl:flex items-center px-2 py-0.5 rounded border font-mono text-[11px]" style="background-color: var(--card-bg); border-color: var(--card-border); color: var(--text-muted)"></div>
+      <!-- System Health Telemetry Badge & Modal Trigger -->
+      <div id="system-health-badge" onclick="window.openSystemMetrics && window.openSystemMetrics()" class="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded border font-mono text-[11px] cursor-pointer hover:border-[#00e575]/50 transition-all active:scale-95" style="background-color: var(--card-bg); border-color: var(--card-border); color: var(--text-muted)" title="Open System Health & Resource Monitor">
+        <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse"></span>
+        <span id="system-health-text">RAM: -- | CPU: --</span>
+      </div>
       
       <!-- Inspector Toggle Button (⌘I) -->
       <button id="toggle-inspector-btn" class="px-2.5 py-1 rounded border text-xs font-mono flex items-center space-x-1.5 hover:bg-white/5 transition-all cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Toggle Model & Feature Inspector (⌘I / Ctrl+I)">
@@ -162,13 +165,34 @@
           <span>Launch ML Pipeline</span>
         </button>
 
-        <!-- Training Progress Indicator -->
-        <div id="train-progress" class="glass-card p-3 hidden space-y-1.5">
-          <div class="flex justify-between text-xs font-medium">
-            <span id="status-text" class="text-[#00e575] flex items-center"><span class="live-pulse mr-2"></span> Executing pipeline...</span>
+        <!-- 5-Stage Animated Training Progress Tracker -->
+        <div id="train-progress" class="glass-card p-3 hidden space-y-2 border" style="border-color: var(--card-border); background-color: var(--card-bg);">
+          <div class="flex items-center justify-between text-[11px] font-mono">
+            <span id="progress-stage-title" class="font-bold text-[#00e575] flex items-center">
+              <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse mr-1.5"></span>
+              Stage 1/5: Ingesting
+            </span>
+            <span id="progress-timer" class="text-[10px]" style="color: var(--text-muted);">00:00.0s</span>
           </div>
-          <div class="w-full rounded-full h-1.5 overflow-hidden" style="background-color: var(--bg-secondary);">
-            <div id="progress-bar" class="bg-[#00e575] h-full rounded-full transition-all duration-300" style="width: 30%"></div>
+
+          <!-- 5-Stage Node Stepper -->
+          <div class="grid grid-cols-5 gap-1 pt-0.5">
+            <div id="p-node-1" class="step-node active border rounded py-1 text-center font-mono text-[10px] font-bold" title="Stage 1: Ingest & Sanitize">1</div>
+            <div id="p-node-2" class="step-node pending border rounded py-1 text-center font-mono text-[10px] font-bold" title="Stage 2: Feature Profiling">2</div>
+            <div id="p-node-3" class="step-node pending border rounded py-1 text-center font-mono text-[10px] font-bold" title="Stage 3: AutoML 6 Models">3</div>
+            <div id="p-node-4" class="step-node pending border rounded py-1 text-center font-mono text-[10px] font-bold" title="Stage 4: TreeSHAP Attribution">4</div>
+            <div id="p-node-5" class="step-node pending border rounded py-1 text-center font-mono text-[10px] font-bold" title="Stage 5: Quality Contracts">5</div>
+          </div>
+
+          <!-- Shimmer Progress Bar Track -->
+          <div class="w-full rounded-full h-1.5 overflow-hidden border border-white/5" style="background-color: var(--bg-secondary);">
+            <div id="progress-bar" class="progress-shimmer h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+
+          <!-- Subtask Status Label -->
+          <div class="flex items-center justify-between text-[10px] font-mono pt-0.5" style="color: var(--text-muted);">
+            <span id="status-text" class="truncate max-w-[190px]">Initializing pipeline...</span>
+            <span id="progress-percent" class="font-bold text-[#00e575]">0%</span>
           </div>
         </div>
 

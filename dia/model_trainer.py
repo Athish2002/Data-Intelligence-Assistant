@@ -32,11 +32,24 @@ Regression:
   mlp      → Multi-Layer Perceptron Regressor
 """
 
-from __future__ import annotations
-
+import gc
 import logging
+import os
 import warnings
 from typing import Any
+
+
+def safe_n_jobs(requested: int = -1) -> int:
+    """
+    Guarantees worker concurrency stays strictly bounded to prevent Loky/joblib
+    process explosions and memory thrashing on Windows or high-core workstations.
+    Capped at min(4, max(1, (os.cpu_count() or 2) // 4)).
+    """
+    cpu_total = os.cpu_count() or 2
+    safe_limit = min(4, max(1, cpu_total // 4))
+    if requested is None or requested <= 0:
+        return safe_limit
+    return min(requested, safe_limit)
 
 import numpy as np
 import pandas as pd
@@ -146,7 +159,7 @@ HPO_PARAM_GRIDS: dict[str, dict] = {
 def _make_xgb_clf(use_gpu: bool = False, n_jobs: int = -1):
     try:
         from xgboost import XGBClassifier
-        params = {"n_estimators": 100, "random_state": 42, "eval_metric": "logloss", "verbosity": 0, "n_jobs": n_jobs}
+        params = {"n_estimators": 100, "random_state": 42, "eval_metric": "logloss", "verbosity": 0, "n_jobs": safe_n_jobs(n_jobs)}
         if use_gpu:
             params.update({"tree_method": "hist", "device": "cuda"})
         return XGBClassifier(**params)
@@ -157,7 +170,7 @@ def _make_xgb_clf(use_gpu: bool = False, n_jobs: int = -1):
 def _make_xgb_reg(use_gpu: bool = False, n_jobs: int = -1):
     try:
         from xgboost import XGBRegressor
-        params = {"n_estimators": 100, "random_state": 42, "verbosity": 0, "n_jobs": n_jobs}
+        params = {"n_estimators": 100, "random_state": 42, "verbosity": 0, "n_jobs": safe_n_jobs(n_jobs)}
         if use_gpu:
             params.update({"tree_method": "hist", "device": "cuda"})
         return XGBRegressor(**params)
@@ -168,7 +181,7 @@ def _make_xgb_reg(use_gpu: bool = False, n_jobs: int = -1):
 def _make_lgbm_clf(use_gpu: bool = False, n_jobs: int = -1):
     try:
         from lightgbm import LGBMClassifier
-        params = {"n_estimators": 100, "random_state": 42, "verbose": -1, "n_jobs": n_jobs}
+        params = {"n_estimators": 100, "random_state": 42, "verbose": -1, "n_jobs": safe_n_jobs(n_jobs)}
         if use_gpu:
             params.update({"device_type": "gpu"})
         return LGBMClassifier(**params)
@@ -179,7 +192,7 @@ def _make_lgbm_clf(use_gpu: bool = False, n_jobs: int = -1):
 def _make_lgbm_reg(use_gpu: bool = False, n_jobs: int = -1):
     try:
         from lightgbm import LGBMRegressor
-        params = {"n_estimators": 100, "random_state": 42, "verbose": -1, "n_jobs": n_jobs}
+        params = {"n_estimators": 100, "random_state": 42, "verbose": -1, "n_jobs": safe_n_jobs(n_jobs)}
         if use_gpu:
             params.update({"device_type": "gpu"})
         return LGBMRegressor(**params)
@@ -190,7 +203,7 @@ def _make_lgbm_reg(use_gpu: bool = False, n_jobs: int = -1):
 def _make_cat_clf(use_gpu: bool = False, n_jobs: int = -1):
     try:
         from catboost import CatBoostClassifier
-        params = {"iterations": 100, "random_seed": 42, "verbose": 0, "thread_count": n_jobs}
+        params = {"iterations": 100, "random_seed": 42, "verbose": 0, "thread_count": safe_n_jobs(n_jobs)}
         if use_gpu:
             params.update({"task_type": "GPU"})
         return CatBoostClassifier(**params)
@@ -201,7 +214,7 @@ def _make_cat_clf(use_gpu: bool = False, n_jobs: int = -1):
 def _make_cat_reg(use_gpu: bool = False, n_jobs: int = -1):
     try:
         from catboost import CatBoostRegressor
-        params = {"iterations": 100, "random_seed": 42, "verbose": 0, "thread_count": n_jobs}
+        params = {"iterations": 100, "random_seed": 42, "verbose": 0, "thread_count": safe_n_jobs(n_jobs)}
         if use_gpu:
             params.update({"task_type": "GPU"})
         return CatBoostRegressor(**params)
@@ -215,7 +228,7 @@ CLASSIFICATION_MODELS: dict[str, dict] = {
     "logreg": {
         "label": "Logistic Regression",
         "description": "Fast, interpretable linear classifier.",
-        "factory": lambda use_gpu, n_jobs: LogisticRegression(max_iter=1000, random_state=42, n_jobs=n_jobs),
+        "factory": lambda use_gpu, n_jobs: LogisticRegression(max_iter=1000, random_state=42),
     },
     "rf": {
         "label": "Random Forest",
@@ -450,6 +463,7 @@ def train_and_evaluate(
     """
     Train selected models and return comprehensive metrics, best model, and explanations.
     """
+    n_jobs = safe_n_jobs(n_jobs)
     model_registry = (
         CLASSIFICATION_MODELS if task_type == "classification" else REGRESSION_MODELS
     )
@@ -800,6 +814,13 @@ def train_and_evaluate(
             justification_text = f"**{best_result['label']}** was decisively selected as the best model, achieving an {metric_name} of **{best_score:.3f}**. This outperformed {runner_up['label']} (score: {runner_up_score:.3f}) by **+{diff:.3f} points**."
     else:
         justification_text = f"**{best_result['label']}** was selected. It achieved an {metric_name} of **{best_score:.3f}**."
+
+    # Sweep temporary objects and caches
+    try:
+        del X_train_proc, y_train
+    except Exception:
+        pass
+    gc.collect()
 
     return {
         "results": results,

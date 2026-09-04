@@ -9,17 +9,18 @@ Exposes full-fidelity endpoints for:
 4. Governance, MLOps & Production (Data Contracts, GDPR ROPA, Feature Store, MLflow Model Card, Drift Monitor, SQL Transpiler, Multi-format Artifact Exports)
 """
 
-from __future__ import annotations
-
+import gc
 import json
 import logging
 import os
 import platform
+import time
 import uuid
 from typing import Any
 
 import numpy as np
 import pandas as pd
+import psutil
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
@@ -50,6 +51,7 @@ from dia.llm_context import infer_dataset_context_locally
 from dia.nlp_processor import detect_text_columns, extract_lexical_features
 from dia.pipeline_coordinator import PipelineCoordinator
 from dia.retrieval import build_session_index
+from dia.session_manager import BoundedSessionStore
 from dia.streaming_learner import simulate_streaming_incremental_fit
 from dia.synthetic_data import generate_synthetic_dataset
 from dia.time_series import detect_time_series_column, train_time_series_forecaster
@@ -89,10 +91,13 @@ from .schemas import (
     ReadinessResponse,
     RoiOptimizeRequest,
     RoiOptimizeResponse,
+    SessionDetailItem,
     SimulateRequest,
     SimulateResponse,
     SyntheticGenerateRequest,
     SyntheticGenerateResponse,
+    SystemGcResponse,
+    SystemMetricsResponse,
     TimeSeriesForecastRequest,
     TimeSeriesForecastResponse,
     TrainPipelineRequest,
@@ -121,8 +126,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── In-Memory Session Store ─────────────────────────────────────────────────
-SESSION_STORE: dict[str, dict[str, Any]] = {}
+# ─── Thread-Safe Bounded LRU Session Store ────────────────────────────────────
+SESSION_STORE = BoundedSessionStore(max_sessions=5, ttl_seconds=1800)
+_SERVER_START_TIME = time.time()
 
 
 def _get_session(session_id: str) -> dict[str, Any]:
@@ -172,6 +178,97 @@ def get_health() -> HealthResponse:
         platform=platform.system(),
         active_sessions_count=len(SESSION_STORE),
     )
+
+
+@app.get("/api/v1/system/metrics", response_model=SystemMetricsResponse, tags=["System"])
+def get_system_metrics() -> SystemMetricsResponse:
+    """Returns real-time host and process hardware telemetry, RAM footprint, CPU load, and active sessions."""
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    sys_mem = psutil.virtual_memory()
+    cpu_pct = psutil.cpu_percent(interval=None)
+
+    summaries = SESSION_STORE.get_sessions_summary()
+    detail_items = [
+        SessionDetailItem(
+            session_id=s["session_id"],
+            goal=s["goal"],
+            n_rows=s["n_rows"],
+            n_cols=s["n_cols"],
+            memory_mb=s["memory_mb"],
+            has_pipeline=s["has_pipeline"],
+            best_model=s["best_model"],
+            age_seconds=s["age_seconds"],
+            idle_seconds=s["idle_seconds"],
+            access_count=s["access_count"],
+        )
+        for s in summaries
+    ]
+
+    return SystemMetricsResponse(
+        status="ok",
+        process_memory_rss_mb=round(mem_info.rss / (1024 * 1024), 2),
+        process_memory_vms_mb=round(mem_info.vms / (1024 * 1024), 2),
+        system_memory_total_gb=round(sys_mem.total / (1024 ** 3), 2),
+        system_memory_used_gb=round(sys_mem.used / (1024 ** 3), 2),
+        system_memory_available_gb=round(sys_mem.available / (1024 ** 3), 2),
+        system_memory_percent=round(sys_mem.percent, 1),
+        cpu_percent=round(cpu_pct, 1),
+        cpu_cores_logical=get_cpu_cores(),
+        active_sessions_count=len(SESSION_STORE),
+        max_sessions_capacity=SESSION_STORE.max_sessions,
+        session_ttl_minutes=int(SESSION_STORE.ttl_seconds // 60),
+        python_version=platform.python_version(),
+        platform_name=f"{platform.system()} {platform.release()}",
+        gpu_available=is_gpu_available(),
+        thread_count=process.num_threads(),
+        uptime_seconds=round(time.time() - _SERVER_START_TIME, 1),
+        sessions_detail=detail_items,
+    )
+
+
+@app.post("/api/v1/system/gc", response_model=SystemGcResponse, tags=["System"])
+def trigger_system_garbage_collection() -> SystemGcResponse:
+    """Manually triggers Python garbage collection sweep and releases unreachable heap memory."""
+    process = psutil.Process(os.getpid())
+    before_rss = process.memory_info().rss / (1024 * 1024)
+
+    # Prune expired sessions if any
+    if hasattr(SESSION_STORE, "_cleanup_expired_locked"):
+        with SESSION_STORE._lock:
+            SESSION_STORE._cleanup_expired_locked()
+
+    collected = gc.collect()
+
+    # Clear torch CUDA cache if available
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+    after_rss = process.memory_info().rss / (1024 * 1024)
+    reclaimed = max(0.0, before_rss - after_rss)
+
+    return SystemGcResponse(
+        status="ok",
+        reclaimed_mb=round(reclaimed, 2),
+        unreachable_objects_collected=collected,
+        current_rss_mb=round(after_rss, 2),
+        active_sessions_remaining=len(SESSION_STORE),
+    )
+
+
+@app.delete("/api/v1/system/sessions/{session_id}", tags=["System"])
+def delete_session(session_id: str) -> dict[str, Any]:
+    """Evicts a specific session from memory and reclaims resources."""
+    if session_id in SESSION_STORE:
+        SESSION_STORE.pop(session_id)
+        gc.collect()
+        return {"status": "success", "message": f"Session {session_id} evicted from memory."}
+    raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
+
 
 
 @app.get("/favicon.ico", include_in_schema=False)

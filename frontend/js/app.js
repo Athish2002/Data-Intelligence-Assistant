@@ -56,6 +56,11 @@ import {
   renderGovernanceCode,
   renderGovernanceCopilot,
 } from './views/governance.js';
+import { openSystemMetricsModal, closeSystemMetricsModal } from './views/system.js';
+
+// Expose global system monitor functions
+window.openSystemMetrics = openSystemMetricsModal;
+window.closeSystemMetrics = closeSystemMetricsModal;
 
 // Expose global functions required by inline HTML onclick handlers
 export async function loadDemoFromCard(demoId) {
@@ -426,6 +431,13 @@ function renderSubtabBar() {
 function renderCurrentView() {
   const { activeWorkspace: w, activeSubtab: s } = state;
 
+  // Apply smooth GPU hardware-accelerated view cross-fade
+  if (el.tabContent) {
+    el.tabContent.classList.remove('view-transition');
+    void el.tabContent.offsetWidth; // Force DOM reflow to replay CSS keyframes
+    el.tabContent.classList.add('view-transition');
+  }
+
   // Workspace 0: Executive Dashboard (Always accessible)
   if (w === 'dashboard') {
     renderExecutiveDashboard();
@@ -506,6 +518,24 @@ function renderCurrentView() {
 
 
 
+async function startSystemHealthBadgePolling() {
+  const badgeText = document.getElementById('system-health-text');
+  if (!badgeText) return;
+
+  const updateBadge = async () => {
+    try {
+      const res = await fetch('/api/v1/system/metrics');
+      if (res.ok) {
+        const d = await res.json();
+        badgeText.textContent = `RAM: ${d.process_memory_rss_mb} MB | CPU: ${d.cpu_percent}%`;
+      }
+    } catch (e) {}
+  };
+
+  await updateBadge();
+  setInterval(updateBadge, 5000);
+}
+
 // ─── Initialization ──────────────────────────────────────────────────────────
 
 async function init() {
@@ -519,6 +549,7 @@ async function init() {
   await loadDemoList();
   renderSubtabBar();
   renderCurrentView();
+  startSystemHealthBadgePolling();
 }
 
 window.addEventListener('DOMContentLoaded', init);

@@ -426,3 +426,196 @@ pre code {
 .command-item.selected {
   border-left: 2px solid var(--accent-cyan);
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Sprint 4: GPU-Accelerated Smooth Motion System
+   ───────────────────────────────────────────────────────────── */
+
+/* High-performance easing tokens */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* Fluid workspace view transition */
+.view-transition {
+  animation: viewFadeSlideUp 0.26s var(--ease-out-expo) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes viewFadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Subtab content quick transition */
+.subtab-transition {
+  animation: subtabFadeIn 0.2s var(--ease-out-expo) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes subtabFadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Workspace navigation button micro-interactions */
+.workspace-btn {
+  transition: transform 0.2s var(--ease-out-expo), background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  will-change: transform;
+}
+
+.workspace-btn:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+.workspace-btn:active {
+  transform: translate3d(0, 0px, 0) scale(0.98);
+}
+
+.workspace-btn.active {
+  background-color: var(--accent-cyan) !important;
+  color: #050505 !important;
+  box-shadow: 0 0 14px rgba(0, 229, 117, 0.25);
+}
+
+/* Subtab button micro-interactions */
+.subtab-btn {
+  transition: transform 0.18s var(--ease-out-expo), background-color 0.18s ease, color 0.18s ease;
+}
+
+.subtab-btn:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+.subtab-btn:active {
+  transform: translate3d(0, 0, 0) scale(0.97);
+}
+
+.subtab-btn.active {
+  background-color: var(--bg-secondary) !important;
+  color: var(--accent-cyan) !important;
+  border-color: var(--card-border) !important;
+}
+
+/* Modal and Drawer Animations */
+.modal-backdrop-anim {
+  animation: modalBackdropFadeIn 0.22s ease-out forwards;
+}
+
+@keyframes modalBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card-anim {
+  animation: modalCardScaleIn 0.25s var(--ease-out-expo) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes modalCardScaleIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Sprint 4: 5-Stage Animated Pipeline Progress Bar
+   ───────────────────────────────────────────────────────────── */
+
+@keyframes progressShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.progress-shimmer {
+  background: linear-gradient(
+    90deg,
+    #00e575 0%,
+    #a7f3d0 35%,
+    #34d399 50%,
+    #00e575 70%,
+    #00ff82 100%
+  );
+  background-size: 200% 100%;
+  animation: progressShimmer 1.8s infinite linear;
+}
+
+.step-node {
+  transition: all 0.25s var(--ease-out-expo);
+}
+
+.step-node.active {
+  border-color: #00e575 !important;
+  background-color: rgba(0, 229, 117, 0.15) !important;
+  color: #00e575 !important;
+  box-shadow: 0 0 10px rgba(0, 229, 117, 0.35);
+}
+
+.step-node.completed {
+  border-color: #00e575 !important;
+  background-color: #00e575 !important;
+  color: #050505 !important;
+}
+
+.step-node.pending {
+  border-color: var(--card-border) !important;
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-muted) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Sprint 4: System Metrics Monitor & Resource Telemetry Styles
+   ───────────────────────────────────────────────────────────── */
+
+.metric-gauge-bar {
+  height: 6px;
+  border-radius: 9999px;
+  background-color: var(--bg-secondary);
+  overflow: hidden;
+  position: relative;
+}
+
+.metric-gauge-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.4s var(--ease-out-expo), background-color 0.3s ease;
+}
+
+.pulse-pill {
+  animation: pulseGlow 2s infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+}
+

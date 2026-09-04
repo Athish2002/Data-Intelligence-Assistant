@@ -8,6 +8,7 @@ reconstruction errors, and identifies feature-level anomaly attributions.
 
 from __future__ import annotations
 
+import gc
 import logging
 from typing import Any
 
@@ -100,8 +101,8 @@ def train_tabular_autoencoder(
     model.eval()
     with torch.no_grad():
         reconstructed_all, latent_all = model(X_tensor)
-        reconstructed_np = reconstructed_all.numpy()
-        latent_np = latent_all.numpy()
+        reconstructed_np = reconstructed_all.detach().cpu().numpy()
+        latent_np = latent_all.detach().cpu().numpy()
 
     # Per-sample Mean Squared Reconstruction Error
     per_sample_mse = np.mean((X_processed - reconstructed_np) ** 2, axis=1)
@@ -119,6 +120,13 @@ def train_tabular_autoencoder(
         for name, err in zip(feature_names, per_feature_mse, strict=True)
     ]
     feat_attribution.sort(key=lambda x: x["reconstruction_error"], reverse=True)
+
+    # Explicit resource reclamation
+    try:
+        del reconstructed_all, latent_all, X_tensor, dataset, loader, model, optimizer
+    except Exception:
+        pass
+    gc.collect()
 
     return {
         "status": "success",
