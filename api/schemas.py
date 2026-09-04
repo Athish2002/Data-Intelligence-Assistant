@@ -299,6 +299,7 @@ class DataContractResponse(BaseModel):
     contract_yaml: str
     great_expectations_json: str
     n_expectations: int
+    expectations: list[dict[str, Any]] = []
 
 
 class GdprAuditResponse(BaseModel):
@@ -306,6 +307,8 @@ class GdprAuditResponse(BaseModel):
     privacy_risk_score: int
     pii_entities_detected: list[dict[str, Any]]
     ropa_markdown: str
+    frameworks: dict[str, Any] = {}
+    ropa_details: dict[str, Any] = {}
 
 
 class DriftMonitorResponse(BaseModel):

@@ -142,5 +142,4 @@ def format_contract_markdown(contract: dict) -> str:
             elif rtype == "expect_column_values_to_be_of_type":
                 md += f"  - 🔠 Type must be `{r['kwargs']['type_']}`.\n"
 
-    md += "\n\n```json\n" + json.dumps(contract, indent=2) + "\n```"
     return md

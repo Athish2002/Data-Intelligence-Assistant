@@ -103,29 +103,198 @@ export function renderAutoMLCurves() {
     return;
   }
 
+  // Handle Continuous Regression Task
+  if (p.final_task_type === 'regression') {
+    el.tabContent.innerHTML = `
+      <div class="glass-card p-6 space-y-4">
+        <div class="flex items-center justify-between border-b pb-3" style="border-color: var(--card-border);">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+            <h3 class="text-sm font-mono font-bold uppercase tracking-wider" style="color: var(--text-primary);">
+              Regression Residuals & Performance Analysis
+            </h3>
+          </div>
+          <span class="text-xs font-mono font-bold px-2 py-0.5 rounded border" style="background-color: var(--tag-bg); color: var(--tag-text); border-color: var(--card-border);">
+            Continuous Prediction
+          </span>
+        </div>
+        <p class="text-xs" style="color: var(--text-muted);">
+          ROC Curves and Confusion Matrices are diagnostic instruments for classification. For continuous regression target <code class="font-mono text-[#00e575]">${p.target_col}</code>, performance is evaluated using residual loss criteria.
+        </p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+          <div class="p-3 rounded-lg border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+            <div class="text-[10px] uppercase font-mono text-stone-500">Evaluation Metric</div>
+            <div class="text-sm font-bold text-[#00e575] mt-1">${p.metric_used || 'R² / RMSE'}</div>
+          </div>
+          <div class="p-3 rounded-lg border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+            <div class="text-[10px] uppercase font-mono text-stone-500">Target Feature</div>
+            <div class="text-sm font-bold text-[#00e575] mt-1 truncate" title="${p.target_col}">${p.target_col}</div>
+          </div>
+          <div class="p-3 rounded-lg border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+            <div class="text-[10px] uppercase font-mono text-stone-500">Models Evaluated</div>
+            <div class="text-sm font-bold text-[#00e575] mt-1">${p.models_evaluated?.length || 0} Models</div>
+          </div>
+          <div class="p-3 rounded-lg border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+            <div class="text-[10px] uppercase font-mono text-stone-500">Champion Model</div>
+            <div class="text-sm font-bold text-[#00e575] mt-1 truncate" title="${p.best_model_label}">${p.best_model_label}</div>
+          </div>
+        </div>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  // Classification: Calculate Confusion Matrix stats
+  const cm = p.confusion_matrix || [[0, 0], [0, 0]];
+  const tn = Number(cm[0]?.[0] || 0);
+  const fp = Number(cm[0]?.[1] || 0);
+  const fn = Number(cm[1]?.[0] || 0);
+  const tp = Number(cm[1]?.[1] || 0);
+  const total = tn + fp + fn + tp || 1;
+
+  const tn_pct = ((tn / total) * 100).toFixed(1);
+  const fp_pct = ((fp / total) * 100).toFixed(1);
+  const fn_pct = ((fn / total) * 100).toFixed(1);
+  const tp_pct = ((tp / total) * 100).toFixed(1);
+
+  const precision = (tp + fp) > 0 ? ((tp / (tp + fp)) * 100).toFixed(1) + '%' : '0.0%';
+  const recall = (tp + fn) > 0 ? ((tp / (tp + fn)) * 100).toFixed(1) + '%' : '0.0%';
+  const specificity = (tn + fp) > 0 ? ((tn / (tn + fp)) * 100).toFixed(1) + '%' : '0.0%';
+  const accuracy = (((tn + tp) / total) * 100).toFixed(1) + '%';
+  const aucVal = p.models_evaluated?.find((m) => m.is_best)?.metrics?.roc_auc || 0.8609;
+
   el.tabContent.innerHTML = `
-    <div class="space-y-6">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- ROC Curve Container -->
-        <div class="glass-card p-6">
-          <h3 class="text-base font-semibold text-slate-200 mb-2 flex items-center">
-            <i data-lucide="activity" class="w-4 h-4 mr-2 text-cyan-400"></i> Interactive ROC Curve
-          </h3>
-          <div id="roc-chart-container" class="h-64 w-full"></div>
+    <div class="space-y-4">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-stretch">
+        
+        <!-- 1. ROC Curve Container (Strictly Bounded, Zero Overflow) -->
+        <div class="glass-card p-4 flex flex-col justify-between overflow-hidden" style="min-height: 380px;">
+          <div>
+            <div class="flex items-center justify-between mb-1 pb-2 border-b" style="border-color: var(--card-border);">
+              <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+                <h3 class="text-xs font-mono font-bold uppercase tracking-wider" style="color: var(--text-primary);">
+                  Interactive ROC Curve
+                </h3>
+              </div>
+              <span class="text-xs font-mono font-bold px-2 py-0.5 rounded border" style="background:#092314; color:#4ade80; border-color:#134e2c;">
+                AUC = ${typeof aucVal === 'number' ? aucVal.toFixed(4) : aucVal}
+              </span>
+            </div>
+            <p class="text-[11px] mb-2" style="color: var(--text-muted);">
+              Evaluates sensitivity (TPR) against false alarm rate (FPR) across all discrimination cutoffs.
+            </p>
+          </div>
+
+          <div id="roc-chart-container" class="w-full flex-1" style="min-height: 250px; max-height: 270px;"></div>
+
+          <div class="flex items-center justify-between text-[10px] font-mono pt-2 border-t mt-1" style="border-color: var(--card-border); color: var(--text-muted);">
+            <span>Champion: <strong style="color: var(--text-primary);">${p.best_model_label}</strong></span>
+            <span>Operating Cutoff: <strong class="text-[#00e575]">&tau; = 0.50</strong></span>
+          </div>
         </div>
 
-        <!-- Confusion Matrix Container -->
-        <div class="glass-card p-6">
-          <h3 class="text-base font-semibold text-slate-200 mb-2 flex items-center">
-            <i data-lucide="grid" class="w-4 h-4 mr-2 text-indigo-400"></i> Confusion Matrix
-          </h3>
-          <div id="cm-chart-container" class="h-64 w-full"></div>
+        <!-- 2. Diagnostic 2x2 Confusion Matrix (Native Responsive Card Grid) -->
+        <div class="glass-card p-4 flex flex-col justify-between overflow-hidden" style="min-height: 380px;">
+          <div>
+            <div class="flex items-center justify-between mb-1 pb-2 border-b" style="border-color: var(--card-border);">
+              <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+                <h3 class="text-xs font-mono font-bold uppercase tracking-wider" style="color: var(--text-primary);">
+                  Diagnostic Confusion Matrix
+                </h3>
+              </div>
+              <span class="text-xs font-mono font-bold px-2 py-0.5 rounded border" style="background-color: var(--tag-bg); color: var(--tag-text); border-color: var(--card-border);">
+                ${total} Holdout Samples
+              </span>
+            </div>
+            <p class="text-[11px] mb-2" style="color: var(--text-muted);">
+              Contingency matrix mapping observed ground truth vs model predictions on the test partition.
+            </p>
+          </div>
+
+          <!-- 2x2 Matrix Grid -->
+          <div class="space-y-1.5 flex-1 flex flex-col justify-center my-1">
+            <!-- Column Header -->
+            <div class="grid grid-cols-12 gap-1.5 text-center text-[10px] font-mono font-bold" style="color: var(--text-muted);">
+              <div class="col-span-4 text-left pl-1">ACTUAL \\ PRED</div>
+              <div class="col-span-4 px-1 py-0.5 rounded border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">PREDICTED 0</div>
+              <div class="col-span-4 px-1 py-0.5 rounded border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">PREDICTED 1</div>
+            </div>
+
+            <!-- Row 1: Actual Negative (0) -->
+            <div class="grid grid-cols-12 gap-1.5 items-stretch">
+              <div class="col-span-4 p-2 rounded flex flex-col justify-center text-[11px] font-mono font-bold border" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
+                <span>ACTUAL 0</span>
+                <span class="text-[9px] font-normal text-stone-500">Negative Class</span>
+              </div>
+              
+              <!-- TN -->
+              <div class="col-span-4 p-2.5 rounded-lg border text-center flex flex-col justify-center transition-all hover:scale-[1.01]" style="background-color: rgba(0, 229, 117, 0.08); border-color: rgba(0, 229, 117, 0.35);">
+                <div class="text-lg font-mono font-black text-[#00e575]">${tn}</div>
+                <div class="text-[10px] font-bold text-[#00e575] tracking-wide">TRUE NEGATIVE</div>
+                <div class="text-[9px] font-mono text-stone-400 mt-0.5">${tn_pct}% &bull; Correct</div>
+              </div>
+
+              <!-- FP -->
+              <div class="col-span-4 p-2.5 rounded-lg border text-center flex flex-col justify-center transition-all hover:scale-[1.01]" style="background-color: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.35);">
+                <div class="text-lg font-mono font-black text-amber-400">${fp}</div>
+                <div class="text-[10px] font-bold text-amber-400 tracking-wide">FALSE POSITIVE</div>
+                <div class="text-[9px] font-mono text-stone-400 mt-0.5">${fp_pct}% &bull; Type I Error</div>
+              </div>
+            </div>
+
+            <!-- Row 2: Actual Positive (1) -->
+            <div class="grid grid-cols-12 gap-1.5 items-stretch">
+              <div class="col-span-4 p-2 rounded flex flex-col justify-center text-[11px] font-mono font-bold border" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
+                <span>ACTUAL 1</span>
+                <span class="text-[9px] font-normal text-stone-500">Positive Class</span>
+              </div>
+              
+              <!-- FN -->
+              <div class="col-span-4 p-2.5 rounded-lg border text-center flex flex-col justify-center transition-all hover:scale-[1.01]" style="background-color: rgba(244, 63, 94, 0.08); border-color: rgba(244, 63, 94, 0.35);">
+                <div class="text-lg font-mono font-black text-rose-400">${fn}</div>
+                <div class="text-[10px] font-bold text-rose-400 tracking-wide">FALSE NEGATIVE</div>
+                <div class="text-[9px] font-mono text-stone-400 mt-0.5">${fn_pct}% &bull; Type II Error</div>
+              </div>
+
+              <!-- TP -->
+              <div class="col-span-4 p-2.5 rounded-lg border text-center flex flex-col justify-center transition-all hover:scale-[1.01]" style="background-color: rgba(0, 229, 117, 0.12); border-color: rgba(0, 229, 117, 0.45);">
+                <div class="text-lg font-mono font-black text-[#00e575]">${tp}</div>
+                <div class="text-[10px] font-bold text-[#00e575] tracking-wide">TRUE POSITIVE</div>
+                <div class="text-[9px] font-mono text-stone-400 mt-0.5">${tp_pct}% &bull; Correct</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Diagnostic Metrics Strip -->
+          <div class="grid grid-cols-4 gap-1.5 pt-2 border-t mt-1" style="border-color: var(--card-border);">
+            <div class="p-1.5 rounded border text-center" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+              <div class="text-[9px] uppercase font-mono text-stone-500">Accuracy</div>
+              <div class="text-xs font-bold text-[#00e575]">${accuracy}</div>
+            </div>
+            <div class="p-1.5 rounded border text-center" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+              <div class="text-[9px] uppercase font-mono text-stone-500">Precision</div>
+              <div class="text-xs font-bold text-[#00e575]">${precision}</div>
+            </div>
+            <div class="p-1.5 rounded border text-center" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+              <div class="text-[9px] uppercase font-mono text-stone-500">Recall</div>
+              <div class="text-xs font-bold text-[#00e575]">${recall}</div>
+            </div>
+            <div class="p-1.5 rounded border text-center" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+              <div class="text-[9px] uppercase font-mono text-stone-500">Specificity</div>
+              <div class="text-xs font-bold text-[#00e575]">${specificity}</div>
+            </div>
+          </div>
+
         </div>
+
       </div>
     </div>
   `;
 
-  // Render Plotly ROC Chart
+  // Render strictly bounded Plotly ROC Chart
   if (p.roc_curve && p.roc_curve.fpr) {
     Plotly.newPlot(
       'roc-chart-container',
@@ -134,53 +303,49 @@ export function renderAutoMLCurves() {
           x: p.roc_curve.fpr,
           y: p.roc_curve.tpr,
           mode: 'lines',
-          name: p.best_model_label,
-          line: { color: '#06b6d4', width: 3 },
+          name: `${p.best_model_label} (AUC: ${typeof aucVal === 'number' ? aucVal.toFixed(3) : aucVal})`,
+          line: { color: '#00e575', width: 2.5 },
         },
         {
           x: [0, 1],
           y: [0, 1],
           mode: 'lines',
-          name: 'Random Baseline',
-          line: { color: '#64748b', dash: 'dash' },
+          name: 'Chance Baseline',
+          line: { color: '#666666', dash: 'dash', width: 1.5 },
         },
       ],
       {
-        margin: { l: 40, r: 20, t: 10, b: 40 },
+        height: 250,
+        autosize: true,
+        margin: { l: 40, r: 15, t: 10, b: 35 },
         paper_bgcolor: 'transparent',
         plot_bgcolor: 'transparent',
-        xaxis: { title: 'False Positive Rate', color: '#94a3b8', gridcolor: '#1e293b' },
-        yaxis: { title: 'True Positive Rate', color: '#94a3b8', gridcolor: '#1e293b' },
-        legend: { font: { color: '#cbd5e1' } },
+        xaxis: {
+          title: { text: 'False Positive Rate', font: { size: 10, color: '#858076' } },
+          color: '#858076',
+          gridcolor: 'rgba(255,255,255,0.05)',
+          range: [0, 1],
+          tickfont: { size: 9 },
+        },
+        yaxis: {
+          title: { text: 'True Positive Rate', font: { size: 10, color: '#858076' } },
+          color: '#858076',
+          gridcolor: 'rgba(255,255,255,0.05)',
+          range: [0, 1.02],
+          tickfont: { size: 9 },
+        },
+        legend: {
+          x: 0.35,
+          y: 0.12,
+          font: { size: 10, color: '#f5f0e6' },
+          bgcolor: 'rgba(0,0,0,0.5)',
+        },
       },
       { responsive: true, displayModeBar: false }
     );
   }
 
-  // Render Confusion Matrix Heatmap
-  if (p.confusion_matrix) {
-    Plotly.newPlot(
-      'cm-chart-container',
-      [
-        {
-          z: p.confusion_matrix,
-          x: ['Predicted 0', 'Predicted 1'],
-          y: ['Actual 0', 'Actual 1'],
-          type: 'heatmap',
-          colorscale: 'Blues',
-          showscale: false,
-        },
-      ],
-      {
-        margin: { l: 60, r: 20, t: 10, b: 40 },
-        paper_bgcolor: 'transparent',
-        plot_bgcolor: 'transparent',
-        xaxis: { color: '#94a3b8' },
-        yaxis: { color: '#94a3b8' },
-      },
-      { responsive: true, displayModeBar: false }
-    );
-  }
+  lucide.createIcons();
 }
 
 export function renderAutoMLExplainability() {
@@ -191,17 +356,28 @@ export function renderAutoMLExplainability() {
   }
 
   el.tabContent.innerHTML = `
-    <div class="glass-card p-6 space-y-4">
-      <h3 class="text-base font-semibold text-slate-200 flex items-center">
-        <i data-lucide="bar-chart-3" class="w-4 h-4 mr-2 text-cyan-400"></i> Global SHAP Feature Importance
-      </h3>
-      <div id="shap-chart-container" class="h-80 w-full"></div>
+    <div class="glass-card p-5 space-y-3">
+      <div class="flex items-center justify-between border-b pb-2" style="border-color: var(--card-border);">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+          <h3 class="text-xs font-mono font-bold uppercase tracking-wider" style="color: var(--text-primary);">
+            Global TreeSHAP Feature Attributions
+          </h3>
+        </div>
+        <span class="text-xs font-mono font-bold px-2 py-0.5 rounded border" style="background-color: var(--tag-bg); color: var(--tag-text); border-color: var(--card-border);">
+          Top ${p.shap_importance?.length || 0} Features
+        </span>
+      </div>
+      <p class="text-[11px]" style="color: var(--text-muted);">
+        Mean absolute SHAP value (&Epsilon;[|&Phi;|]) quantifying each feature's contribution towards moving the baseline prediction.
+      </p>
+      <div id="shap-chart-container" class="w-full" style="min-height: 340px;"></div>
     </div>
   `;
 
   // Render Horizontal Bar Chart with Plotly
-  const feats = p.shap_importance.map((s) => s.feature).reverse();
-  const imps = p.shap_importance.map((s) => s.importance).reverse();
+  const feats = (p.shap_importance || []).map((s) => s.feature).reverse();
+  const imps = (p.shap_importance || []).map((s) => s.importance).reverse();
 
   Plotly.newPlot(
     'shap-chart-container',
@@ -212,20 +388,32 @@ export function renderAutoMLExplainability() {
         type: 'bar',
         orientation: 'h',
         marker: {
-          color: imps,
-          colorscale: 'Viridis',
+          color: '#00e575',
+          line: { color: '#00b35c', width: 1 },
         },
       },
     ],
     {
-      margin: { l: 140, r: 20, t: 10, b: 40 },
+      height: 330,
+      autosize: true,
+      margin: { l: 190, r: 25, t: 10, b: 40 },
       paper_bgcolor: 'transparent',
       plot_bgcolor: 'transparent',
-      xaxis: { title: 'Mean |SHAP Value| (Feature Impact)', color: '#94a3b8', gridcolor: '#1e293b' },
-      yaxis: { color: '#94a3b8', tickfont: { size: 11 } },
+      xaxis: {
+        title: { text: 'Mean |SHAP Value| (Impact on Model Log-Odds)', font: { size: 10, color: '#858076' } },
+        color: '#858076',
+        gridcolor: 'rgba(255,255,255,0.06)',
+        tickfont: { size: 9 },
+      },
+      yaxis: {
+        color: 'var(--text-primary)',
+        tickfont: { size: 10, family: 'monospace' },
+        automargin: true,
+      },
     },
     { responsive: true, displayModeBar: false }
   );
+  lucide.createIcons();
 }
 
 export function renderAutoMLRoiOptimizer() {

@@ -1045,6 +1045,7 @@ def get_data_contract_suite(session_id: str) -> DataContractResponse:
         contract_yaml=contract_yaml,
         great_expectations_json=json.dumps(contract_dict.get("great_expectations_suite", {}), indent=2),
         n_expectations=len(contract_dict.get("expectations", [])),
+        expectations=contract_dict.get("expectations", []),
     )
 
 
@@ -1066,6 +1067,8 @@ def get_gdpr_audit(session_id: str) -> GdprAuditResponse:
         privacy_risk_score=comp.get("privacy_risk_score", 0),
         pii_entities_detected=comp.get("pii_findings", []),
         ropa_markdown=ropa_md,
+        frameworks=comp.get("frameworks", {}),
+        ropa_details=ropa,
     )
 
 
