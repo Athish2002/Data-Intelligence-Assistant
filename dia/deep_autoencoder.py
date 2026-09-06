@@ -133,10 +133,16 @@ def train_tabular_autoencoder(
     anomaly_threshold = float(np.percentile(per_sample_mse, 95))
     is_anomaly = per_sample_mse > anomaly_threshold
 
-    # Feature attribution ranking
+    # Feature attribution ranking (safe alignment against input_dim)
+    aligned_feature_names = list(feature_names) if feature_names else []
+    if len(aligned_feature_names) < input_dim:
+        aligned_feature_names += [f"feature_{i}" for i in range(len(aligned_feature_names), input_dim)]
+    elif len(aligned_feature_names) > input_dim:
+        aligned_feature_names = aligned_feature_names[:input_dim]
+
     feat_attribution = [
         {"feature": name, "reconstruction_error": round(float(err), 4)}
-        for name, err in zip(feature_names, per_feature_mse, strict=True)
+        for name, err in zip(aligned_feature_names, per_feature_mse)
     ]
     feat_attribution.sort(key=lambda x: x["reconstruction_error"], reverse=True)
 
