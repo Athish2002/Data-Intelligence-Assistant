@@ -7,6 +7,8 @@
  */
 
 import { ApiClient } from '../api.js';
+import { showError, showSuccess } from '../toast.js';
+import { escapeHtml } from '../state.js';
 
 let systemPollTimer = null;
 let isPollingActive = true;
@@ -238,11 +240,11 @@ function renderMetricsDashboard(container, d) {
                 ? `<tr><td colspan="7" class="p-6 text-center text-xs" style="color: var(--text-muted);">No active sessions in memory. Ingest a dataset to initialize.</td></tr>`
                 : d.sessions_detail.map((s) => `
                   <tr class="hover:bg-white/[0.02] transition-colors">
-                    <td class="p-2.5 font-bold text-[#00e575] truncate max-w-[120px]" title="${s.session_id}">
-                      ${s.session_id.substring(0, 8)}...
+                    <td class="p-2.5 font-bold text-[#00e575] truncate max-w-[120px]" title="${escapeHtml(s.session_id)}">
+                      ${escapeHtml(s.session_id.substring(0, 8))}...
                     </td>
-                    <td class="p-2.5 max-w-[200px] truncate" style="color: var(--text-primary);" title="${s.goal}">
-                      ${s.goal || 'General Analysis'}
+                    <td class="p-2.5 max-w-[200px] truncate" style="color: var(--text-primary);" title="${escapeHtml(s.goal || '')}">
+                      ${escapeHtml(s.goal || 'General Analysis')}
                     </td>
                     <td class="p-2.5" style="color: var(--text-secondary);">
                       ${s.n_rows.toLocaleString()} × ${s.n_cols}
@@ -251,13 +253,13 @@ function renderMetricsDashboard(container, d) {
                       ${s.memory_mb} MB
                     </td>
                     <td class="p-2.5" style="color: var(--text-muted);">
-                      ${s.best_model || (s.has_pipeline ? 'Trained' : 'Raw Ingestion')}
+                      ${escapeHtml(s.best_model || (s.has_pipeline ? 'Trained' : 'Raw Ingestion'))}
                     </td>
                     <td class="p-2.5" style="color: var(--text-muted);">
                       ${Math.round(s.idle_seconds)}s idle / ${Math.round(s.age_seconds)}s age
                     </td>
                     <td class="p-2.5 text-right">
-                      <button onclick="window.evictSession('${s.session_id}')" class="px-2 py-0.5 rounded border text-[10px] text-red-400 hover:bg-red-950/40 border-red-900/50 transition-colors cursor-pointer" title="Evict from memory">
+                      <button onclick="window.evictSession('${escapeHtml(s.session_id)}')" class="px-2 py-0.5 rounded border text-[10px] text-red-400 hover:bg-red-950/40 border-red-900/50 transition-colors cursor-pointer" title="Evict from memory">
                         Evict
                       </button>
                     </td>
@@ -319,13 +321,13 @@ window.triggerManualGC = async function () {
 };
 
 window.evictSession = async function (sessionId) {
-  if (!confirm(`Are you sure you want to evict session ${sessionId.substring(0, 8)}... from RAM?`)) return;
   try {
     const res = await fetch(`/api/v1/system/sessions/${sessionId}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    showSuccess(`Session ${sessionId.substring(0, 8)}... evicted from RAM.`);
     await loadAndRenderMetrics();
   } catch (err) {
-    alert(`Failed to evict session: ${err.message}`);
+    showError(`Failed to evict session: ${err.message}`);
   }
 };
 

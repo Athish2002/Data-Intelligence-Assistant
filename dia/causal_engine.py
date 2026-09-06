@@ -154,8 +154,24 @@ def estimate_uplift_t_learner(
     m_treat = clone(model)
     m_ctrl = clone(model)
 
-    m_treat.fit(X[idx_treat], y[idx_treat])
-    m_ctrl.fit(X[idx_ctrl], y[idx_ctrl])
+    y_treat = y[idx_treat]
+    y_ctrl = y[idx_ctrl]
+
+    is_classification = hasattr(model, "predict_proba") or hasattr(model, "classes_")
+    if is_classification and (len(np.unique(y_treat)) < 2 or len(np.unique(y_ctrl)) < 2):
+        return {
+            "status": "insufficient_data",
+            "message": "Both treatment and control groups must contain at least two target classes for causal uplift estimation.",
+        }
+
+    try:
+        m_treat.fit(X[idx_treat], y_treat)
+        m_ctrl.fit(X[idx_ctrl], y_ctrl)
+    except ValueError as e:
+        return {
+            "status": "insufficient_data",
+            "message": f"Unable to fit causal models on subgroup splits: {str(e)}",
+        }
 
     # Predict factual and counterfactual outcomes
     if hasattr(m_treat, "predict_proba"):

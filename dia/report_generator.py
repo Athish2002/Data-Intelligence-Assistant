@@ -165,7 +165,7 @@ def generate_executive_html_report(
             </div>
             <div class="card">
                 <div class="card-title">Data Readiness</div>
-                <div class="card-val" style="color: #4ade80;">{readiness.get('readiness_score', 90)}/100</div>
+                <div class="card-val" style="color: #4ade80;">{readiness.get('score', readiness.get('readiness_score', 90)) if readiness else 90}/100</div>
             </div>
             <div class="card">
                 <div class="card-title">Inference SLA (p99)</div>

@@ -6,6 +6,7 @@
 
 import { state, el } from '../state.js';
 import { ApiClient } from '../api.js';
+import { showError } from '../toast.js';
 import { renderModelRequiredState } from './automl.js';
 
 export function renderAdaptiveCausal() {

@@ -45,7 +45,7 @@ export function renderCoreOverview() {
           <table class="w-full text-xs text-left text-slate-300 border-collapse">
             <thead>
               <tr class="border-b border-slate-700/60 bg-slate-900/40 text-slate-400 font-semibold">
-                ${d.columns.map((c) => `<th class="p-3">${c}</th>`).join('')}
+                ${d.columns.map((c) => `<th class="p-3">${escapeHtml(c)}</th>`).join('')}
               </tr>
             </thead>
             <tbody>
@@ -53,7 +53,7 @@ export function renderCoreOverview() {
                 .map(
                   (r) => `
                 <tr class="border-b border-slate-800/40 hover:bg-slate-800/30">
-                  ${d.columns.map((c) => `<td class="p-3">${r[c] !== null ? r[c] : '<span class="text-slate-600">null</span>'}</td>`).join('')}
+                  ${d.columns.map((c) => `<td class="p-3">${r[c] !== null && r[c] !== undefined ? escapeHtml(r[c]) : '<span class="text-slate-600">null</span>'}</td>`).join('')}
                 </tr>
               `
                 )
@@ -92,12 +92,12 @@ export async function renderCoreSchema() {
                 .map(
                   (col) => `
                 <tr class="border-b border-slate-800/40 hover:bg-slate-800/30">
-                  <td class="p-3 font-medium text-slate-200 font-mono">${col.column}</td>
-                  <td class="p-3 text-slate-400">${col.dtype}</td>
-                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold ${getRoleBadgeClass(col.role)}">${col.role}</span></td>
+                  <td class="p-3 font-medium text-slate-200 font-mono">${escapeHtml(col.column)}</td>
+                  <td class="p-3 text-slate-400">${escapeHtml(col.dtype)}</td>
+                  <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold ${getRoleBadgeClass(col.role)}">${escapeHtml(col.role)}</span></td>
                   <td class="p-3 ${col.null_pct > 0 ? 'text-amber-400' : 'text-slate-400'}">${col.null_pct}% (${col.null_count})</td>
                   <td class="p-3 font-mono">${col.unique_count.toLocaleString()}</td>
-                  <td class="p-3 text-slate-400 font-mono text-[11px] truncate max-w-xs">${col.sample_values.join(', ')}</td>
+                  <td class="p-3 text-slate-400 font-mono text-[11px] truncate max-w-xs">${escapeHtml((col.sample_values || []).join(', '))}</td>
                 </tr>
               `
                 )
@@ -109,7 +109,7 @@ export async function renderCoreSchema() {
     `;
     lucide.createIcons();
   } catch (err) {
-    el.tabContent.innerHTML = `<div class="glass-card p-6 text-rose-400">Error loading schema: ${err.message}</div>`;
+    el.tabContent.innerHTML = `<div class="glass-card p-6 text-rose-400">Error loading schema: ${escapeHtml(err.message)}</div>`;
   }
 }
 

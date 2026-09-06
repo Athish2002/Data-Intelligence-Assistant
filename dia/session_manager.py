@@ -134,10 +134,11 @@ class BoundedSessionStore:
 
     def pop(self, session_id: str, default: Any = None) -> Any:
         with self._lock:
-            val = self.get(session_id, default)
-            if session_id in self._store:
-                self._evict_locked(session_id)
-            return val
+            self._cleanup_expired_locked()
+            if session_id not in self._store:
+                return default
+            self._meta.pop(session_id, None)
+            return self._store.pop(session_id)
 
     def clear(self) -> None:
         """Purges all sessions and sweeps memory."""
@@ -147,6 +148,11 @@ class BoundedSessionStore:
                 self._evict_locked(sid)
             self._store.clear()
             self._meta.clear()
+            try:
+                from dia.retrieval import clear_retrieval_model_cache
+                clear_retrieval_model_cache()
+            except Exception:
+                pass
             gc.collect()
 
     def get_sessions_summary(self) -> list[dict[str, Any]]:
@@ -183,3 +189,13 @@ class BoundedSessionStore:
                     "access_count": meta.get("access_count", 1),
                 })
             return summaries
+
+
+def trigger_system_garbage_collection() -> None:
+    """Purges cached retrieval models and triggers a garbage collection cycle."""
+    try:
+        from dia.retrieval import clear_retrieval_model_cache
+        clear_retrieval_model_cache()
+    except Exception:
+        pass
+    gc.collect()

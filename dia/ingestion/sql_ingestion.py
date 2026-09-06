@@ -83,7 +83,7 @@ class SQLSource(IngestionSource):
         if not connection_string:
             raise ConfigurationError("A SQLAlchemy connection string is required.")
 
-        query = query.strip()
+        query = re.sub(r"[\s;]+$", "", query)
         table_name = table_name.strip()
 
         if not query and not table_name:

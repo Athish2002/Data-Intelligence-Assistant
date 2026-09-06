@@ -38,6 +38,7 @@ __all__ = [
     "ScoredChunk",
     "SimpleVectorIndex",
     "embed_texts",
+    "clear_retrieval_model_cache",
     "build_session_index",
 ]
 
@@ -60,6 +61,13 @@ class ScoredChunk:
 # Process-lifetime model cache — a query embedding happens on every chat
 # turn, so reloading the ~80MB model per message would make chat feel broken.
 _MODEL_CACHE: dict[str, Any] = {}
+
+
+def clear_retrieval_model_cache() -> None:
+    """Evicts all cached sentence-transformer embedding models and runs garbage collection."""
+    import gc
+    _MODEL_CACHE.clear()
+    gc.collect()
 
 
 def embed_texts(texts: list[str]) -> np.ndarray | None:

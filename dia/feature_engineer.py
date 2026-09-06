@@ -8,6 +8,7 @@ and log transformations, then filters them using Mutual Information.
 
 from __future__ import annotations
 
+import gc
 import logging
 
 import numpy as np
@@ -123,6 +124,8 @@ def auto_engineer_features(
             df_out[c] = candidates_df[c]
 
         log.info("AutoFE generated %d new features: %s", len(selected_cols), selected_cols)
+        del candidates_df
+        gc.collect()
         return df_out, selected_cols
 
     except Exception as e:
@@ -130,4 +133,6 @@ def auto_engineer_features(
         fallback_cols = list(candidates_df.columns)[:3]
         for c in fallback_cols:
             df_out[c] = candidates_df[c]
+        del candidates_df
+        gc.collect()
         return df_out, fallback_cols

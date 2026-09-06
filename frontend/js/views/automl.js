@@ -4,7 +4,7 @@
  * Workspace 2: AutoML, Leaderboard, SHAP Explainability, Simulator, and ROI Optimizer.
  */
 
-import { state, el } from '../state.js';
+import { state, el, escapeHtml } from '../state.js';
 import { ApiClient } from '../api.js';
 import { showError } from '../toast.js';
 import { inspectModel } from '../inspector.js';
@@ -575,11 +575,11 @@ export function renderAutoMLSimulator() {
             const isNum = typeof val === 'number';
             return `
             <div class="p-2.5 bg-slate-900/60 border border-slate-800 rounded-lg">
-              <label class="block text-[11px] font-mono text-slate-300 mb-1 truncate" title="${name}">${name}</label>
+              <label class="block text-[11px] font-mono text-slate-300 mb-1 truncate" title="${escapeHtml(name)}">${escapeHtml(name)}</label>
               ${
                 isNum
-                  ? `<input type="number" step="any" data-feature="${name}" value="${Number(val).toFixed(2)}" class="w-full glass-input text-xs font-mono sim-input">`
-                  : `<input type="text" data-feature="${name}" value="${val}" class="w-full glass-input text-xs font-mono sim-input">`
+                  ? `<input type="number" step="any" data-feature="${escapeHtml(name)}" value="${Number(val).toFixed(2)}" class="w-full glass-input text-xs font-mono sim-input">`
+                  : `<input type="text" data-feature="${escapeHtml(name)}" value="${escapeHtml(val)}" class="w-full glass-input text-xs font-mono sim-input">`
               }
             </div>
           `;
@@ -673,7 +673,7 @@ export async function renderAutoMLActiveLearning() {
           <table class="w-full text-xs text-left text-slate-300 border-collapse">
             <thead>
               <tr class="border-b border-slate-700 bg-slate-900/50 text-slate-400 font-semibold">
-                ${res.uncertain_samples.length > 0 ? Object.keys(res.uncertain_samples[0]).map((k) => `<th class="p-2.5">${k}</th>`).join('') : ''}
+                ${res.uncertain_samples.length > 0 ? Object.keys(res.uncertain_samples[0]).map((k) => `<th class="p-2.5">${escapeHtml(k)}</th>`).join('') : ''}
               </tr>
             </thead>
             <tbody>
@@ -681,7 +681,7 @@ export async function renderAutoMLActiveLearning() {
                 .map(
                   (r) => `
                 <tr class="border-b border-slate-800/40 hover:bg-slate-800/30">
-                  ${Object.values(r).map((v) => `<td class="p-2.5 font-mono">${v}</td>`).join('')}
+                  ${Object.values(r).map((v) => `<td class="p-2.5 font-mono">${escapeHtml(v)}</td>`).join('')}
                 </tr>
               `
                 )

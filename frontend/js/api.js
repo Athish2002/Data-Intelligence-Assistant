@@ -6,16 +6,31 @@
 
 const API_BASE = window.location.origin + '/api/v1';
 
+async function parseErrorResponse(res, fallbackMessage) {
+  try {
+    const data = await res.json();
+    if (data && data.detail) {
+      if (Array.isArray(data.detail)) {
+        return data.detail.map(d => d.msg || (typeof d === 'string' ? d : JSON.stringify(d))).join(', ');
+      }
+      return typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    }
+    return fallbackMessage;
+  } catch {
+    return `${fallbackMessage} (HTTP ${res.status}: ${res.statusText || 'Error'})`;
+  }
+}
+
 export const ApiClient = {
   async getHealth() {
     const res = await fetch(`${API_BASE}/health`);
-    if (!res.ok) throw new Error('Health check failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Health check failed'));
     return await res.json();
   },
 
   async getDemos() {
     const res = await fetch(`${API_BASE}/demos`);
-    if (!res.ok) throw new Error('Failed to fetch demo benchmarks');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to fetch demo benchmarks'));
     return await res.json();
   },
 
@@ -26,8 +41,7 @@ export const ApiClient = {
       body: JSON.stringify({ demo_name: demoName }),
     });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Demo ingestion failed');
+      throw new Error(await parseErrorResponse(res, 'Demo ingestion failed'));
     }
     return await res.json();
   },
@@ -40,8 +54,7 @@ export const ApiClient = {
       body: formData,
     });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Dataset upload failed');
+      throw new Error(await parseErrorResponse(res, 'Dataset upload failed'));
     }
     return await res.json();
   },
@@ -56,19 +69,19 @@ export const ApiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId }),
     });
-    if (!res.ok) throw new Error('Auto-detection failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Auto-detection failed'));
     return await res.json();
   },
 
   async getProfile(sessionId) {
     const res = await fetch(`${API_BASE}/profile/${sessionId}`);
-    if (!res.ok) throw new Error('Failed to load dataset profile');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to load dataset profile'));
     return await res.json();
   },
 
   async getReadiness(sessionId) {
     const res = await fetch(`${API_BASE}/readiness/${sessionId}`);
-    if (!res.ok) throw new Error('Failed to load readiness audit');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to load readiness audit'));
     return await res.json();
   },
 
@@ -84,8 +97,7 @@ export const ApiClient = {
       }),
     });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'AutoML training failed');
+      throw new Error(await parseErrorResponse(res, 'AutoML training failed'));
     }
     return await res.json();
   },
@@ -96,7 +108,7 @@ export const ApiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, features: features }),
     });
-    if (!res.ok) throw new Error('Prediction failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Prediction failed'));
     return await res.json();
   },
 
@@ -106,7 +118,7 @@ export const ApiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, feature_overrides: overrides }),
     });
-    if (!res.ok) throw new Error('Simulation failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Simulation failed'));
     return await res.json();
   },
 
@@ -122,13 +134,13 @@ export const ApiClient = {
         benefit_tn: parseFloat(benefitTn),
       }),
     });
-    if (!res.ok) throw new Error('ROI optimization failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'ROI optimization failed'));
     return await res.json();
   },
 
   async getActiveLearningQueue(sessionId) {
     const res = await fetch(`${API_BASE}/active-learning/${sessionId}`);
-    if (!res.ok) throw new Error('Failed to load active learning queue');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to load active learning queue'));
     return await res.json();
   },
 
@@ -142,7 +154,7 @@ export const ApiClient = {
         desired_outcome: desiredOutcome,
       }),
     });
-    if (!res.ok) throw new Error('Counterfactual failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Counterfactual failed'));
     return await res.json();
   },
 
@@ -155,13 +167,13 @@ export const ApiClient = {
         treatment_column: treatmentCol,
       }),
     });
-    if (!res.ok) throw new Error('Uplift estimation failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Uplift estimation failed'));
     return await res.json();
   },
 
   async getAutoencoder(sessionId) {
     const res = await fetch(`${API_BASE}/adaptive/autoencoder/${sessionId}`);
-    if (!res.ok) throw new Error('Autoencoder analysis failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Autoencoder analysis failed'));
     return await res.json();
   },
 
@@ -175,13 +187,13 @@ export const ApiClient = {
         alpha: parseFloat(alpha),
       }),
     });
-    if (!res.ok) throw new Error('Bandit simulation failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Bandit simulation failed'));
     return await res.json();
   },
 
   async getOnlineLearning(sessionId) {
     const res = await fetch(`${API_BASE}/adaptive/online-learning/${sessionId}`);
-    if (!res.ok) throw new Error('Online learning simulation failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Online learning simulation failed'));
     return await res.json();
   },
 
@@ -195,7 +207,7 @@ export const ApiClient = {
         forecast_horizon: parseInt(horizon, 10),
       }),
     });
-    if (!res.ok) throw new Error('Forecasting failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Forecasting failed'));
     return await res.json();
   },
 
@@ -210,43 +222,43 @@ export const ApiClient = {
         epsilon: parseFloat(epsilon),
       }),
     });
-    if (!res.ok) throw new Error('Synthetic generation failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Synthetic generation failed'));
     return await res.json();
   },
 
   async getNlpAnalysis(sessionId) {
     const res = await fetch(`${API_BASE}/adaptive/nlp/${sessionId}`);
-    if (!res.ok) throw new Error('NLP analysis failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'NLP analysis failed'));
     return await res.json();
   },
 
   async getGraphIntelligence(sessionId) {
     const res = await fetch(`${API_BASE}/adaptive/graph/${sessionId}`);
-    if (!res.ok) throw new Error('Graph analysis failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Graph analysis failed'));
     return await res.json();
   },
 
   async getDataContract(sessionId) {
     const res = await fetch(`${API_BASE}/governance/contract/${sessionId}`);
-    if (!res.ok) throw new Error('Failed to load data contract');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to load data contract'));
     return await res.json();
   },
 
   async getGdprAudit(sessionId) {
     const res = await fetch(`${API_BASE}/governance/gdpr/${sessionId}`);
-    if (!res.ok) throw new Error('Failed to load GDPR audit');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to load GDPR audit'));
     return await res.json();
   },
 
   async getDriftMonitor(sessionId) {
     const res = await fetch(`${API_BASE}/governance/drift/${sessionId}`);
-    if (!res.ok) throw new Error('Failed to load drift monitor');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to load drift monitor'));
     return await res.json();
   },
 
   async getAllArtifacts(sessionId) {
     const res = await fetch(`${API_BASE}/artifacts/${sessionId}`);
-    if (!res.ok) throw new Error('Failed to load artifacts');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to load artifacts'));
     return await res.json();
   },
 
@@ -256,7 +268,7 @@ export const ApiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, query: query }),
     });
-    if (!res.ok) throw new Error('Chat failed');
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Chat failed'));
     return await res.json();
   },
 

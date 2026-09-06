@@ -132,7 +132,7 @@ def calculate_drift_report(
             iso.fit(ref_clean)
             preds = iso.predict(cur_clean)
             anom_count = int(np.sum(preds == -1))
-            anom_pct = round(float(anom_count / len(current_df) * 100), 2)
+            anom_pct = round(float(anom_count / max(1, len(current_df)) * 100), 2)
 
             anomaly_summary = {
                 "anomalies_detected": anom_count,

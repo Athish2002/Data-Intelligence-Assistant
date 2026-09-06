@@ -36,9 +36,12 @@ def generate_smart_insights(
                 col_series = pd.to_numeric(df[col], errors="coerce")
                 valid_idx = ~(target_series.isna() | col_series.isna())
                 if valid_idx.sum() > 10:
-                    corr = np.corrcoef(col_series[valid_idx], target_series[valid_idx])[0, 1]
-                    if not np.isnan(corr):
-                        correlations.append((col, corr))
+                    c_vals = col_series[valid_idx]
+                    t_vals = target_series[valid_idx]
+                    if c_vals.std() > 1e-9 and t_vals.std() > 1e-9:
+                        corr = np.corrcoef(c_vals, t_vals)[0, 1]
+                        if not np.isnan(corr):
+                            correlations.append((col, corr))
 
             correlations.sort(key=lambda x: abs(x[1]), reverse=True)
 
@@ -73,9 +76,12 @@ def generate_smart_insights(
                     col_series = pd.to_numeric(df[col], errors="coerce")
                     valid_idx = ~col_series.isna()
                     if valid_idx.sum() > 10:
-                        corr = np.corrcoef(col_series[valid_idx], target_series[valid_idx])[0, 1]
-                        if not np.isnan(corr):
-                            correlations.append((col, corr))
+                        c_vals = col_series[valid_idx]
+                        t_vals = target_series[valid_idx]
+                        if c_vals.std() > 1e-9 and t_vals.std() > 1e-9:
+                            corr = np.corrcoef(c_vals, t_vals)[0, 1]
+                            if not np.isnan(corr):
+                                correlations.append((col, corr))
 
                 correlations.sort(key=lambda x: abs(x[1]), reverse=True)
 

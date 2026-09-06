@@ -137,17 +137,6 @@ function applyTheme(themeName) {
 
 // ─── Workbench Data Ingestion & Router ───────────────────────────────────────
 
-function updateCommandSelection(items) {
-  items.forEach((it, idx) => {
-    if (idx === selectedCommandIndex) {
-      it.classList.add('selected');
-      it.scrollIntoView({ block: 'nearest' });
-    } else {
-      it.classList.remove('selected');
-    }
-  });
-}
-
 function switchWorkspace(wsId, subtabId = null) {
   state.activeWorkspace = wsId;
   if (subtabId) {

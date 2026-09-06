@@ -238,6 +238,13 @@ def trigger_system_garbage_collection() -> SystemGcResponse:
         with SESSION_STORE._lock:
             SESSION_STORE._cleanup_expired_locked()
 
+    # Evict cached retrieval embedding models
+    try:
+        from dia.retrieval import clear_retrieval_model_cache
+        clear_retrieval_model_cache()
+    except Exception:
+        pass
+
     collected = gc.collect()
 
     # Clear torch CUDA cache if available
@@ -746,7 +753,7 @@ def get_active_learning_queue(session_id: str) -> ActiveLearningResponse:
         n_samples=10,
     )
 
-    records = al_dict.get("uncertain_samples", [])
+    records = al_dict.get("uncertain_samples") or al_dict.get("review_queue", [])
     return ActiveLearningResponse(
         status="success",
         n_uncertain=len(records),
@@ -896,15 +903,34 @@ def get_uplift_effect(payload: UpliftRequest) -> UpliftResponse:
     train_res = pipe["train_result"]
 
     try:
+        y_test_arr = train_res.get("y_test") if "y_test" in train_res else train_res["y_true"]
+        test_indices = train_res.get("test_indices")
         if payload.treatment_column == "(Auto-Synthesize Action)" or payload.treatment_column not in df.columns:
-            t_vec = np.random.binomial(1, 0.5, size=len(train_res["y_test"]))
+            t_vec = np.random.binomial(1, 0.5, size=len(y_test_arr))
         else:
-            t_vec = (df[payload.treatment_column].values[:len(train_res["y_test"])] == 1).astype(int)
+            t_col = df[payload.treatment_column]
+            t_col_vals = None
+            if test_indices is not None and len(test_indices) == len(y_test_arr):
+                try:
+                    if df.index.is_unique:
+                        t_col_vals = t_col.reindex(test_indices).values
+                    elif all(isinstance(i, (int, np.integer)) and 0 <= i < len(df) for i in test_indices):
+                        t_col_vals = t_col.iloc[test_indices].values
+                except Exception:
+                    t_col_vals = None
+            if t_col_vals is None or len(t_col_vals) != len(y_test_arr):
+                t_col_vals = t_col.values[:len(y_test_arr)]
+            if len(t_col_vals) < len(y_test_arr):
+                padded = np.zeros(len(y_test_arr), dtype=int)
+                padded[:len(t_col_vals)] = (t_col_vals == 1).astype(int)
+                t_vec = padded
+            else:
+                t_vec = (t_col_vals == 1).astype(int)
 
         uplift_res = estimate_uplift_t_learner(
             model=train_res["best_model"],
             X=train_res["X_test_processed"],
-            y=train_res["y_test"],
+            y=y_test_arr,
             treatment=t_vec,
             feature_names=train_res["feature_names"],
         )
@@ -948,13 +974,19 @@ def get_autoencoder_analysis(session_id: str) -> AutoencoderResponse:
                 top_anomalous_samples=[],
                 loss_history=[],
             )
+        losses = ae_res.get("loss_curve") or ae_res.get("loss_history", [0.0])
+        threshold = float(ae_res.get("anomaly_threshold_mse") or ae_res.get("anomaly_threshold", 0.0))
+        anomalies_count = int(ae_res.get("total_anomalies_detected") or ae_res.get("anomalous_samples_count", 0))
+        top_anomalies = ae_res.get("feature_attribution_ranking") or ae_res.get("top_anomalous_samples") or ae_res.get("feature_attributions", [])
+        final_mae = float(ae_res.get("final_reconstruction_loss") or (np.mean(losses) if losses else 0.0))
+
         return AutoencoderResponse(
             status="success",
-            reconstruction_mae=float(np.mean(ae_res.get("loss_history", [0.0]))),
-            anomaly_threshold=float(ae_res.get("anomaly_threshold", 0.0)),
-            anomalous_samples_count=int(ae_res.get("anomalous_samples_count", 0)),
-            top_anomalous_samples=ae_res.get("feature_attributions", [])[:10],
-            loss_history=ae_res.get("loss_history", []),
+            reconstruction_mae=final_mae,
+            anomaly_threshold=threshold,
+            anomalous_samples_count=anomalies_count,
+            top_anomalous_samples=top_anomalies[:10],
+            loss_history=losses,
         )
     except ImportError as e:
         raise HTTPException(
@@ -998,7 +1030,7 @@ def get_online_learning(session_id: str) -> OnlineLearningResponse:
     if pipe and "train_result" in pipe:
         train_res = pipe["train_result"]
         X_proc = train_res["X_test_processed"]
-        y_proc = train_res["y_test"]
+        y_proc = train_res.get("y_test") if "y_test" in train_res else train_res.get("y_true")
         task_type = pipe["final_task_type"]
     else:
         df = sess["df"]
@@ -1010,11 +1042,26 @@ def get_online_learning(session_id: str) -> OnlineLearningResponse:
 
     try:
         stream_res = simulate_streaming_incremental_fit(X_proc, y_proc, task_type=task_type)
+        n_batches = int(stream_res.get("total_streaming_batches") or stream_res.get("batches_processed", 10))
+        final_metric = stream_res.get("final_online_metric")
+        if isinstance(final_metric, (int, float)):
+            final_loss = float(final_metric)
+        elif isinstance(final_metric, dict):
+            final_loss = float(final_metric.get("accuracy") or final_metric.get("rmse") or final_metric.get("score", 0.85))
+        else:
+            final_loss = float(stream_res.get("final_score", 0.85))
+
+        curve = stream_res.get("streaming_learning_curve") or stream_res.get("learning_curve", [])
+        history = [
+            float(h.get("accuracy") or h.get("rmse") or h.get("score", 0.0))
+            if isinstance(h, dict) else float(h)
+            for h in curve
+        ]
         return OnlineLearningResponse(
             status="success",
-            n_batches=stream_res.get("batches_processed", 10),
-            final_loss=float(stream_res.get("final_score", 0.85)),
-            batch_loss_history=[float(h.get("score", 0.0)) for h in stream_res.get("learning_curve", [])],
+            n_batches=n_batches,
+            final_loss=final_loss,
+            batch_loss_history=history,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Streaming Error: {str(e)}") from e
@@ -1041,10 +1088,15 @@ def forecast_timeseries(payload: TimeSeriesForecastRequest) -> TimeSeriesForecas
             forecast_horizon=payload.forecast_horizon,
         )
         if ts_res["status"] == "success":
+            hist_points = ts_res.get("historical_points")
+            if not hist_points:
+                hist_dates = ts_res.get("historical_dates", [])
+                hist_actuals = ts_res.get("historical_actuals", [])
+                hist_points = [{"date": str(d), "value": float(v)} for d, v in zip(hist_dates, hist_actuals)]
             return TimeSeriesForecastResponse(
                 status="success",
                 evaluation=ts_res["evaluation"],
-                historical_points=ts_res.get("historical_points", []),
+                historical_points=hist_points,
                 future_projections=ts_res["future_projections"],
             )
         else:
@@ -1120,12 +1172,19 @@ def get_graph_intelligence(session_id: str) -> GraphAnalysisResponse:
 
     try:
         graph_res = construct_and_analyze_entity_graph(df, source_node_col=cat_cols[0], target_node_col=cat_cols[1])
-        top_nodes = graph_res.get("top_influencers", [])
+        top_nodes = graph_res.get("top_influential_nodes") or graph_res.get("top_influencers", [])
         return GraphAnalysisResponse(
             status="success",
-            n_nodes=graph_res.get("n_nodes", 0),
-            n_edges=graph_res.get("n_edges", 0),
-            top_central_entities=[{"node": str(n.get("node")), "pagerank": float(n.get("pagerank", 0.0))} for n in top_nodes[:10]],
+            n_nodes=int(graph_res.get("total_nodes") or graph_res.get("n_nodes", 0)),
+            n_edges=int(graph_res.get("total_edges") or graph_res.get("n_edges", 0)),
+            top_central_entities=[
+                {
+                    "node": str(n.get("node_id") or n.get("node", "")),
+                    "pagerank": float(n.get("pagerank", 0.0)),
+                    "degree_centrality": float(n.get("degree_centrality", 0.0)),
+                }
+                for n in top_nodes[:10]
+            ],
             bipartite_edges=[],
         )
     except Exception as e:
@@ -1147,7 +1206,7 @@ def get_data_contract_suite(session_id: str) -> DataContractResponse:
     return DataContractResponse(
         status="success",
         contract_yaml=contract_yaml,
-        great_expectations_json=json.dumps(contract_dict.get("great_expectations_suite", {}), indent=2),
+        great_expectations_json=json.dumps(contract_dict, indent=2),
         n_expectations=len(contract_dict.get("expectations", [])),
         expectations=contract_dict.get("expectations", []),
     )
@@ -1169,7 +1228,7 @@ def get_gdpr_audit(session_id: str) -> GdprAuditResponse:
     return GdprAuditResponse(
         status="success",
         privacy_risk_score=comp.get("privacy_risk_score", 0),
-        pii_entities_detected=comp.get("pii_findings", []),
+        pii_entities_detected=comp.get("detected_pii", []),
         ropa_markdown=ropa_md,
         frameworks=comp.get("frameworks", {}),
         ropa_details=ropa,
@@ -1182,7 +1241,9 @@ def get_drift_monitor(session_id: str) -> DriftMonitorResponse:
     sess = _get_session(session_id)
     df = sess["df"]
 
-    half = max(5, len(df) // 2)
+    half = max(1, len(df) // 2)
+    if half >= len(df):
+        half = max(1, len(df) - 1)
     ref_df = df.iloc[:half]
     cur_df = df.iloc[half:]
 
@@ -1215,7 +1276,7 @@ def get_all_artifacts(session_id: str) -> ArtifactsResponse:
         dockerfile=pipe.get("dockerfile_code", "# Dockerfile\n"),
         docker_compose=pipe.get("docker_compose_code", "# Docker compose\n"),
         k8s_manifest=pipe.get("k8s_manifests", "# Kubernetes Deployment\n"),
-        sql_query=pipe.get("sql_transpiled_query", "-- SQL query\n"),
+        sql_query=pipe.get("sql_transpiled_query") or pipe.get("sql_model", "-- SQL query\n"),
         model_card_md=pipe.get("model_card_md", "# Model Card\n"),
     )
 

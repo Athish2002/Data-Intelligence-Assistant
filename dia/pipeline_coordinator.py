@@ -257,6 +257,23 @@ class PipelineCoordinator:
             model_label=train_result.get("best_model_label", "Random Forest"),
         )
 
+        # Stage 11: In-Database SQL Model Transpilation
+        sql_transpiled_query = None
+        if train_result and "best_model" in train_result and train_result.get("feature_names"):
+            try:
+                from dia.sql_transpiler import transpile_model_to_sql
+                raw_tbl = str(meta.get("filename", "source_table")).split(".")[0]
+                tbl_clean = "".join(c if c.isalnum() or c == "_" else "_" for c in raw_tbl).strip("_")
+                transpile_res = transpile_model_to_sql(
+                    model=train_result["best_model"],
+                    feature_names=train_result["feature_names"],
+                    table_name=tbl_clean or "source_table",
+                    task_type=final_task_type,
+                )
+                sql_transpiled_query = transpile_res.get("sql_code")
+            except Exception as exc:
+                log.warning("In-database SQL model transpilation failed: %s", exc)
+
         result = {
             "df": clean_df,
             "meta": meta,
@@ -290,6 +307,8 @@ class PipelineCoordinator:
             "docker_compose_code": docker_compose_code,
             "ci_cd_workflow": ci_cd_workflow,
             "k8s_manifests": k8s_manifests,
+            "sql_model": sql_transpiled_query,
+            "sql_transpiled_query": sql_transpiled_query,
             "pipeline_executed": True,
         }
 

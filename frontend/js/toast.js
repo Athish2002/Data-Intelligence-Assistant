@@ -4,7 +4,7 @@
  * Enterprise Floating Notifications and Real-Time Progress HUD.
  */
 
-import { el } from './state.js';
+import { el, escapeHtml } from './state.js';
 
 let progressTimerInterval = null;
 let progressStageTimeout = null;
@@ -148,7 +148,7 @@ export function showNotification(msg, type = 'error') {
       <span class="text-base">⚠️</span>
       <div class="flex-1 leading-relaxed">
         <div class="font-bold uppercase tracking-wider text-red-400 mb-0.5">Pipeline Notice</div>
-        <div class="text-xs text-red-200">${msg}</div>
+        <div class="text-xs text-red-200">${escapeHtml(msg)}</div>
       </div>
       <button class="text-red-400 hover:text-white cursor-pointer text-sm font-bold ml-2" onclick="this.parentElement.remove()">✕</button>
     `;
@@ -160,7 +160,7 @@ export function showNotification(msg, type = 'error') {
       <span class="text-base">✅</span>
       <div class="flex-1 leading-relaxed">
         <div class="font-bold uppercase tracking-wider text-emerald-400 mb-0.5">Success</div>
-        <div class="text-xs text-emerald-200">${msg}</div>
+        <div class="text-xs text-emerald-200">${escapeHtml(msg)}</div>
       </div>
       <button class="text-emerald-400 hover:text-white cursor-pointer text-sm font-bold ml-2" onclick="this.parentElement.remove()">✕</button>
     `;

@@ -44,13 +44,15 @@ def scan_dataset_privacy(df: pd.DataFrame) -> dict[str, Any]:
     detected_pii: list[dict[str, Any]] = []
 
     for col in df.columns:
-        col_lower = str(col).lower().replace("_", " ").replace("-", " ")
+        col_lower = str(col).lower().replace("-", " ")
+        col_tokens = set(re.findall(r"[a-z0-9]+", col_lower))
         header_matched_categories = []
 
-        # 1. Header token check
+        # 1. Header token check using token boundaries
         for category, tokens in _PII_HEADER_TOKENS.items():
             for t in tokens:
-                if t in col_lower or t == col_lower:
+                t_clean = t.lower().replace("-", " ")
+                if t_clean in col_tokens or t_clean == col_lower or t_clean.replace(" ", "") in col_tokens:
                     header_matched_categories.append(category)
                     break
 
@@ -142,8 +144,18 @@ def mask_dataframe_pii(df: pd.DataFrame, pii_columns: list[str]) -> pd.DataFrame
     for col in pii_columns:
         if col in df_masked.columns:
             if pd.api.types.is_numeric_dtype(df_masked[col]):
-                # Add slight noise or bucket numeric sensitive data
-                df_masked[col] = df_masked[col].apply(lambda x: f"***{int(x)%100:02d}" if pd.notna(x) else np.nan)
+                # Add slight noise or bucket numeric sensitive data safely
+                def _safe_numeric_mask(x):
+                    if pd.isna(x):
+                        return np.nan
+                    try:
+                        if not np.isfinite(x):
+                            return "***00"
+                        return f"***{int(x) % 100:02d}"
+                    except (ValueError, OverflowError):
+                        return "***00"
+
+                df_masked[col] = df_masked[col].apply(_safe_numeric_mask)
             else:
                 df_masked[col] = df_masked[col].apply(lambda x: _mask_value_preview(x) if pd.notna(x) else np.nan)
     return df_masked

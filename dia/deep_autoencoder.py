@@ -61,6 +61,7 @@ def train_tabular_autoencoder(
     batch_size: int = 32,
     latent_dim: int = 4,
     learning_rate: float = 0.005,
+    eval_batch_size: int = 512,
 ) -> dict[str, Any]:
     """
     Trains a Deep Tabular Autoencoder on normalized feature tensors
@@ -72,12 +73,21 @@ def train_tabular_autoencoder(
             "message": "At least 10 samples required to train Deep Autoencoder.",
         }
 
-    input_dim = X_processed.shape[1]
+    # NaN and Inf Imputation Guard: cleanly impute NaNs and Infs before tensor conversion
+    X_clean = np.nan_to_num(X_processed, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # Input Row Capping: sub-sample to 50,000 rows to bound tensor memory
+    if len(X_clean) > 50_000:
+        rng = np.random.RandomState(42)
+        sample_indices = np.sort(rng.choice(len(X_clean), size=50_000, replace=False))
+        X_clean = X_clean[sample_indices]
+
+    input_dim = X_clean.shape[1]
     latent_dim = max(2, min(latent_dim, input_dim - 1 if input_dim > 2 else 2))
 
-    X_tensor = torch.tensor(X_processed, dtype=torch.float32)
+    X_tensor = torch.tensor(X_clean, dtype=torch.float32)
     dataset = TensorDataset(X_tensor)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=(len(dataset) > batch_size))
 
     model = TabularAutoencoderNet(input_dim=input_dim, latent_dim=latent_dim)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
@@ -97,18 +107,27 @@ def train_tabular_autoencoder(
             epoch_losses.append(loss.item())
         loss_history.append(float(np.mean(epoch_losses)))
 
-    # Evaluation mode
+    # Batched evaluation mode in chunks to bound peak tensor memory
     model.eval()
+    eval_dataset = TensorDataset(X_tensor)
+    eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False)
+    recon_chunks: list[np.ndarray] = []
+    latent_chunks: list[np.ndarray] = []
+
     with torch.no_grad():
-        reconstructed_all, latent_all = model(X_tensor)
-        reconstructed_np = reconstructed_all.detach().cpu().numpy()
-        latent_np = latent_all.detach().cpu().numpy()
+        for (batch_x,) in eval_loader:
+            rec, lat = model(batch_x)
+            recon_chunks.append(rec.detach().cpu().numpy())
+            latent_chunks.append(lat.detach().cpu().numpy())
+
+    reconstructed_np = np.concatenate(recon_chunks, axis=0) if recon_chunks else np.empty((0, input_dim))
+    latent_np = np.concatenate(latent_chunks, axis=0) if latent_chunks else np.empty((0, latent_dim))
 
     # Per-sample Mean Squared Reconstruction Error
-    per_sample_mse = np.mean((X_processed - reconstructed_np) ** 2, axis=1)
+    per_sample_mse = np.mean((X_clean - reconstructed_np) ** 2, axis=1)
 
     # Per-feature reconstruction error (for attribution)
-    per_feature_mse = np.mean((X_processed - reconstructed_np) ** 2, axis=0)
+    per_feature_mse = np.mean((X_clean - reconstructed_np) ** 2, axis=0)
 
     # Statistical Anomaly Threshold (95th percentile or Mean + 2 * Std)
     anomaly_threshold = float(np.percentile(per_sample_mse, 95))
@@ -123,7 +142,7 @@ def train_tabular_autoencoder(
 
     # Explicit resource reclamation
     try:
-        del reconstructed_all, latent_all, X_tensor, dataset, loader, model, optimizer
+        del recon_chunks, latent_chunks, X_tensor, dataset, loader, eval_dataset, eval_loader, model, optimizer
     except Exception:
         pass
     gc.collect()

@@ -625,7 +625,7 @@ def train_and_evaluate(
             f"Please select a target column with sufficient data."
         )
 
-    df_clean = df.copy().dropna(subset=[target_col])
+    df_clean = df.dropna(subset=[target_col])
     if len(df_clean) < 2:
         raise ValueError(
             f"Target column '{target_col}' has insufficient valid samples to train ({len(df_clean)} rows). "
@@ -914,6 +914,7 @@ def train_and_evaluate(
                 "estimator": estimator,
                 "error": None,
                 "y_true": y_test,
+                "y_test": y_test,
                 "y_pred": y_pred,
                 "y_proba": y_proba if task_type == "classification" else None,
                 "best_params": best_params,
@@ -958,6 +959,7 @@ def train_and_evaluate(
                         "estimator": ensemble,
                         "error": None,
                         "y_true": y_test,
+                        "y_test": y_test,
                         "y_pred": ens_pred,
                         "y_proba": ens_proba,
                         "best_params": {"voting": "soft", "base_models": [k for k, _ in proba_estimators]},
@@ -982,6 +984,7 @@ def train_and_evaluate(
                     "estimator": ensemble,
                     "error": None,
                     "y_true": y_test,
+                    "y_test": y_test,
                     "y_pred": ens_pred,
                     "y_proba": None,
                     "best_params": {"base_models": [k for k, _ in ensemble_estimators]},
@@ -1036,6 +1039,8 @@ def train_and_evaluate(
         "fe_columns": fe_columns,
         "best_importance": best_result.get("importance", pd.Series(dtype=float)),
         "y_true": best_result["y_true"],
+        "y_test": best_result["y_true"],
+        "test_indices": X_test.index.tolist() if hasattr(X_test, "index") else list(range(len(best_result["y_true"]))),
         "y_pred": best_result["y_pred"],
         "y_proba": best_result["y_proba"],
         "justification": justification_text,
