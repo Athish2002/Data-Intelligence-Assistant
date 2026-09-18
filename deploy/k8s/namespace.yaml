@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dia-system
+  labels:
+    app.kubernetes.io/name: data-intelligence-assistant
+    app.kubernetes.io/part-of: dia-platform
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

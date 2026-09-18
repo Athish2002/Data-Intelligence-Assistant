@@ -9,7 +9,7 @@ Graph Intelligence, and Governance MLOps suite.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +22,25 @@ class HealthResponse(BaseModel):
     gpu_available: bool
     platform: str = "Windows"
     active_sessions_count: int
+    storage_status: str = "healthy"
+    storage_type: str = "local"
+    storage_details: dict[str, Any] = Field(default_factory=dict)
+    auth_enabled: bool = False
+    tenants_count: int = 1
+    ram_percent: Optional[float] = Field(default=None, description="RAM utilization percentage")
+    ram_used_gb: Optional[float] = Field(default=None, description="Used RAM in GB")
+    ram_total_gb: Optional[float] = Field(default=None, description="Total system RAM in GB")
+    ram_available_gb: Optional[float] = Field(default=None, description="Available RAM in GB")
+
+
+class SystemReadinessResponse(BaseModel):
+    status: str = "ready"
+    storage_healthy: bool = True
+    storage_type: str = "local"
+    memory_available_gb: float = 0.0
+    memory_healthy: bool = True
+    active_sessions_count: int = 0
+    subsystems: dict[str, str] = Field(default_factory=dict)
 
 
 class SessionDetailItem(BaseModel):
@@ -35,6 +54,69 @@ class SessionDetailItem(BaseModel):
     age_seconds: float = 0.0
     idle_seconds: float = 0.0
     access_count: int = 1
+    tenant_id: str = "default"
+    org_id: str = "default"
+
+
+# ─── Auth, RBAC & Storage Schemas ──────────────────────────────────────────────
+
+class AuthTokenRequest(BaseModel):
+    api_key: str | None = None
+    username: str | None = None
+    password: str | None = None
+    role: str = "DataScientist"
+    tenant_id: str = "default"
+    org_id: str = "default"
+
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    role: str
+    tenant_id: str
+    org_id: str
+    expires_in: int
+
+
+class UserContextResponse(BaseModel):
+    user_id: str
+    role: str
+    tenant_id: str
+    org_id: str
+    permissions: list[str] = []
+
+
+class AuditEventItem(BaseModel):
+    event_id: str
+    timestamp: float
+    event_type: str
+    user_id: str
+    role: str
+    tenant_id: str
+    org_id: str
+    resource: str
+    status: str
+    ip_address: str = ""
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class AuditLogsResponse(BaseModel):
+    total_events: int
+    events: list[AuditEventItem]
+
+
+class StorageStatusResponse(BaseModel):
+    status: str
+    backend: str
+    writable: bool
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class StorageFileListResponse(BaseModel):
+    tenant_id: str
+    prefix: str
+    files: list[str] = []
+    total_count: int = 0
 
 
 class SystemMetricsResponse(BaseModel):
@@ -181,6 +263,8 @@ class TrainPipelineResponse(BaseModel):
     capabilities: dict[str, bool]
     roc_curve: dict[str, Any] | None = None
     confusion_matrix: list[list[int]] | None = None
+    brier_score: float | None = None
+    calibration_curve: dict[str, Any] | None = None
 
 
 class RoiOptimizeRequest(BaseModel):
@@ -424,3 +508,165 @@ class LLMProviderStatus(BaseModel):
 class LLMProvidersResponse(BaseModel):
     providers: list[LLMProviderStatus]
     default_provider: str | None = None
+
+
+# ─── Next-Gen Innovations (L1-L5) Schemas ────────────────────────────────────
+
+class RecourseActionItem(BaseModel):
+    feature: str
+    original_value: Any
+    proposed_value: Any
+    delta: float
+    delta_display: str
+    direction: str
+    normalized_cost: float
+    relative_difficulty: str
+
+
+class RecourseRequest(BaseModel):
+    session_id: str
+    row_index: int = 0
+    desired_class: int = 1
+    target_probability_threshold: float = 0.55
+    immutable_features: list[str] = []
+    custom_feature_overrides: dict[str, float] | None = None
+
+
+class RecourseResponse(BaseModel):
+    session_id: str
+    original_prediction: int
+    target_prediction: int
+    original_probability: float
+    target_probability: float
+    total_recourse_cost: float
+    feasibility: str
+    actions: list[RecourseActionItem] = []
+    counterfactual_vector: dict[str, Any] = {}
+    executive_guidance: list[str] = []
+    immutable_features_locked: list[str] = []
+    status: str = "success"
+
+
+class StressScenarioItem(BaseModel):
+    scenario_name: str
+    baseline_adverse_rate: float
+    stressed_adverse_rate: float
+    rate_delta: float
+    var_95: float
+    var_99: float
+    cvar_95: float
+    survival_probability: float
+    resilience_rating: str
+    top_risk_drivers: list[dict[str, Any]] = []
+    tail_distribution: list[float] = []
+
+
+class StressTestRequest(BaseModel):
+    session_id: str
+    custom_shocks: dict[str, float] | None = None
+    n_simulations: int = 250
+
+
+class StressTestResponse(BaseModel):
+    session_id: str
+    n_simulations: int
+    n_evaluated_rows: int
+    overall_resilience_grade: str
+    baseline_loss_or_default_rate: float
+    scenarios: list[StressScenarioItem] = []
+    executive_recommendations: list[str] = []
+    status: str = "success"
+
+
+class ConformalInstanceItem(BaseModel):
+    predicted_label: float | int
+    conformal_set: list[int] = []
+    conformal_interval: list[float] | None = None
+    aleatoric_entropy: float
+    epistemic_distance: float
+    uncertainty_classification: str
+    requires_human_review: bool
+    coverage_guarantee_pct: float
+
+
+class ConformalBoundsRequest(BaseModel):
+    session_id: str
+    alpha: float = Field(0.10, ge=0.01, le=0.50)
+
+
+class ConformalBoundsResponse(BaseModel):
+    session_id: str
+    alpha_error_rate: float
+    coverage_guarantee_pct: float
+    task_type: str
+    quantile_threshold: float
+    empirical_coverage: float
+    average_set_size_or_width: float
+    ood_flagged_count: int
+    ood_flagged_pct: float
+    sample_evaluations: list[ConformalInstanceItem] = []
+    executive_verdict: str
+    status: str = "success"
+
+
+class DiscoveredFormulaItem(BaseModel):
+    feature_name: str
+    formula_latex: str
+    sql_expression: str
+    python_expression: str
+    base_features: list[str]
+    correlation_with_target: float
+    correlation_lift: float
+    mutual_info_score: float
+    description: str
+
+
+class SymbolicDiscoveryRequest(BaseModel):
+    session_id: str
+    max_candidates: int = 120
+    top_k: int = 5
+
+
+class SymbolicDiscoveryResponse(BaseModel):
+    session_id: str
+    target_column: str
+    n_evaluated_expressions: int
+    n_discovered_formulas: int
+    formulas: list[DiscoveredFormulaItem] = []
+    consolidated_sql_view: str
+    consolidated_python_transform: str
+    status: str = "success"
+
+
+class FeatureDriftItem(BaseModel):
+    feature_name: str
+    feature_type: str
+    ks_statistic: float | None = None
+    p_value: float | None = None
+    psi_score: float
+    drift_status: str
+    baseline_mean: float | None = None
+    current_mean: float | None = None
+    mean_shift_pct: float | None = None
+
+
+class DriftSentinelRequest(BaseModel):
+    session_id: str
+    sample_fraction: float = 0.4
+    synthetic_shift_strength: float = 0.0
+
+
+class DriftSentinelResponse(BaseModel):
+    session_id: str
+    total_features_monitored: int
+    n_reference_samples: int
+    n_current_samples: int
+    drifting_feature_count: int
+    drifting_feature_ratio: float
+    multivariate_mmd_score: float
+    overall_sentinel_status: str
+    governance_action: str
+    feature_drift_breakdown: list[FeatureDriftItem] = []
+    top_drifting_features: list[str] = []
+    actionable_recommendations: list[str] = []
+    status: str = "success"

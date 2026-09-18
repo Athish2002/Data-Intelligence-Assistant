@@ -30,7 +30,7 @@ ROLE_CONSTANT = "constant (useless)"
 ROLE_HIGH_CARDINALITY = "high-cardinality categorical"
 
 # Column-name tokens that suggest identifiers
-_ID_TOKENS = {"id", "key", "uuid", "guid", "code", "number", "num", "no", "ref"}
+_ID_TOKENS = {"id", "key", "uuid", "guid", "ssn", "hash", "token", "ref"}
 # Column-name tokens that suggest dates
 _DATE_TOKENS = {"date", "time", "at", "on", "created", "updated", "timestamp", "dt", "year", "month", "day"}
 # Column-name tokens that suggest duration/tenure
@@ -160,8 +160,8 @@ def _infer_role(
             ROLE_ID, 0.92,
             f"Column name contains ID tokens and has {unique_ratio:.0%} unique values.",
         )
-    # Near-unique non-float column → likely an identifier
-    if not is_float and unique_ratio >= 0.99:
+    # Near-unique non-float column → likely an identifier (guarded by min row count)
+    if not is_float and unique_ratio >= 0.99 and len(series) >= 100:
         return ROLE_ID, 0.85, "Near-unique values suggest this is an identifier."
     # Near-unique FLOAT → continuous numeric feature (e.g. price, charge)
     if is_float and unique_ratio > 0.80:

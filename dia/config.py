@@ -83,3 +83,30 @@ CORS_ORIGINS: list[str] = [
     if origin.strip()
 ]
 
+# ─── Enterprise Authentication & RBAC ─────────────────────────────────────────
+
+AUTH_ENABLED: bool = os.getenv("DIA_AUTH_ENABLED", "false").lower() in ("true", "1", "yes")
+JWT_SECRET: str = os.getenv("DIA_JWT_SECRET", "dia-enterprise-insecure-secret-change-in-production")
+JWT_ALGORITHM: str = os.getenv("DIA_JWT_ALGORITHM", "HS256")
+JWT_EXPIRE_MINUTES: int = int(os.getenv("DIA_JWT_EXPIRE_MINUTES", "1440"))
+
+DEFAULT_ROLE: str = os.getenv("DIA_DEFAULT_ROLE", "Admin")
+DEFAULT_TENANT_ID: str = os.getenv("DIA_DEFAULT_TENANT_ID", "default")
+DEFAULT_ORG_ID: str = os.getenv("DIA_DEFAULT_ORG_ID", "default")
+API_KEYS_CONFIG: str = os.getenv("DIA_API_KEYS", "")
+
+# ─── Pluggable Storage Abstraction (Local Disk, NFS, Cloud S3, K8s PVC) ───────
+
+STORAGE_TYPE: str = os.getenv("DIA_STORAGE_TYPE", "local").lower()
+STORAGE_PATH: str = os.getenv(
+    "DIA_STORAGE_PATH",
+    os.path.join(os.path.expanduser("~"), ".dia", "storage"),
+)
+S3_BUCKET: str = os.getenv("DIA_S3_BUCKET", "dia-storage")
+S3_ENDPOINT_URL: str | None = os.getenv("DIA_S3_ENDPOINT_URL", None)
+S3_REGION: str = os.getenv("DIA_S3_REGION", "us-east-1")
+S3_ACCESS_KEY_ID: str | None = os.getenv("DIA_S3_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID", None))
+S3_SECRET_ACCESS_KEY: str | None = os.getenv("DIA_S3_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY", None))
+S3_PREFIX: str = os.getenv("DIA_S3_PREFIX", "dia")
+
+

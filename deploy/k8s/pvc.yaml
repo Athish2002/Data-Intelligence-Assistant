@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dia-storage-pvc
+  namespace: dia-system
+  labels:
+    app.kubernetes.io/name: data-intelligence-assistant
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: dia-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # For clustered multi-replica nodes, use ReadWriteMany (NFS/CephFS/EFS)
+  # - ReadWriteMany
+  # storageClassName: standard
+  resources:
+    requests:
+      storage: 50Gi

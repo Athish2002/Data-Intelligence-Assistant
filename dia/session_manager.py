@@ -97,11 +97,26 @@ class BoundedSessionStore:
         with self._lock:
             self._cleanup_expired_locked()
 
-            # If key exists, update and move to end
+            incoming_tenant = str(value.get("tenant_id") or "default")
+            incoming_org = str(value.get("org_id") or "default")
+
+            # If key exists, ensure tenant isolation before updating
             if session_id in self._store:
+                existing_tenant = self._meta.get(session_id, {}).get("tenant_id", "default")
+                if existing_tenant != incoming_tenant and incoming_tenant not in ("*", "_all"):
+                    raise PermissionError(
+                        f"Tenant '{incoming_tenant}' is not permitted to overwrite session '{session_id}' owned by '{existing_tenant}'."
+                    )
                 self._store[session_id] = value
                 self._store.move_to_end(session_id)
-                self._meta[session_id]["last_accessed"] = time.time()
+                now = time.time()
+                self._meta[session_id]["last_accessed"] = now
+                df = value.get("df")
+                if df is not None and hasattr(df, "shape"):
+                    self._meta[session_id]["n_rows"] = int(df.shape[0])
+                    self._meta[session_id]["n_cols"] = int(df.shape[1])
+                if "goal" in value:
+                    self._meta[session_id]["goal"] = str(value.get("goal", "Predict target"))
                 return
 
             # If at capacity, evict least-recently-used session (first item)
@@ -114,6 +129,8 @@ class BoundedSessionStore:
             df = value.get("df")
             n_rows = int(df.shape[0]) if df is not None and hasattr(df, "shape") else 0
             n_cols = int(df.shape[1]) if df is not None and hasattr(df, "shape") else 0
+            tenant_id = str(value.get("tenant_id") or "default")
+            org_id = str(value.get("org_id") or "default")
 
             self._store[session_id] = value
             self._meta[session_id] = {
@@ -123,6 +140,8 @@ class BoundedSessionStore:
                 "goal": str(value.get("goal", "Predict target")),
                 "n_rows": n_rows,
                 "n_cols": n_cols,
+                "tenant_id": tenant_id,
+                "org_id": org_id,
             }
 
     def get(self, session_id: str, default: Any = None) -> Any:
@@ -140,6 +159,42 @@ class BoundedSessionStore:
             self._meta.pop(session_id, None)
             return self._store.pop(session_id)
 
+    def can_access_session(self, session_id: str, tenant_id: str = "default", is_admin: bool = False) -> bool:
+        """Verifies if tenant is authorized to access the given session."""
+        with self._lock:
+            self._cleanup_expired_locked()
+            if session_id not in self._store:
+                return False
+            if is_admin or tenant_id in ("*", "_all"):
+                return True
+            return self._meta.get(session_id, {}).get("tenant_id", "default") == tenant_id
+
+    def get_for_tenant(self, session_id: str, tenant_id: str = "default", is_admin: bool = False) -> dict[str, Any]:
+        """Retrieves session ensuring tenant isolation. Raises PermissionError on tenant breach."""
+        with self._lock:
+            sess = self[session_id]
+            sess_tenant = self._meta.get(session_id, {}).get("tenant_id", "default")
+            if not is_admin and tenant_id not in ("*", "_all") and sess_tenant != tenant_id:
+                raise PermissionError(f"Tenant '{tenant_id}' is not authorized to access session '{session_id}' (owner: '{sess_tenant}').")
+            return sess
+
+    def pop_for_tenant(self, session_id: str, tenant_id: str = "default", is_admin: bool = False) -> dict[str, Any]:
+        """Evicts session ensuring tenant isolation. Raises PermissionError on tenant breach."""
+        with self._lock:
+            self._cleanup_expired_locked()
+            if session_id not in self._store:
+                raise KeyError(f"Session '{session_id}' not found.")
+            sess_tenant = self._meta.get(session_id, {}).get("tenant_id", "default")
+            if not is_admin and tenant_id not in ("*", "_all") and sess_tenant != tenant_id:
+                raise PermissionError(f"Tenant '{tenant_id}' is not authorized to delete session '{session_id}' (owner: '{sess_tenant}').")
+            return self.pop(session_id)
+
+    def get_active_tenants(self) -> set[str]:
+        """Returns the set of all unique tenant IDs with active in-memory sessions."""
+        with self._lock:
+            self._cleanup_expired_locked()
+            return {meta.get("tenant_id", "default") for meta in self._meta.values()}
+
     def clear(self) -> None:
         """Purges all sessions and sweeps memory."""
         with self._lock:
@@ -155,13 +210,18 @@ class BoundedSessionStore:
                 pass
             gc.collect()
 
-    def get_sessions_summary(self) -> list[dict[str, Any]]:
-        """Returns structured metadata for all active sessions for telemetry reporting."""
+    def get_sessions_summary(self, tenant_id: str | None = None, is_admin: bool = False) -> list[dict[str, Any]]:
+        """Returns structured metadata for active sessions, optionally filtered by tenant."""
         with self._lock:
             self._cleanup_expired_locked()
             now = time.time()
             summaries = []
             for sid, meta in self._meta.items():
+                sess_tenant = meta.get("tenant_id", "default")
+                if tenant_id and not is_admin and tenant_id not in ("*", "_all"):
+                    if sess_tenant != tenant_id:
+                        continue
+
                 sess = self._store.get(sid, {})
                 df = sess.get("df")
                 est_bytes = 0
@@ -187,6 +247,8 @@ class BoundedSessionStore:
                     "age_seconds": round(now - meta.get("created_at", now), 1),
                     "idle_seconds": round(now - meta.get("last_accessed", now), 1),
                     "access_count": meta.get("access_count", 1),
+                    "tenant_id": sess_tenant,
+                    "org_id": meta.get("org_id", "default"),
                 })
             return summaries
 

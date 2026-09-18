@@ -20,6 +20,8 @@ def get_demo_dataset(dataset_name: str) -> tuple[pd.DataFrame, str, str]:
         "bank_credit": "Bank Credit Risk & Default",
         "real_estate": "Real Estate Price Estimation",
         "malformed_retail": "Dirty & Malformed Retail E-Commerce",
+        "supply_chain": "Supply Chain Delivery Delay",
+        "clinical_sepsis": "Clinical ICU Sepsis Prediction",
     }
     dataset_name = key_map.get(dataset_name.strip().lower(), dataset_name.strip())
 
@@ -111,6 +113,84 @@ def get_demo_dataset(dataset_name: str) -> tuple[pd.DataFrame, str, str]:
         goal = "Predict return risk flag and sanitize dirty currency and null fields"
         target = "Return Risk Flag"
 
+    elif dataset_name == "Supply Chain Delivery Delay":
+        distance = np.random.uniform(100.0, 10000.0, size=n)
+        weight = np.random.exponential(scale=25.0, size=n) + 1.0
+        customs_days = np.random.poisson(lam=1.5, size=n)
+        carrier_rating = np.random.uniform(1.0, 5.0, size=n)
+        transport_mode = np.random.choice(["Air", "Sea", "Road", "Rail"], size=n, p=[0.25, 0.35, 0.30, 0.10])
+        origin_region = np.random.choice(["North America", "Europe", "Asia-Pacific", "Latin America"], size=n)
+        weather_delay_risk = np.random.uniform(0.0, 1.0, size=n)
+
+        delay_logits = (
+            -1.8
+            + 0.00025 * distance
+            + 0.02 * weight
+            + 0.6 * customs_days
+            - 0.5 * (carrier_rating - 3.0)
+            + 1.2 * weather_delay_risk
+            + 0.7 * (transport_mode == "Sea")
+        )
+        delay_prob = 1.0 / (1.0 + np.exp(-delay_logits))
+        delay = (np.random.rand(n) < delay_prob).astype(int)
+
+        df = pd.DataFrame({
+            "shipment_id": [f"SHIP-{10000 + i}" for i in range(n)],
+            "distance_km": np.round(distance, 1),
+            "weight_kg": np.round(weight, 2),
+            "transport_mode": transport_mode,
+            "origin_region": origin_region,
+            "customs_days": customs_days,
+            "carrier_rating": np.round(carrier_rating, 2),
+            "weather_delay_risk": np.round(weather_delay_risk, 3),
+            "delay_flag": delay,
+        })
+        goal = "Predict shipment delivery delay risk across multimodal logistics networks"
+        target = "delay_flag"
+
+    elif dataset_name == "Clinical ICU Sepsis Prediction":
+        age = np.random.randint(18, 88, size=n)
+        icu_hours = np.random.exponential(scale=36, size=n) + 4
+        hr = np.random.normal(loc=78, scale=14, size=n).clip(45, 160)
+        sbp = np.random.normal(loc=122, scale=18, size=n).clip(60, 200)
+        temp = np.random.normal(loc=37.0, scale=0.6, size=n).clip(35.0, 41.0)
+        wbc = np.random.normal(loc=7.5, scale=2.8, size=n).clip(2.0, 30.0)
+        lactate = np.random.exponential(scale=1.2, size=n) + 0.5
+        resp_rate = np.random.normal(loc=16, scale=4, size=n).clip(8, 45)
+
+        # Severe class imbalance (~5-7% positive prevalence)
+        sepsis_logits = (
+            -4.5
+            + 0.025 * (hr - 80)
+            - 0.03 * (sbp - 120)
+            + 0.8 * (temp - 37.0)
+            + 0.12 * (wbc - 8.0)
+            + 0.7 * (lactate - 1.5)
+            + 0.05 * (resp_rate - 16)
+        )
+        sepsis_prob = 1.0 / (1.0 + np.exp(-sepsis_logits))
+        sepsis = (np.random.rand(n) < sepsis_prob).astype(int)
+
+        # Ensure positive samples exist
+        if sepsis.sum() < 10:
+            top_risk_idx = np.argsort(sepsis_logits)[-15:]
+            sepsis[top_risk_idx] = 1
+
+        df = pd.DataFrame({
+            "patient_id": [f"PAT-{8000 + i}" for i in range(n)],
+            "age": age,
+            "icu_stay_hours": np.round(icu_hours, 1),
+            "heart_rate": np.round(hr, 1),
+            "systolic_bp": np.round(sbp, 1),
+            "body_temp_c": np.round(temp, 2),
+            "wbc_count": np.round(wbc, 2),
+            "serum_lactate": np.round(lactate, 2),
+            "respiratory_rate": np.round(resp_rate, 1),
+            "sepsis_target": sepsis,
+        })
+        goal = "Predict ICU sepsis onset under extreme class imbalance"
+        target = "sepsis_target"
+
     else:  # Real Estate Price Estimation (Regression)
         sqft = np.random.normal(loc=2000, scale=600, size=n).clip(600, 5000)
         bedrooms = np.random.choice([1, 2, 3, 4, 5], size=n, p=[0.05, 0.2, 0.45, 0.25, 0.05])
@@ -164,6 +244,20 @@ DEMO_BENCHMARKS = {
         "default_goal": "Predict return risk flag and sanitize dirty currency and null fields",
         "default_target": "Return Risk Flag",
         "description": "600 retail records with currencies ($/€/£), multipliers (10k), and missing tokens.",
+    },
+    "supply_chain": {
+        "name": "Supply Chain Delivery Delay",
+        "domain": "Supply Chain & Logistics",
+        "default_goal": "Predict shipment delivery delay risk across multimodal logistics networks",
+        "default_target": "delay_flag",
+        "description": "600 multimodal shipments with transport modes, customs times, weather, and delay flags.",
+    },
+    "clinical_sepsis": {
+        "name": "Clinical ICU Sepsis Prediction",
+        "domain": "Healthcare & Critical Care",
+        "default_goal": "Predict ICU sepsis onset under extreme class imbalance",
+        "default_target": "sepsis_target",
+        "description": "600 ICU patient records with vitals, biomarkers, and severe class imbalance (~5% sepsis prevalence).",
     },
 }
 

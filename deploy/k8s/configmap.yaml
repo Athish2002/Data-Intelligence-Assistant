@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dia-config
+  namespace: dia-system
+  labels:
+    app.kubernetes.io/name: data-intelligence-assistant
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: dia-platform
+data:
+  DIA_HOST: "0.0.0.0"
+  DIA_PORT: "8000"
+  DIA_LOG_LEVEL: "INFO"
+  DIA_CORS_ORIGINS: "*"
+  DIA_AUTH_ENABLED: "true"
+  DIA_DEFAULT_ROLE: "Admin"
+  DIA_DEFAULT_TENANT_ID: "enterprise"
+  DIA_DEFAULT_ORG_ID: "hq"
+  DIA_JWT_ALGORITHM: "HS256"
+  DIA_JWT_EXPIRE_MINUTES: "1440"
+  DIA_STORAGE_TYPE: "local"
+  DIA_STORAGE_PATH: "/data/dia"
+  DIA_S3_BUCKET: "dia-enterprise-storage"
+  DIA_S3_REGION: "us-east-1"
+  DIA_S3_PREFIX: "dia"
+  DIA_MAX_FILE_MB: "500"
+  DIA_MAX_MODELS: "4"
+  DIA_TEST_SPLIT: "0.20"
+  DIA_SHAP_SAMPLE: "200"

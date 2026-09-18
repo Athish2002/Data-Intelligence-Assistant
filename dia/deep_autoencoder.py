@@ -73,6 +73,9 @@ def train_tabular_autoencoder(
             "message": "At least 10 samples required to train Deep Autoencoder.",
         }
 
+    # Clamp evaluation batch size to prevent OOM
+    eval_batch_size = min(512, max(1, int(eval_batch_size)))
+
     # NaN and Inf Imputation Guard: cleanly impute NaNs and Infs before tensor conversion
     X_clean = np.nan_to_num(X_processed, nan=0.0, posinf=0.0, neginf=0.0)
 

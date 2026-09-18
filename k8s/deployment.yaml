@@ -2,8 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dia-intelligence-service
+  namespace: dia-system
   labels:
-    app: data-intelligence-assistant
+    app.kubernetes.io/name: data-intelligence-assistant
     tier: api
 spec:
   replicas: 3
@@ -14,24 +15,30 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: data-intelligence-assistant
+      app.kubernetes.io/name: data-intelligence-assistant
   template:
     metadata:
       labels:
-        app: data-intelligence-assistant
+        app.kubernetes.io/name: data-intelligence-assistant
+        tier: api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
       containers:
         - name: dia-server
-          image: ghcr.io/your-org/data-intelligence-assistant:latest
+          image: ghcr.io/your-org/data-intelligence-assistant:13.6.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
               name: http
-          env:
-            - name: MODEL_PATH
-              value: "/app/models/model_pipeline.joblib"
-            - name: LOG_LEVEL
-              value: "INFO"
+          envFrom:
+            - configMapRef:
+                name: dia-config
+            - secretRef:
+                name: dia-secrets
           resources:
             requests:
               cpu: "500m"
@@ -39,29 +46,37 @@ spec:
             limits:
               cpu: "2000m"
               memory: "4Gi"
+          volumeMounts:
+            - name: storage-volume
+              mountPath: /data/dia
           livenessProbe:
             httpGet:
-              path: /health
+              path: /api/v1/health
               port: 8000
-            initialDelaySeconds: 15
+            initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /health
+              path: /api/v1/ready
               port: 8000
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 5
-            timeoutSeconds: 2
+            timeoutSeconds: 3
             failureThreshold: 2
+      volumes:
+        - name: storage-volume
+          persistentVolumeClaim:
+            claimName: dia-storage-pvc
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: dia-intelligence-service
+  namespace: dia-system
   labels:
-    app: data-intelligence-assistant
+    app.kubernetes.io/name: data-intelligence-assistant
 spec:
   type: ClusterIP
   ports:
@@ -70,4 +85,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: data-intelligence-assistant
+    app.kubernetes.io/name: data-intelligence-assistant

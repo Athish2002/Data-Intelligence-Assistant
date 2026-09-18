@@ -44,11 +44,15 @@ from dia.mlops_registry import (
 from dia.model_trainer import train_and_evaluate
 from dia.report_generator import generate_executive_html_report
 
-log = logging.getLogger("dia.coordinator")
+DEFAULT_CLASSIFICATION_MODELS = ["logreg", "dt", "rf", "lgbm", "xgb"]
+DEFAULT_REGRESSION_MODELS = ["linreg", "dt", "rf", "lgbm", "xgb"]
 
 
 class PipelineCoordinator:
     """Central orchestrator managing multi-stage execution and state propagation."""
+
+    default_classification_models = DEFAULT_CLASSIFICATION_MODELS
+    default_regression_models = DEFAULT_REGRESSION_MODELS
 
     @staticmethod
     def execute_full_pipeline(
@@ -154,7 +158,11 @@ class PipelineCoordinator:
         )
 
         # Stage 4: AutoML Model Training
-        model_keys = selected_models or (["rf", "logreg"] if final_task_type == "classification" else ["rf", "linreg"])
+        model_keys = selected_models or (
+            ["logreg", "dt", "rf", "lgbm", "xgb"]
+            if final_task_type == "classification"
+            else ["linreg", "dt", "rf", "lgbm", "xgb"]
+        )
         train_result = train_and_evaluate(
             df=clean_df,
             target_col=target_col,

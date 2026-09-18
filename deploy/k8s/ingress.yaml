@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dia-intelligence-ingress
+  namespace: dia-system
+  labels:
+    app.kubernetes.io/name: data-intelligence-assistant
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: dia-platform
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - dia.your-company.internal
+      secretName: dia-tls-cert
+  rules:
+    - host: dia.your-company.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dia-intelligence-service
+                port:
+                  number: 80

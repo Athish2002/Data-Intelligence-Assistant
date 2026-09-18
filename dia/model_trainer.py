@@ -71,6 +71,7 @@ from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
+    brier_score_loss,
     f1_score,
     mean_absolute_error,
     mean_squared_error,
@@ -90,6 +91,7 @@ from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, OrdinalEncoder, RobustScaler
 from sklearn.svm import SVC, SVR
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.utils.class_weight import compute_sample_weight
 
 log = logging.getLogger("dia.model_trainer")
@@ -101,6 +103,11 @@ HPO_PARAM_GRIDS: dict[str, dict] = {
     "logreg": {
         "C": [0.01, 0.1, 1.0, 5.0, 10.0, 50.0],
         "penalty": ["l2"],
+    },
+    "dt": {
+        "max_depth": [3, 5, 7, 10, None],
+        "min_samples_split": [2, 5, 10],
+        "min_samples_leaf": [1, 2, 4],
     },
     "rf": {
         "n_estimators": [50, 100, 150, 200],
@@ -231,6 +238,11 @@ CLASSIFICATION_MODELS: dict[str, dict] = {
         "description": "Fast, interpretable linear classifier.",
         "factory": lambda use_gpu, n_jobs: LogisticRegression(max_iter=1000, random_state=42),
     },
+    "dt": {
+        "label": "Decision Tree",
+        "description": "Fast, highly interpretable hierarchical decision rules.",
+        "factory": lambda use_gpu, n_jobs: DecisionTreeClassifier(max_depth=5, random_state=42),
+    },
     "rf": {
         "label": "Random Forest",
         "description": "Robust bagging ensemble of decision trees.",
@@ -283,6 +295,11 @@ REGRESSION_MODELS: dict[str, dict] = {
         "label": "Linear Regression (Ridge)",
         "description": "L2-regularized linear baseline.",
         "factory": lambda use_gpu, n_jobs: Ridge(random_state=42),
+    },
+    "dt": {
+        "label": "Decision Tree",
+        "description": "Hierarchical piecewise-constant regression tree.",
+        "factory": lambda use_gpu, n_jobs: DecisionTreeRegressor(max_depth=5, random_state=42),
     },
     "rf": {
         "label": "Random Forest",
@@ -478,7 +495,7 @@ class SafeNumericTransformer(BaseEstimator, TransformerMixin):
 
 def _build_preprocessor(X: pd.DataFrame):
     """Build a hardened ColumnTransformer with advanced encoding, bounded dimensions, and robust scaling."""
-    numeric_cols = X.select_dtypes(include=["number"]).columns.tolist()
+    numeric_cols = X.select_dtypes(include=["number", "bool"]).columns.tolist()
     cat_cols_all = X.select_dtypes(include=["object", "category"]).columns.tolist()
 
     low_card_cols = []
@@ -536,15 +553,21 @@ def _classification_metrics(y_true, y_pred, y_proba=None) -> dict:
         "F1": round(float(f1_score(y_true, y_pred, average=avg, zero_division=0)), 4),
     }
     if y_proba is not None:
-        from sklearn.metrics import roc_auc_score
         try:
             if avg == "binary" and y_proba.shape[1] >= 2:
+                from sklearn.metrics import roc_auc_score
                 metrics["ROC-AUC"] = round(float(roc_auc_score(y_true, y_proba[:, 1])), 4)
                 metrics["PR-AUC"] = round(float(average_precision_score(y_true, y_proba[:, 1])), 4)
+                metrics["Brier Score"] = round(float(brier_score_loss(y_true, y_proba[:, 1])), 4)
             elif avg == "macro" and y_proba.shape[1] == n_classes:
+                from sklearn.metrics import roc_auc_score
                 metrics["ROC-AUC"] = round(float(roc_auc_score(y_true, y_proba, multi_class="ovr", average="macro")), 4)
+                y_onehot = np.eye(n_classes)[y_true]
+                metrics["Brier Score"] = round(float(np.mean(np.sum((y_proba - y_onehot) ** 2, axis=1))), 4)
+            if "Brier Score" in metrics:
+                metrics["brier_score"] = metrics["Brier Score"]
         except Exception:
-            log.debug("Could not compute ROC-AUC/PR-AUC for this model.", exc_info=True)
+            log.debug("Could not compute ROC-AUC/PR-AUC/Brier for this model.", exc_info=True)
     return metrics
 
 
@@ -571,6 +594,15 @@ def _extract_importance(model, feature_names: list[str]) -> pd.Series:
             importances = np.abs(coef).mean(axis=0)
         else:
             importances = np.abs(coef)
+    elif hasattr(model, "estimators_") and model.estimators_:
+        # Handle VotingClassifier / VotingRegressor by averaging sub-estimator importances
+        sub_imps = []
+        for est in model.estimators_:
+            sub_imp = _extract_importance(est, feature_names)
+            if not sub_imp.empty and sub_imp.sum() > 0:
+                sub_imps.append(sub_imp / sub_imp.sum())
+        if sub_imps:
+            return pd.concat(sub_imps, axis=1).mean(axis=1).sort_values(ascending=False).round(4)
 
     if importances is None or len(importances) != len(feature_names):
         return pd.Series(dtype=float)
@@ -581,6 +613,72 @@ def _extract_importance(model, feature_names: list[str]) -> pd.Series:
     if total > 0:
         s = s / total
     return s.round(4)
+
+
+POSITIVE_TOKENS = {
+    "1", "true", "yes", "y", "default", "churn", "churned", "positive", "pos",
+    "fraud", "fraudulent", "sepsis", "risk", "high risk", "bad", "died",
+    "delayed", "delay", "failure", "fail", "failed", "event", "target", "abnormal", "sick"
+}
+NEGATIVE_TOKENS = {
+    "0", "false", "no", "n", "non-default", "non default", "not default",
+    "retained", "not churned", "no churn", "negative", "neg", "legit", "legitimate",
+    "no sepsis", "non-sepsis", "low risk", "good", "survived", "on-time", "ontime",
+    "normal", "healthy", "success", "succeeded", "none", "clean"
+}
+
+
+def _encode_classification_target(y_clean_str: pd.Series, target_col: str = "target") -> tuple[np.ndarray, LabelEncoder]:
+    """
+    Encodes classification target labels. For binary targets, enforces semantic directionality
+    (negative_tokens -> 0, positive_tokens -> 1) to prevent alphabetical inversion of targets
+    like ('Default', 'Non-Default') where Default must be positive class 1.
+    """
+    unique_classes = list(pd.Series(y_clean_str).unique())
+    if len(unique_classes) < 2:
+        raise ValueError(
+            f"Target column '{target_col}' has only 1 distinct class ({list(unique_classes)}). "
+            f"Classification models require at least 2 distinct classes to train."
+        )
+
+    le = LabelEncoder()
+    if len(unique_classes) == 2:
+        c0, c1 = unique_classes[0], unique_classes[1]
+        s0, s1 = str(c0).strip().lower(), str(c1).strip().lower()
+
+        def _is_neg(s: str) -> bool:
+            if s in NEGATIVE_TOKENS:
+                return True
+            tokens = set(s.replace("-", " ").replace("_", " ").split())
+            return any(t in tokens for t in {"no", "non", "not", "false", "zero", "low", "good", "never", "without"})
+
+        def _is_pos(s: str) -> bool:
+            if _is_neg(s):
+                return False
+            if s in POSITIVE_TOKENS:
+                return True
+            tokens = set(s.replace("-", " ").replace("_", " ").split())
+            return any(t in tokens for t in {"yes", "true", "churn", "default", "fraud", "sepsis", "fail", "delay", "high", "bad", "positive", "died"})
+
+        neg_0, pos_0 = _is_neg(s0), _is_pos(s0)
+        neg_1, pos_1 = _is_neg(s1), _is_pos(s1)
+
+        # Decide which one is class 0 (negative) and which one is class 1 (positive)
+        if (neg_0 or pos_1) and not (pos_0 or neg_1):
+            neg_class, pos_class = c0, c1
+        elif (neg_1 or pos_0) and not (pos_1 or neg_0):
+            neg_class, pos_class = c1, c0
+        else:
+            # Fallback to standard sorted LabelEncoder order
+            le.fit(y_clean_str)
+            return le.transform(y_clean_str), le
+
+        le.classes_ = np.array([neg_class, pos_class], dtype=object)
+        y_encoded = np.where(y_clean_str == pos_class, 1, 0)
+        return y_encoded, le
+    else:
+        y_encoded = le.fit_transform(y_clean_str)
+        return y_encoded, le
 
 
 # ─── Main training function ───────────────────────────────────────────────────
@@ -637,12 +735,20 @@ def train_and_evaluate(
         from dia.feature_engineer import auto_engineer_features
         df_clean, fe_columns = auto_engineer_features(df_clean, target_col, task_type)
 
-    feature_cols = [
-        c for c in df_clean.columns
-        if c != target_col
-        and df_clean[c].nunique(dropna=True) > 1
-        and not ((df_clean[c].dtype == object or pd.api.types.is_string_dtype(df_clean[c])) and df_clean[c].nunique() > 30 and df_clean[c].nunique() / len(df_clean) > 0.5)
-    ]
+    feature_cols = []
+    for c in df_clean.columns:
+        if c == target_col:
+            continue
+        if df_clean[c].nunique(dropna=True) <= 1:
+            continue
+        # Guard against constant / zero-variance numeric features (std < 1e-9)
+        if pd.api.types.is_numeric_dtype(df_clean[c]):
+            std_c = float(df_clean[c].std(ddof=0))
+            if np.isnan(std_c) or std_c < 1e-9:
+                continue
+        if (df_clean[c].dtype == object or pd.api.types.is_string_dtype(df_clean[c])) and df_clean[c].nunique() > 30 and (df_clean[c].nunique() / len(df_clean) > 0.5):
+            continue
+        feature_cols.append(c)
 
     # Fallback: if all features got pruned, keep remaining columns
     if not feature_cols:
@@ -656,14 +762,7 @@ def train_and_evaluate(
     le = None
     if task_type == "classification":
         y_clean_str = y_raw.astype(str).str.strip()
-        unique_classes = y_clean_str.unique()
-        if len(unique_classes) < 2:
-            raise ValueError(
-                f"Target column '{target_col}' has only 1 distinct class ({list(unique_classes)}). "
-                f"Classification models require at least 2 distinct classes to train."
-            )
-        le = LabelEncoder()
-        y = le.fit_transform(y_clean_str)
+        y, le = _encode_classification_target(y_clean_str, target_col)
     else:
         y_num = pd.to_numeric(
             y_raw.astype(str).str.replace(r"[^\d.\-+eE]", "", regex=True),
@@ -681,14 +780,7 @@ def train_and_evaluate(
             task_type = "classification"
             model_registry = CLASSIFICATION_MODELS
             y_clean_str = y_raw.astype(str).str.strip()
-            unique_classes = y_clean_str.unique()
-            if len(unique_classes) < 2:
-                raise ValueError(
-                    f"Target column '{target_col}' has only 1 distinct class ({list(unique_classes)}). "
-                    f"Classification models require at least 2 distinct classes to train."
-                )
-            le = LabelEncoder()
-            y = le.fit_transform(y_clean_str)
+            y, le = _encode_classification_target(y_clean_str, target_col)
             # update valid keys if needed
             valid_keys = [k for k in selected_model_keys if k in CLASSIFICATION_MODELS]
             if not valid_keys:
@@ -951,11 +1043,21 @@ def train_and_evaluate(
                     ens_metrics = _classification_metrics(y_test, ens_pred, ens_proba)
                     ens_score = ens_metrics.get("ROC-AUC", ens_metrics.get("F1", 0))
 
+                    ens_importance = _extract_importance(ensemble, feature_names)
+                    if ens_importance.empty:
+                        sub_imps = []
+                        for _, est in proba_estimators:
+                            sub_imp = _extract_importance(est, feature_names)
+                            if not sub_imp.empty and sub_imp.sum() > 0:
+                                sub_imps.append(sub_imp / sub_imp.sum())
+                        if sub_imps:
+                            ens_importance = pd.concat(sub_imps, axis=1).mean(axis=1).sort_values(ascending=False).round(4)
+
                     ens_entry = {
                         "model_key": "voting_ensemble",
                         "label": "Soft Voting Ensemble (Top 3)",
                         "metrics": ens_metrics,
-                        "importance": pd.Series(dtype=float),
+                        "importance": ens_importance,
                         "estimator": ensemble,
                         "error": None,
                         "y_true": y_test,
@@ -976,11 +1078,21 @@ def train_and_evaluate(
                 ens_metrics = _regression_metrics(y_test, ens_pred)
                 ens_score = ens_metrics.get("R²", -np.inf)
 
+                ens_importance = _extract_importance(ensemble, feature_names)
+                if ens_importance.empty:
+                    sub_imps = []
+                    for _, est in ensemble_estimators:
+                        sub_imp = _extract_importance(est, feature_names)
+                        if not sub_imp.empty and sub_imp.sum() > 0:
+                            sub_imps.append(sub_imp / sub_imp.sum())
+                    if sub_imps:
+                        ens_importance = pd.concat(sub_imps, axis=1).mean(axis=1).sort_values(ascending=False).round(4)
+
                 ens_entry = {
                     "model_key": "voting_ensemble",
                     "label": "Voting Ensemble (Top 3)",
                     "metrics": ens_metrics,
-                    "importance": pd.Series(dtype=float),
+                    "importance": ens_importance,
                     "estimator": ensemble,
                     "error": None,
                     "y_true": y_test,
