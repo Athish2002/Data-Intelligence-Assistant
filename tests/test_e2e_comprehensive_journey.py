@@ -154,7 +154,7 @@ def test_e2e_comprehensive_six_stage_journey():
         page.wait_for_selector("#train-progress:not(.hidden)", timeout=5000)
 
         # Wait for AutoML pipeline execution and leaderboard population
-        page.wait_for_selector("#tab-content .glass-card:has-text('Automated Model Leaderboard')", timeout=90000)
+        page.wait_for_selector("#tab-content .grid > div:has-text('Champion')", timeout=90000)
         leaderboard_cards = page.locator("#tab-content .grid > div")
         assert leaderboard_cards.count() >= 3, "Expected at least 3 models in tournament leaderboard"
 
@@ -305,7 +305,7 @@ def test_e2e_benchmark_scenarios_multi_domain():
             page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
             page.on("pageerror", lambda err: page_errors.append(str(err)))
 
-            page.goto(f"{BASE_URL}/app", wait_until="networkidle", timeout=30000)
+            page.goto(f"{BASE_URL}/app", wait_until="domcontentloaded", timeout=30000)
             page.wait_for_function("() => typeof window.quickLoadBenchmark === 'function'", timeout=15000)
             page.evaluate(f"window.quickLoadBenchmark('{demo_name}')")
 

@@ -378,13 +378,13 @@ export async function launchDemoBenchmark(demoName) {
     // Store in sessionStorage safely
     try {
       sessionStorage.setItem('dia_pending_session', JSON.stringify(data));
-      sessionStorage.setItem('dia_pending_autotrain', 'true');
+      sessionStorage.setItem('dia_pending_autotrain', 'false');
     } catch (e) {
       console.warn('sessionStorage not available, relying on URL parameter:', e);
     }
 
-    // Redirect to full analytical workbench with demo parameter
-    window.location.href = `/app?demo=${encodeURIComponent(demoName)}`;
+    // Redirect to full analytical workbench
+    window.location.href = '/app';
   } catch (err) {
     allBtns.forEach((b) => {
       b.disabled = false;

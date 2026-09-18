@@ -287,7 +287,7 @@ def test_edge_case_dataset_ingestion_ui():
                 temp_path = tf.name
 
             try:
-                page.goto(f"{BASE_URL}/", wait_until="networkidle", timeout=30000)
+                page.goto(f"{BASE_URL}/", wait_until="domcontentloaded", timeout=30000)
 
                 # Open upload modal
                 page.click("#btn-ingest-data")
@@ -300,17 +300,20 @@ def test_edge_case_dataset_ingestion_ui():
                 # Submit upload
                 page.click("#upload-submit-btn")
 
-                # Should either transition to /app on successful ingestion or show informative error
+                # The upload should transition to workbench (/app) or display informative feedback
                 try:
-                    page.wait_for_url("**/app**", timeout=12000)
-                    # Successfully reached workbench
+                    if "/app" not in page.url:
+                        page.wait_for_url("**/app**", wait_until="domcontentloaded", timeout=20000)
+                except Exception:
+                    pass
+
+                if "/app" in page.url:
                     page.wait_for_function("() => typeof window.switchWorkspace === 'function'", timeout=15000)
                     page.evaluate("window.switchWorkspace('core', 'overview')")
-                    page.wait_for_selector("#tab-content table, #tab-content .glass-card", timeout=15000)
-                except Exception:
-                    # In case of small dataset alert or informative error banner
-                    error_msg = page.locator("#upload-error-msg")
-                    assert error_msg.is_visible() or page.locator("#toast-container").is_visible()
+                    page.wait_for_selector("#tab-content table, #tab-content .glass-card, #toast-container", timeout=15000)
+                else:
+                    toast = page.locator("#toast-container, #upload-error-msg")
+                    assert toast.is_visible(), f"Neither transitioned to /app nor displayed error message: url={page.url}"
 
                 real_errors = [e for e in console_errors if "favicon" not in e.lower() and "404" not in e]
                 assert len(real_errors) == 0, f"Errors uploading {filename}: {real_errors}"

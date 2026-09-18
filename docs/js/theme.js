@@ -18,6 +18,7 @@ export const THEMES = {
 };
 
 let currentTheme = THEMES.NIGHT;
+let isInitialized = false;
 let isTransitioning = false;
 let transitionTimeout = null;
 const listeners = new Set();
@@ -69,6 +70,10 @@ export function toggleTheme() {
  * Applies the selected theme to the document root and persists it.
  */
 export function applyTheme(theme, animate = true) {
+  const previousTheme = currentTheme;
+  const isInitialLoad = !isInitialized && !animate;
+  isInitialized = true;
+
   currentTheme = (theme === 'tokyo-sand' || theme === THEMES.DAY) ? THEMES.DAY : THEMES.NIGHT;
   const root = document.documentElement;
 
@@ -114,10 +119,12 @@ export function applyTheme(theme, animate = true) {
     }
   });
 
-  // Dispatch custom event for Chart.js / Plotly reflow
-  window.dispatchEvent(new CustomEvent('dia-theme-changed', {
-    detail: { theme: currentTheme, dataTheme: dataThemeValue }
-  }));
+  // Dispatch custom event for Chart.js / Plotly reflow (only on actual change or interactive toggle, never redundant initial load)
+  if (!isInitialLoad && (animate || previousTheme !== currentTheme)) {
+    window.dispatchEvent(new CustomEvent('dia-theme-changed', {
+      detail: { theme: currentTheme, dataTheme: dataThemeValue }
+    }));
+  }
 }
 
 /**

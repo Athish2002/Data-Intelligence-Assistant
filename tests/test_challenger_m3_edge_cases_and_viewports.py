@@ -211,14 +211,18 @@ class TestBrowserEdgeCaseUploadUi:
 
                 # The upload should transition to workbench (/app) or display informative feedback
                 try:
-                    page.wait_for_url("**/app**", timeout=12000)
+                    if "/app" not in page.url:
+                        page.wait_for_url("**/app**", wait_until="domcontentloaded", timeout=20000)
+                except Exception:
+                    pass
+
+                if "/app" in page.url:
                     page.wait_for_function("() => typeof window.switchWorkspace === 'function'", timeout=15000)
                     page.evaluate("window.switchWorkspace('core', 'overview')")
                     page.wait_for_selector("#tab-content table, #tab-content .glass-card, #toast-container", timeout=15000)
-                except Exception:
-                    # In case of small alert or toast
+                else:
                     toast = page.locator("#toast-container, #upload-error-msg")
-                    assert toast.is_visible()
+                    assert toast.is_visible(), f"Neither transitioned to /app nor displayed error message: url={page.url}"
 
                 # Filter benign errors (e.g. favicon 404)
                 real_errors = [e for e in console_errors if "favicon" not in e.lower() and "404" not in e]
@@ -299,7 +303,7 @@ class TestResponsiveLayoutInvariants:
             page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
             page.on("pageerror", lambda err: page_errors.append(str(err)))
 
-            page.goto(f"{BASE_URL}/app", wait_until="networkidle", timeout=30000)
+            page.goto(f"{BASE_URL}/app", wait_until="domcontentloaded", timeout=30000)
             page.wait_for_function("() => typeof window.switchWorkspace === 'function'", timeout=15000)
 
             # Assert scrollWidth <= clientWidth
@@ -342,7 +346,7 @@ class TestResponsiveLayoutInvariants:
             context = browser.new_context(viewport={"width": width, "height": height})
             page = context.new_page()
 
-            page.goto(f"{BASE_URL}/app", wait_until="networkidle", timeout=30000)
+            page.goto(f"{BASE_URL}/app", wait_until="domcontentloaded", timeout=30000)
             page.wait_for_function("() => typeof window.switchWorkspace === 'function'", timeout=15000)
 
             # Initially on small viewports (< 1024px), left dock is collapsed

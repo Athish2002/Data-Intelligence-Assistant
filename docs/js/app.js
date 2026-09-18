@@ -106,9 +106,13 @@ export async function launchScreenWithDemo(workspace, subtab, demoName = 'Bank C
       handleTrainSuccess(res, false);
     }
 
-    // 3. Navigate directly to target workspace and subtab
-    switchWorkspace(workspace, subtab);
-    showSuccess(`Launched ${workspace.toUpperCase()} → ${subtab.toUpperCase()} with active scenario!`);
+    // 3. Navigate to target workspace if user is still on initiating workspace
+    if (state.activeWorkspace === 'dashboard' || state.activeWorkspace === workspace) {
+      switchWorkspace(workspace, subtab);
+      showSuccess(`Launched ${workspace.toUpperCase()} → ${subtab.toUpperCase()} with active scenario!`);
+    } else {
+      renderCurrentView();
+    }
   } catch (err) {
     showError(`Direct launch failed: ${err.message}`);
   } finally {
@@ -163,6 +167,11 @@ function switchWorkspace(wsId, subtabId = null) {
   });
   renderSubtabBar();
   renderCurrentView();
+
+  // Auto-dismiss left dock overlay on mobile / tablet viewports (< 1024px)
+  if (window.innerWidth < 1024 && typeof toggleDock === 'function') {
+    toggleDock(false);
+  }
 }
 
 window.switchWorkspace = switchWorkspace;
@@ -343,6 +352,16 @@ function setupEventListeners() {
         toggleDock(false);
       }
     });
+  });
+
+  // Auto-dismiss left dock on small viewports (< 1024px) when clicking any action or navigation element inside left dock
+  document.getElementById('left-dock')?.addEventListener('click', (e) => {
+    if (window.innerWidth < 1024) {
+      const clickable = e.target.closest('button, a');
+      if (clickable && clickable.id !== 'toggle-dock-btn') {
+        toggleDock(false);
+      }
+    }
   });
 
   // HUD and Global Keyboard Shortcuts (⌘B / Ctrl+B for Dock, ⌘I / Ctrl+I for Inspector)
@@ -1004,7 +1023,7 @@ async function init() {
 
     if (demoParam) {
       window.history.replaceState({}, document.title, window.location.pathname);
-      launchScreenWithDemo('dashboard', 'mission_control', demoParam, true);
+      launchScreenWithDemo('dashboard', 'mission_control', demoParam, false);
     } else if (sessionIdParam) {
       window.history.replaceState({}, document.title, window.location.pathname);
       showLoading('Loading active session...');
