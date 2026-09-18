@@ -6,7 +6,7 @@
  * Provides:
  * 1. Rich hardware and storage telemetry visualization (CPU, RAM, GPU, Storage, Latency, Disk, Tenants).
  * 2. Universal trigger interception preventing navigation to raw /api/v1/health JSON.
- * 3. 3-second live auto-refresh timer with pause/resume toggle and manual refresh capability.
+ * 3. 10-second live auto-refresh timer with pause/resume toggle and manual refresh capability.
  * 4. WCAG 2.2 AA compliant modal behavior (Escape key, backdrop click, focus management).
  * 5. Pure inline SVG rendering with zero external icon dependencies.
  */
@@ -266,7 +266,7 @@ async function fetchAndRenderTelemetry() {
 }
 
 /**
- * Starts auto-refresh timer (3s).
+ * Starts auto-refresh timer (10s minimum interval).
  */
 function startTelemetryPolling() {
   stopTelemetryPolling();
@@ -277,7 +277,7 @@ function startTelemetryPolling() {
     } else if (modal && modal.classList.contains('hidden')) {
       stopTelemetryPolling();
     }
-  }, 3000);
+  }, 10000);
 }
 
 /**

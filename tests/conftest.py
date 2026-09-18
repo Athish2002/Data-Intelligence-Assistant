@@ -1,18 +1,53 @@
-"""
-tests/conftest.py
-─────────────────
-Shared pytest fixtures for the DIA test suite.
+﻿"""
+tests/conftest.py - Shared pytest fixtures and utilities for the DIA test suite.
 """
 
 from __future__ import annotations
 
 import io
+import os
 
 import numpy as np
 import pandas as pd
 import pytest
 
-# ─── Sample DataFrames ────────────────────────────────────────────────────────
+# Base URL
+DIA_BASE_URL = os.environ.get("DIA_BASE_URL", "http://127.0.0.1:8000")
+
+
+def launch_browser(playwright_instance):
+    """Launch headless browser with Chrome/Edge/Chromium fallback."""
+    for channel in ["chrome", "msedge"]:
+        try:
+            return playwright_instance.chromium.launch(channel=channel, headless=True)
+        except Exception:
+            pass
+    return playwright_instance.chromium.launch(headless=True)
+
+
+def relative_luminance(r: int, g: int, b: int) -> float:
+    """Calculates WCAG 2.2 relative luminance for an sRGB color."""
+    def channel_linear(c: float) -> float:
+        c = c / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * channel_linear(r) + 0.7152 * channel_linear(g) + 0.0722 * channel_linear(b)
+
+
+def contrast_ratio(rgb1: tuple, rgb2: tuple) -> float:
+    """Computes the WCAG contrast ratio between two RGB tuples."""
+    lum1 = relative_luminance(*rgb1)
+    lum2 = relative_luminance(*rgb2)
+    l_max = max(lum1, lum2)
+    l_min = min(lum1, lum2)
+    return (l_max + 0.05) / (l_min + 0.05)
+
+
+def parse_rgb(rgb_str: str) -> tuple:
+    """Parses rgb/rgba CSS string into an integer (r, g, b) tuple."""
+    clean = rgb_str.replace("rgba(", "").replace("rgb(", "").replace(")", "").strip()
+    parts = [p.strip() for p in clean.split(",")][:3]
+    return tuple(int(float(p)) for p in parts)
+
 
 @pytest.fixture()
 def churn_df() -> pd.DataFrame:
@@ -58,8 +93,6 @@ def all_null_col_df() -> pd.DataFrame:
         "target": [0, 1, 0],
     })
 
-
-# ─── Mock UploadedFile ────────────────────────────────────────────────────────
 
 class MockUploadedFile:
     """Minimal mock for Streamlit UploadedFile."""
