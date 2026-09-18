@@ -1,0 +1,952 @@
+/*
+  frontend/css/style.css
+  ──────────────────────
+  Beige Flat Black (Obsidian & Bone) Design System for Data Intelligence Assistant.
+  Architecture: Semantic Design Tokens, WCAG 2.2 AA compliant contrast, 8pt spatial grid.
+*/
+
+:root,
+html[data-theme="beige-black"] {
+  --bg-primary: #050505;
+  --bg-secondary: #0a0a0a;
+  --bg-dock: #050505;
+  --card-bg: #0e0e0e;
+  --card-hover: #141414;
+  --card-border: #1f1f1f;
+  --border-active: #333333;
+  --accent-cyan: #00e575;        /* Terminal Phosphor Green */
+  --accent-cyan-hover: #00ff82;
+  --accent-indigo: #ded7cb;      /* Soft Sand */
+  --accent-emerald: #00e575;
+  --accent-rose: #f43f5e;
+  --accent-amber: #f59e0b;
+  --text-primary: #f5f0e6;       /* Warm Bone Ivory */
+  --text-secondary: #ded7cb;     /* Warm Parchment */
+  --text-muted: #858076;         /* Warm Stone Muted */
+  --btn-primary-bg: #00e575;
+  --btn-primary-hover: #00ff82;
+  --btn-primary-text: #050505;
+  --badge-live-bg: #092314;
+  --badge-live-border: #134e2c;
+  --badge-live-text: #4ade80;
+  --tag-bg: #181818;
+  --tag-text: #c2baa9;
+  --glass-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* 2. Tokyo Editorial (Warm Sand Light) */
+html[data-theme="tokyo-sand"] {
+  --bg-primary: #f5f2eb;
+  --bg-secondary: #ede9e0;
+  --bg-dock: #f5f2eb;
+  --card-bg: #ffffff;
+  --card-hover: #fcfbfa;
+  --card-border: #e2ded5;
+  --border-active: #cbc5b8;
+  --accent-cyan: #1a1917;
+  --accent-cyan-hover: #333333;
+  --accent-indigo: #2563eb;
+  --accent-emerald: #166534;
+  --accent-rose: #dc2626;
+  --accent-amber: #d97706;
+  --text-primary: #1a1917;
+  --text-secondary: #3c3a36;
+  --text-muted: #57534e;
+  --btn-primary-bg: #1a1917;
+  --btn-primary-hover: #333333;
+  --btn-primary-text: #f5f2eb;
+  --badge-live-bg: #e8f5e9;
+  --badge-live-border: #c8e6c9;
+  --badge-live-text: #2e7d32;
+  --tag-bg: #ece8df;
+  --tag-text: #57534e;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Unique Precision Interactive Custom Cursor
+   ───────────────────────────────────────────────────────────── */
+
+/* Completely hide native OS cursor across all elements on desktop */
+@media (pointer: fine) and (hover: hover) {
+  body.has-custom-cursor,
+  body.has-custom-cursor *:not(input):not(textarea) {
+    cursor: none !important;
+  }
+  body.has-custom-cursor input,
+  body.has-custom-cursor textarea {
+    cursor: text !important;
+  }
+}
+
+#cursor-aura {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translate3d(-999px, -999px, 0);
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 229, 117, 0.08) 0%, rgba(0, 229, 117, 0.02) 40%, transparent 70%);
+  pointer-events: none;
+  z-index: 99997;
+  opacity: 0;
+  visibility: hidden;
+  margin-left: -160px;
+  margin-top: -160px;
+  transition: opacity 0.3s ease;
+  will-change: transform;
+}
+
+#cursor-dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translate3d(-999px, -999px, 0);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+  pointer-events: none;
+  z-index: 99999;
+  opacity: 0;
+  visibility: hidden;
+  margin-left: -3px;
+  margin-top: -3px;
+  transition: opacity 0.15s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  will-change: transform;
+}
+
+#cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translate3d(-999px, -999px, 0);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-cyan);
+  pointer-events: none;
+  z-index: 99998;
+  opacity: 0;
+  visibility: hidden;
+  margin-left: -13px;
+  margin-top: -13px;
+  transition: width 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              margin-left 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              margin-top 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.18s ease,
+              border-color 0.18s ease,
+              box-shadow 0.18s ease,
+              opacity 0.2s ease;
+  will-change: transform, width, height, margin;
+}
+
+/* Hovering interactive items (buttons, benchmark cards, links, tabs) */
+#cursor-ring.cursor-hover {
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  margin-top: -22px;
+  background-color: rgba(0, 229, 117, 0.14);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 16px rgba(0, 229, 117, 0.25);
+}
+
+html[data-theme="tokyo-sand"] #cursor-ring.cursor-hover {
+  background-color: rgba(26, 25, 23, 0.08);
+  border-color: #1a1917;
+  box-shadow: 0 0 14px rgba(26, 25, 23, 0.15);
+}
+
+/* Active click state */
+#cursor-ring.cursor-active {
+  background-color: rgba(0, 229, 117, 0.3);
+}
+
+/* Fade out over text inputs so user sees text caret */
+#cursor-dot.cursor-text-mode,
+#cursor-ring.cursor-text-mode,
+#cursor-aura.cursor-text-mode {
+  opacity: 0 !important;
+}
+
+/* Hide custom cursor completely on touchscreens / mobile / touch device active */
+@media (pointer: coarse), (hover: none) {
+  #cursor-dot, #cursor-ring, #cursor-aura {
+    display: none !important;
+  }
+}
+
+body.touch-device-active #cursor-dot,
+body.touch-device-active #cursor-ring,
+body.touch-device-active #cursor-aura {
+  display: none !important;
+}
+
+/* Restore standard OS touch cursor on touch devices */
+body.touch-device-active,
+body.touch-device-active * {
+  cursor: auto !important;
+}
+
+html {
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100vh !important;
+  height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+/* Architectural Flat Panel Card */
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  box-shadow: var(--glass-shadow);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.glass-card:hover {
+  border-color: var(--border-active);
+}
+
+/* Flat Inputs with Accessible Typography */
+.glass-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 9px 13px;
+  outline: none;
+  font-size: 0.875rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.glass-input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 1px var(--accent-cyan);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--card-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-active);
+}
+
+/* Workspace Segmented Nav with Readable 14px Scale */
+.workspace-btn {
+  transition: all 0.15s ease;
+  color: var(--text-muted);
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  padding: 7px 12px;
+  font-weight: 600;
+}
+.workspace-btn:hover {
+  color: var(--text-primary);
+  background: var(--card-hover);
+}
+.workspace-btn.active {
+  background: var(--card-hover);
+  border-color: var(--border-active);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* Header Status Pills (Strict Non-Wrapping & Truncation) */
+#active-dataset-badge,
+#active-model-badge {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 220px;
+}
+@media (min-width: 1280px) {
+  #active-dataset-badge,
+  #active-model-badge {
+    max-width: 320px;
+  }
+}
+
+/* Executive Dashboard KPI Cards */
+.kpi-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.kpi-card:hover {
+  border-color: var(--border-active);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.5);
+}
+
+/* Tab Pills */
+.subtab-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.subtab-btn:hover {
+  color: var(--text-primary);
+  background: var(--card-hover);
+}
+.subtab-btn.active {
+  color: var(--text-primary);
+  background: var(--card-hover);
+  border-color: var(--border-active);
+}
+
+/* Glowing Pulsing Badge */
+.live-pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 0 0 rgba(0, 229, 117, 0.7);
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 229, 117, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(0, 229, 117, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 229, 117, 0);
+  }
+}
+
+/* Benchmark Quick-Load Cards */
+.benchmark-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.benchmark-card:hover {
+  background: var(--card-hover);
+  border-color: var(--border-active);
+  transform: translateY(-1px);
+}
+
+/* Code Preview Block */
+pre code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Style 1: Collapsible Dual-Dock Workbench Architecture
+   ───────────────────────────────────────────────────────────── */
+
+#workbench-container {
+  display: flex !important;
+  flex-direction: row !important;
+  height: calc(100dvh - 3rem - 1.75rem);
+  min-height: 480px;
+  overflow: hidden !important;
+  width: 100% !important;
+  position: relative;
+  z-index: 10;
+}
+
+/* Left Ingestion Dock Transition */
+#left-dock {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between;
+  flex-shrink: 0 !important;
+  overflow-y: auto !important;
+  height: 100% !important;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Center Fluid Analytical Canvas */
+#center-canvas {
+  display: block !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  overflow-y: auto !important;
+  height: 100% !important;
+}
+
+/* Right Inspector Drawer */
+#inspector-drawer {
+  flex-shrink: 0 !important;
+  height: 100% !important;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (max-width: 1023px) {
+  #inspector-drawer {
+    position: fixed;
+    bottom: 1.75rem;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    max-height: 80dvh;
+    border-top: 1px solid var(--border-active);
+    border-left: none !important;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* Command Palette Item States */
+.command-item {
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  color: var(--text-secondary);
+}
+
+.command-item:hover,
+.command-item.selected {
+  background-color: var(--card-hover);
+  color: var(--text-primary);
+}
+
+.command-item.selected {
+  border-left: 2px solid var(--accent-cyan);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Sprint 4: GPU-Accelerated Smooth Motion System
+   ───────────────────────────────────────────────────────────── */
+
+/* High-performance easing tokens */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* Fluid workspace view transition */
+.view-transition {
+  animation: viewFadeSlideUp 0.26s var(--ease-out-expo) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes viewFadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Subtab content quick transition */
+.subtab-transition {
+  animation: subtabFadeIn 0.2s var(--ease-out-expo) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes subtabFadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Workspace navigation button micro-interactions */
+.workspace-btn {
+  transition: transform 0.2s var(--ease-out-expo), background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  will-change: transform;
+}
+
+.workspace-btn:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+.workspace-btn:active {
+  transform: translate3d(0, 0px, 0) scale(0.98);
+}
+
+.workspace-btn.active {
+  background-color: var(--accent-cyan) !important;
+  color: var(--btn-primary-text, #050505) !important;
+  box-shadow: 0 0 14px rgba(0, 229, 117, 0.25);
+}
+
+html[data-theme="tokyo-sand"] .workspace-btn.active {
+  background-color: #1a1917 !important;
+  color: #f5f2eb !important;
+  box-shadow: 0 2px 8px rgba(26, 25, 23, 0.18) !important;
+}
+
+/* Subtab button micro-interactions */
+.subtab-btn {
+  transition: transform 0.18s var(--ease-out-expo), background-color 0.18s ease, color 0.18s ease;
+}
+
+.subtab-btn:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+.subtab-btn:active {
+  transform: translate3d(0, 0, 0) scale(0.97);
+}
+
+.subtab-btn.active {
+  background-color: var(--bg-secondary) !important;
+  color: var(--accent-cyan) !important;
+  border-color: var(--card-border) !important;
+}
+
+/* Modal and Drawer Animations */
+.modal-backdrop-anim {
+  animation: modalBackdropFadeIn 0.22s ease-out forwards;
+}
+
+@keyframes modalBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card-anim {
+  animation: modalCardScaleIn 0.25s var(--ease-out-expo) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes modalCardScaleIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Sprint 4: 5-Stage Animated Pipeline Progress Bar
+   ───────────────────────────────────────────────────────────── */
+
+@keyframes progressShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.progress-shimmer {
+  background: linear-gradient(
+    90deg,
+    #00e575 0%,
+    #a7f3d0 35%,
+    #34d399 50%,
+    #00e575 70%,
+    #00ff82 100%
+  );
+  background-size: 200% 100%;
+  animation: progressShimmer 1.8s infinite linear;
+}
+
+.step-node {
+  transition: all 0.25s var(--ease-out-expo);
+}
+
+.step-node.active {
+  border-color: #00e575 !important;
+  background-color: rgba(0, 229, 117, 0.15) !important;
+  color: #00e575 !important;
+  box-shadow: 0 0 10px rgba(0, 229, 117, 0.35);
+}
+
+.step-node.completed {
+  border-color: #00e575 !important;
+  background-color: #00e575 !important;
+  color: #050505 !important;
+}
+
+.step-node.pending {
+  border-color: var(--card-border) !important;
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-muted) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Sprint 4: System Metrics Monitor & Resource Telemetry Styles
+   ───────────────────────────────────────────────────────────── */
+
+.metric-gauge-bar {
+  height: 6px;
+  border-radius: 9999px;
+  background-color: var(--bg-secondary);
+  overflow: hidden;
+  position: relative;
+}
+
+.metric-gauge-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.4s var(--ease-out-expo), background-color 0.3s ease;
+}
+
+.pulse-pill {
+  animation: pulseGlow 2s infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Sticky Workbench Header & Persistent Sidebar Outline
+   ───────────────────────────────────────────────────────────── */
+
+#sticky-workspace-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background-color: var(--bg-dock, var(--bg-primary)) !important;
+  border-bottom: 1px solid var(--card-border);
+}
+
+html[data-theme="cyber-aurora"] #sticky-workspace-header {
+  background-color: #040608 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme="obsidian"] #sticky-workspace-header,
+html[data-theme="beige-black"] #sticky-workspace-header {
+  background-color: #050505 !important;
+  border-bottom: 1px solid #1f1f1f !important;
+}
+
+html[data-theme="tokyo-sand"] #sticky-workspace-header {
+  background-color: #f5f2eb !important;
+  border-bottom: 1px solid #dcd7cc !important;
+}
+
+/* Collapsible Left Dock (Normal vs Icon Rail mode) */
+#left-dock {
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#left-dock.dock-collapsed {
+  width: 56px !important;
+  min-width: 56px !important;
+  max-width: 56px !important;
+  overflow-x: hidden !important;
+}
+
+#left-dock.dock-collapsed > div:not(#dock-icon-rail) {
+  display: none !important;
+}
+
+#left-dock.dock-collapsed #dock-icon-rail {
+  display: flex !important;
+}
+
+/* Responsive Left Dock (< 1024px Viewports & Mobile) */
+@media (max-width: 1023px) {
+  #left-dock.dock-collapsed {
+    width: 0px !important;
+    min-width: 0px !important;
+    max-width: 0px !important;
+    padding: 0 !important;
+    border-right-width: 0px !important;
+    overflow: hidden !important;
+    display: none !important;
+  }
+
+  #left-dock:not(.dock-collapsed) {
+    position: fixed !important;
+    top: 3rem; /* 48px header */
+    bottom: 1.75rem; /* 28px bottom hud */
+    left: 0;
+    width: 320px !important;
+    max-width: 85vw !important;
+    z-index: 45 !important;
+    box-shadow: 10px 0 35px rgba(0, 0, 0, 0.75) !important;
+    border-right: 1px solid var(--border-active) !important;
+  }
+}
+
+/* Smooth Spring Transition for Theme Switching */
+html.theme-in-transition,
+html.theme-in-transition *,
+html.theme-in-transition *:before,
+html.theme-in-transition *:after {
+  transition: background-color 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-color 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+              color 0.28s ease,
+              box-shadow 0.28s ease !important;
+  transition-delay: 0s !important;
+}
+
+.theme-icon-moon,
+.theme-icon-sun {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+}
+
+/* Section Outline Navigation Buttons */
+.dock-outline-btn {
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  transition: all 0.15s ease;
+}
+
+.dock-outline-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--card-hover);
+  border-color: var(--card-border);
+}
+
+.dock-outline-btn.active {
+  color: var(--text-primary) !important;
+  background-color: var(--card-hover) !important;
+  border-color: var(--border-active) !important;
+  font-weight: 600;
+}
+
+.dock-outline-btn.active .outline-dot {
+  background-color: #00e575 !important;
+  box-shadow: 0 0 8px rgba(0, 229, 117, 0.8) !important;
+}
+
+html[data-theme="tokyo-sand"] .dock-outline-btn.active .outline-dot {
+  background-color: #15803d !important;
+  box-shadow: 0 0 6px rgba(21, 128, 61, 0.5) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Tokyo Sand Light Theme (WCAG 2.2 AA Contrast & Readability)
+   ───────────────────────────────────────────────────────────── */
+
+html[data-theme="tokyo-sand"] {
+  --bg-primary: #f5f2eb;
+  --bg-secondary: #ede9e0;
+  --bg-dock: #f5f2eb;
+  --card-bg: rgba(255, 255, 255, 0.94);
+  --card-hover: #ffffff;
+  --card-border: #dcd7cc;
+  --border-active: #b5aea0;
+  --accent-cyan: #1a1917;
+  --accent-cyan-hover: #292524;
+  --accent-indigo: #2563eb;
+  --accent-emerald: #15803d;
+  --accent-rose: #b91c1c;
+  --accent-amber: #b45309;
+  --text-primary: #1a1917;
+  --text-secondary: #3c3a36;
+  --text-muted: #57534e;
+  --btn-primary-bg: #1a1917;
+  --btn-primary-hover: #292524;
+  --btn-primary-text: #f5f2eb;
+  --badge-live-bg: #dcfce7;
+  --badge-live-border: #86efac;
+  --badge-live-text: #166534;
+  --tag-bg: #e7e2d7;
+  --tag-text: #292524;
+  --glass-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Typography & Contrast Overrides for Tokyo Sand */
+html[data-theme="tokyo-sand"] .text-white,
+html[data-theme="tokyo-sand"] .text-slate-100,
+html[data-theme="tokyo-sand"] .text-slate-200,
+html[data-theme="tokyo-sand"] .text-stone-100,
+html[data-theme="tokyo-sand"] .text-stone-200 {
+  color: #1a1917 !important;
+}
+
+html[data-theme="tokyo-sand"] .text-slate-300,
+html[data-theme="tokyo-sand"] .text-slate-400,
+html[data-theme="tokyo-sand"] .text-stone-300,
+html[data-theme="tokyo-sand"] .text-stone-400 {
+  color: #44403c !important;
+}
+
+html[data-theme="tokyo-sand"] .text-[#00e575],
+html[data-theme="tokyo-sand"] .text-[#4ade80],
+html[data-theme="tokyo-sand"] .text-emerald-400,
+html[data-theme="tokyo-sand"] .text-emerald-500,
+html[data-theme="tokyo-sand"] .text-emerald-600 {
+  color: #166534 !important;
+}
+
+html[data-theme="tokyo-sand"] .border-\[\#00e575\],
+html[data-theme="tokyo-sand"] .border-emerald-500,
+html[data-theme="tokyo-sand"] .border-emerald-500\/30,
+html[data-theme="tokyo-sand"] .border-emerald-500\/40 {
+  border-color: rgba(22, 101, 52, 0.35) !important;
+}
+
+html[data-theme="tokyo-sand"] .text-cyan-400 {
+  color: #0e7490 !important;
+}
+
+html[data-theme="tokyo-sand"] .text-rose-400 {
+  color: #b91c1c !important;
+}
+
+html[data-theme="tokyo-sand"] .text-amber-400 {
+  color: #b45309 !important;
+}
+
+html[data-theme="tokyo-sand"] .text-purple-400 {
+  color: #6b21a8 !important;
+}
+
+html[data-theme="tokyo-sand"] .bg-white\/5,
+html[data-theme="tokyo-sand"] .bg-white\/10 {
+  background-color: rgba(26, 25, 23, 0.05) !important;
+}
+
+html[data-theme="tokyo-sand"] .border-white\/5,
+html[data-theme="tokyo-sand"] .border-white\/10,
+html[data-theme="tokyo-sand"] .border-white\/15,
+html[data-theme="tokyo-sand"] .border-white\/20 {
+  border-color: rgba(26, 25, 23, 0.12) !important;
+}
+
+/* Home Buttons in Tokyo Sand */
+html[data-theme="tokyo-sand"] #nav-landing-home-btn,
+html[data-theme="tokyo-sand"] #dock-landing-home-btn,
+html[data-theme="tokyo-sand"] #hud-landing-home-btn {
+  color: #1a1917 !important;
+  border-color: #d6d0c4 !important;
+  background-color: #ede8dc !important;
+}
+
+html[data-theme="tokyo-sand"] #nav-landing-home-btn:hover,
+html[data-theme="tokyo-sand"] #dock-landing-home-btn:hover,
+html[data-theme="tokyo-sand"] #hud-landing-home-btn:hover {
+  background-color: #e2dcd0 !important;
+  border-color: #1a1917 !important;
+}
+
+/* Subtab Buttons in Tokyo Sand */
+html[data-theme="tokyo-sand"] .subtab-btn {
+  color: #57534e !important;
+}
+
+html[data-theme="tokyo-sand"] .subtab-btn.active {
+  background-color: #ffffff !important;
+  border-color: #cbc5b8 !important;
+  color: #1a1917 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Bottom HUD in Tokyo Sand */
+html[data-theme="tokyo-sand"] #bottom-hud {
+  background-color: #ede9e0 !important;
+  border-color: #ded8cb !important;
+  color: #44403c !important;
+}
+
+html[data-theme="tokyo-sand"] #bottom-hud span,
+html[data-theme="tokyo-sand"] #bottom-hud a,
+html[data-theme="tokyo-sand"] #bottom-hud button {
+  color: #292524 !important;
+}
+
+html[data-theme="tokyo-sand"] #bottom-hud span.text-stone-700 {
+  color: #a8a29e !important;
+}
+
+html[data-theme="tokyo-sand"] #bottom-hud .text-\[\#00e575\] {
+  color: #15803d !important;
+}
+
+/* Header Telemetry Badge in Tokyo Sand */
+html[data-theme="tokyo-sand"] #system-health-badge {
+  background-color: #ffffff !important;
+  border-color: #dcd7cc !important;
+  color: #1a1917 !important;
+}
+
+html[data-theme="tokyo-sand"] #system-health-badge #system-health-text {
+  color: #15803d !important;
+}
+
+

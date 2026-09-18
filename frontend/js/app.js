@@ -1050,3 +1050,27 @@ async function init() {
 }
 
 window.addEventListener('DOMContentLoaded', init);
+
+// Adapt relative navigation for GitHub Pages project subpaths
+(function adaptGhPagesLinks() {
+  function rewriteHomeLinks() {
+    const p = window.location.pathname;
+    if (p.includes('/Data-Intelligence-Assistant')) {
+      const isDocs = p.includes('/docs');
+      const homeUrl = isDocs ? '/Data-Intelligence-Assistant/docs/' : '/Data-Intelligence-Assistant/';
+
+      document.querySelectorAll('a').forEach((a) => {
+        const href = a.getAttribute('href');
+        if (href === '/' || href === '/landing') {
+          a.setAttribute('href', homeUrl);
+        }
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', rewriteHomeLinks);
+  } else {
+    rewriteHomeLinks();
+  }
+})();

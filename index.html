@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en" class="dark landing-page" data-theme="cyber-aurora">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DIA &bull; Data Intelligence at Machine Speed</title>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              500: '#00e575',
+              600: '#00c864',
+              cyan: '#06b6d4',
+              indigo: '#6366f1',
+              dark: '#050505',
+              card: '#0c1017',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Inline Preloader for Instant Theme Application (Prevents FOUC) -->
+  <script>
+    (function() {
+      try {
+        var m = localStorage.getItem('dia_theme_mode') || (localStorage.getItem('dia-theme') === 'tokyo-sand' ? 'day' : 'night');
+        var root = document.documentElement;
+        if (m === 'day') {
+          root.setAttribute('data-theme', 'tokyo-sand');
+          root.setAttribute('data-theme-mode', 'day');
+          root.classList.remove('dark');
+          root.classList.add('light');
+        } else {
+          root.setAttribute('data-theme', 'cyber-aurora');
+          root.setAttribute('data-theme-mode', 'night');
+          root.classList.remove('light');
+          root.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <style>
+    /* Standalone Landing Page Natural Document Scrolling */
+    html.landing-page,
+    body.landing-page {
+      height: auto !important;
+      min-height: 100vh !important;
+      min-height: 100dvh !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+    }
+
+    body {
+      background-color: var(--bg-primary, #040608);
+      color: var(--text-secondary, #ded7cb);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overflow-x: hidden;
+    }
+
+    html[data-theme="tokyo-sand"] body,
+    html[data-theme-mode="day"] body {
+      background-color: #f5f2eb !important;
+      color: #1a1917 !important;
+    }
+
+    html[data-theme="tokyo-sand"] .landing-aurora-bg,
+    html[data-theme-mode="day"] .landing-aurora-bg {
+      opacity: 0.12;
+    }
+
+    .landing-aurora-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .landing-orb-emerald {
+      position: absolute;
+      top: 15%;
+      left: 18%;
+      width: 650px;
+      height: 650px;
+      background: radial-gradient(circle, rgba(0, 229, 117, 0.22) 0%, rgba(0, 229, 117, 0.05) 50%, transparent 70%);
+      filter: blur(90px);
+      border-radius: 50%;
+      animation: floatHero1 22s ease-in-out infinite alternate;
+    }
+
+    .landing-orb-cyan {
+      position: absolute;
+      top: 25%;
+      right: 12%;
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.20) 0%, rgba(6, 182, 212, 0.04) 55%, transparent 75%);
+      filter: blur(100px);
+      border-radius: 50%;
+      animation: floatHero2 26s ease-in-out infinite alternate;
+    }
+
+    .landing-orb-indigo {
+      position: absolute;
+      bottom: 10%;
+      left: 35%;
+      width: 550px;
+      height: 550px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.16) 0%, rgba(99, 102, 241, 0.03) 50%, transparent 70%);
+      filter: blur(95px);
+      border-radius: 50%;
+      animation: floatHero3 20s ease-in-out infinite alternate;
+    }
+
+    @keyframes floatHero1 {
+      0% { transform: translate3d(0, 0, 0) scale(1); }
+      50% { transform: translate3d(50px, 40px, 0) scale(1.08); }
+      100% { transform: translate3d(-30px, 60px, 0) scale(0.95); }
+    }
+
+    @keyframes floatHero2 {
+      0% { transform: translate3d(0, 0, 0) scale(1); }
+      50% { transform: translate3d(-60px, 50px, 0) scale(1.1); }
+      100% { transform: translate3d(40px, -30px, 0) scale(0.92); }
+    }
+
+    @keyframes floatHero3 {
+      0% { transform: translate3d(0, 0, 0) scale(0.95); }
+      50% { transform: translate3d(40px, -40px, 0) scale(1.05); }
+      100% { transform: translate3d(-40px, 20px, 0) scale(1); }
+    }
+
+    /* Frosted Glass Cards matching mockup */
+    .hero-glass-card {
+      background: rgba(12, 17, 26, 0.76);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 229, 117, 0.22);
+      border-radius: 1.25rem;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+    }
+
+    .hero-glass-card:hover {
+      border-color: rgba(0, 229, 117, 0.45);
+      box-shadow: 0 24px 60px rgba(0, 229, 117, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    .feature-tile {
+      background: rgba(12, 16, 23, 0.82);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+
+    .feature-tile:hover {
+      transform: translateY(-4px);
+      border-color: rgba(0, 229, 117, 0.4);
+      box-shadow: 0 20px 40px rgba(0, 229, 117, 0.12), 0 0 0 1px rgba(0, 229, 117, 0.2);
+    }
+
+    /* SVG DAG Interactive Nodes */
+    .dag-svg-node {
+      cursor: pointer;
+      transition: transform 0.2s ease, filter 0.2s ease;
+    }
+
+    .dag-svg-node:hover circle.node-core {
+      filter: drop-shadow(0 0 10px #00e575);
+    }
+
+    .dag-svg-node.ring-active circle.node-glow {
+      stroke: #00e575;
+      stroke-width: 2.5;
+      filter: drop-shadow(0 0 12px rgba(0, 229, 117, 0.9));
+    }
+
+    /* Pulse animation for node rings */
+    @keyframes nodePulse {
+      0% { r: 16px; opacity: 0.8; }
+      50% { r: 24px; opacity: 0.2; }
+      100% { r: 16px; opacity: 0.8; }
+    }
+
+    .pulse-ring {
+      animation: nodePulse 3s ease-in-out infinite;
+      transform-origin: center;
+    }
+
+    /* Card Spotlight (radial luminescence gradient that follows mouse) */
+    .hero-glass-card, .feature-tile, .spotlight-card, .pathway-card, .benchmark-card {
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-glass-card::before, .feature-tile::before, .spotlight-card::before, .pathway-card::before, .benchmark-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle 240px at var(--mouse-x, -999px) var(--mouse-y, -999px), rgba(0, 229, 117, 0.14), transparent 70%);
+      pointer-events: none;
+      z-index: 1;
+      transition: opacity 0.2s ease;
+    }
+    .hero-glass-card > *, .feature-tile > *, .spotlight-card > *, .pathway-card > *, .benchmark-card > * { position: relative; z-index: 2; }
+
+    /* Page fade-in */
+    main { animation: pageFadeIn 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+    @keyframes pageFadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+    /* Modal entrance */
+    .modal-panel { animation: modalIn 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(12px); } to { opacity: 1; transform: none; } }
+
+    /* Button shimmer on hover */
+    .cta-btn, .btn-primary { position: relative; overflow: hidden; }
+    .cta-btn::after, .btn-primary::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%); transform: translateX(-100%); transition: transform 0.4s; pointer-events: none; }
+    .cta-btn:hover::after, .btn-primary:hover::after { transform: translateX(100%); }
+
+    /* Progress Bar Fill transition */
+    .progress-bar-fill { transition: width 0.5s cubic-bezier(0.16,1,0.3,1); }
+
+    /* Glowing Radial Spotlight Follow Animation for Generic Spotlight Cards */
+    .spotlight-card {
+      position: relative;
+      overflow: hidden;
+      --mouse-x: -999px;
+      --mouse-y: -999px;
+    }
+
+    /* Enhanced Animated Progress Bar Components */
+    .dia-progress-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      position: relative;
+    }
+
+    .dia-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00c864, #00e575, #06b6d4);
+      border-radius: 9999px;
+      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 0 12px rgba(0, 229, 117, 0.6);
+      position: relative;
+    }
+
+    .dia-progress-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.35) 50%,
+        transparent 100%
+      );
+      animation: progressShimmer 1.8s infinite ease-in-out;
+    }
+
+    @keyframes progressShimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* Policy Intervention Range Slider matching media_1789126021803.png */
+    .hero-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 9999px;
+      background: #1e293b;
+      outline: none;
+      transition: background 0.2s;
+    }
+    .hero-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #00e575;
+      cursor: pointer;
+      box-shadow: 0 0 14px #00e575, 0 0 24px rgba(0, 229, 117, 0.7);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .hero-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+      box-shadow: 0 0 18px #00e575, 0 0 32px rgba(0, 229, 117, 0.9);
+    }
+    .hero-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #00e575;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 14px #00e575, 0 0 24px rgba(0, 229, 117, 0.7);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .hero-slider::-moz-range-thumb:hover {
+      transform: scale(1.25);
+      box-shadow: 0 0 18px #00e575, 0 0 32px rgba(0, 229, 117, 0.9);
+    }
+
+    /* SVG DAG Interactive Nodes & Halo Pulse */
+    .causal-node, .dag-svg-node {
+      cursor: pointer;
+      transition: transform 0.2s ease, filter 0.2s ease;
+    }
+    .causal-node:hover rect, .dag-svg-node:hover rect {
+      filter: brightness(1.25);
+    }
+    #dag-node-z.active rect, #dag-node-z.ring-active rect {
+      stroke: #818cf8;
+      stroke-width: 2.5px;
+      filter: drop-shadow(0 0 12px rgba(129, 140, 248, 0.8));
+    }
+    #dag-node-x.active rect.treatment-card-body, #dag-node-x.ring-active rect.treatment-card-body {
+      stroke: #00e575;
+      stroke-width: 2.5px;
+      filter: drop-shadow(0 0 14px rgba(0, 229, 117, 0.9));
+    }
+    #dag-node-m.active rect, #dag-node-m.ring-active rect {
+      stroke: #06b6d4;
+      stroke-width: 2.5px;
+      filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.8));
+    }
+    #dag-node-y.active rect, #dag-node-y.ring-active rect {
+      stroke: #f43f5e;
+      stroke-width: 2.5px;
+      filter: drop-shadow(0 0 12px rgba(244, 63, 94, 0.8));
+    }
+    @keyframes treatmentGlowPulse {
+      0% { opacity: 0.55; transform: scale(1); }
+      50% { opacity: 0.95; transform: scale(1.06); }
+      100% { opacity: 0.55; transform: scale(1); }
+    }
+    .treatment-halo {
+      animation: treatmentGlowPulse 3.2s ease-in-out infinite;
+      transform-origin: 170px 163px;
+    }
+  </style>
+</head>
+<body class="landing-page relative selection:bg-[#00e575] selection:text-black antialiased min-h-screen flex flex-col justify-between">
+
+  <!-- Static Mode Preview Banner for GitHub Pages -->
+  <div id="static-preview-banner" class="w-full bg-emerald-950/80 border-b border-emerald-500/30 px-4 py-2 text-center text-xs font-mono text-emerald-300 flex items-center justify-between z-50 sticky top-0">
+    <div class="flex items-center space-x-2 mx-auto">
+      <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse"></span>
+      <span>GitHub Pages Static Preview &bull; Full ML workbench with live Python training requires running locally or via Docker.</span>
+      <a href="https://github.com/Athish2002/Data-Intelligence-Assistant" target="_blank" class="underline font-bold text-white hover:text-[#00e575] ml-2">Clone &amp; Run &rarr;</a>
+    </div>
+    <button onclick="document.getElementById('static-preview-banner').style.display='none'" class="text-slate-400 hover:text-white text-sm px-2">&times;</button>
+  </div>
+
+
+  <!-- Ambient Cyber Aurora Glowing Orbs & Grid Layer -->
+  <div class="landing-aurora-bg" aria-hidden="true">
+    <div class="landing-orb-emerald"></div>
+    <div class="landing-orb-cyan"></div>
+    <div class="landing-orb-indigo"></div>
+    <div class="aurora-grid-pattern"></div>
+    <div class="aurora-vignette"></div>
+  </div>
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="sticky top-0 z-40 w-full border-b border-white/10 backdrop-blur-md" style="background-color: var(--bg-dock, rgba(4, 6, 8, 0.85)); border-color: var(--card-border);">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo Left -->
+      <div class="flex items-center space-x-3">
+        <a href="/" class="flex items-center group select-none" title="Data Intelligence Assistant">
+          <span class="font-black text-2xl tracking-tighter text-white font-sans flex items-center">
+            <span class="relative inline-flex items-center justify-center">
+              <span>D</span>
+              <span class="absolute top-[28%] left-[24%] w-[32%] h-[42%] bg-[#00e575] rounded-[1px] transform -rotate-12 pointer-events-none opacity-95"></span>
+            </span>
+            <span class="text-white ml-0.5">I</span>
+            <span class="text-white ml-0.5">A</span>
+          </span>
+        </a>
+        <span class="hidden sm:inline-flex items-center text-[10px] font-mono tracking-widest text-[#00e575] border border-emerald-500/30 bg-emerald-950/40 px-2 py-0.5 rounded uppercase font-semibold">
+          Data Intelligence
+        </span>
+      </div>
+
+      <!-- Center Nav Links (Desktop) - Authentic DIA Capabilities, Architecture, Docs/API, Health Telemetry -->
+      <nav class="hidden md:flex items-center space-x-6 lg:space-x-8 text-sm font-medium text-slate-300">
+        <!-- Data Intelligence Capabilities Dropdown -->
+        <div class="relative group cursor-pointer flex items-center space-x-1 hover:text-white transition-colors py-2" id="nav-capabilities-group">
+          <span>Capabilities</span>
+          <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:rotate-180 duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          <div class="absolute top-full -left-4 mt-1 w-72 rounded-xl border border-white/10 bg-[#0c111a]/95 backdrop-blur-2xl shadow-2xl p-2 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+            <a href="/app" class="block px-3 py-2.5 rounded-lg text-xs hover:bg-white/5 hover:text-[#00e575] transition-colors">
+              <div class="font-semibold text-white flex items-center justify-between">
+                <span>Autonomous AutoML Ensembles</span>
+                <span class="text-[9px] font-mono text-[#00e575] border border-emerald-500/30 px-1.5 py-0.2 rounded bg-emerald-950/40">CHAMPION</span>
+              </div>
+              <div class="text-[11px] text-slate-400 mt-0.5">Multi-model leaderboard ranking with SHAP driver explanations</div>
+            </a>
+            <a href="#causal-simulator-section" class="block px-3 py-2.5 rounded-lg text-xs hover:bg-white/5 hover:text-[#00e575] transition-colors">
+              <div class="font-semibold text-white">Pearl Observational Causal DAG</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">Constraint-based PC induction &amp; Do-Calculus policy simulation</div>
+            </a>
+            <a href="/app" class="block px-3 py-2.5 rounded-lg text-xs hover:bg-white/5 hover:text-[#00e575] transition-colors">
+              <div class="font-semibold text-white">Conformal Coverage Sets</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">Finite-sample statistical uncertainty guarantees (1-&alpha; confidence)</div>
+            </a>
+            <a href="/app" class="block px-3 py-2.5 rounded-lg text-xs hover:bg-white/5 hover:text-[#00e575] transition-colors">
+              <div class="font-semibold text-white">Pre-computed C99 &amp; WASM Scoring</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">Standalone sub-50KB client-side execution bundles with 0ms network latency</div>
+            </a>
+            <a href="/app" class="block px-3 py-2.5 rounded-lg text-xs hover:bg-white/5 hover:text-[#00e575] transition-colors">
+              <div class="font-semibold text-white">Governance &amp; Audit Dossiers</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">Automated EU AI Act Annex III &amp; GDPR Art. 22 compliance certification</div>
+            </a>
+          </div>
+        </div>
+
+        <!-- Architecture Link -->
+        <a href="#architectural-pillars" class="hover:text-white transition-colors py-2 flex items-center space-x-1" title="System Architecture & Pillars">
+          <span>Architecture</span>
+        </a>
+
+        <!-- Workflows Link -->
+        <a href="#execution-pathways" class="hover:text-white transition-colors py-2 flex items-center space-x-1" title="Execution Pathways & Workflows">
+          <span>Workflows</span>
+        </a>
+
+        <!-- Docs / API Dropdown -->
+        <div class="relative group cursor-pointer flex items-center space-x-1 hover:text-white transition-colors py-2" id="nav-docs-group">
+          <span>Docs / API</span>
+          <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-transform group-hover:rotate-180 duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          <div class="absolute top-full -left-4 mt-1 w-60 rounded-xl border border-white/10 bg-[#0c111a]/95 backdrop-blur-2xl shadow-2xl p-2 hidden group-hover:block z-50">
+            <a href="/docs" target="_blank" class="block px-3 py-2.5 rounded-lg text-xs hover:bg-white/5 hover:text-[#00e575] transition-colors">
+              <div class="font-semibold text-white">Swagger OpenAPI Spec</div>
+              <div class="text-[11px] text-slate-400">Interactive REST endpoint runner</div>
+            </a>
+            <a href="/redoc" target="_blank" class="block px-3 py-2.5 rounded-lg text-xs hover:bg-white/5 hover:text-[#00e575] transition-colors">
+              <div class="font-semibold text-white">ReDoc Documentation</div>
+              <div class="text-[11px] text-slate-400">Complete architectural data contracts</div>
+            </a>
+          </div>
+        </div>
+
+        <!-- Health Telemetry Direct Trigger -->
+        <button type="button" id="nav-telemetry-btn" data-telemetry-trigger="true" class="flex items-center space-x-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer" title="Open Real-time Hardware & Infrastructure Telemetry HUD">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e575] opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-[#00e575] shadow-[0_0_8px_#00e575]"></span>
+          </span>
+          <span>Health Telemetry</span>
+        </button>
+      </nav>
+
+      <!-- Right CTA: Theme Toggle + Launch Workbench -->
+      <div class="flex items-center space-x-3">
+        <!-- 1-Click Night / Day Mode Toggle Button -->
+        <button type="button" id="theme-toggle-btn" data-theme-toggle class="p-2 rounded-lg border hover:bg-white/5 transition-all cursor-pointer flex items-center justify-center relative shadow-sm active:scale-95 group" style="background-color: var(--bg-secondary, rgba(255,255,255,0.05)); border-color: var(--card-border, rgba(255,255,255,0.15)); color: var(--text-primary);" aria-label="Toggle Night/Day Mode" title="Toggle Night/Day Mode">
+          <span class="relative w-4 h-4 flex items-center justify-center pointer-events-none">
+            <svg class="theme-icon-moon w-4 h-4 text-[#00e575] transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <svg class="theme-icon-sun w-4 h-4 text-amber-500 hidden transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          </span>
+        </button>
+
+        <a href="/app" id="nav-launch-workbench-btn" class="px-4 py-2 rounded-lg bg-[#00e575] hover:bg-[#00ff82] text-black text-xs font-bold tracking-wide transition-all active:scale-95 shadow-[0_0_16px_rgba(0,229,117,0.35)] flex items-center space-x-1.5 cursor-pointer" title="Launch Full Analytical Workbench">
+          <span>Launch Workbench</span>
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+        </a>
+        <button id="mobile-menu-btn" class="md:hidden p-2 rounded-lg border border-white/10 bg-white/5 text-slate-300 hover:text-white" title="Toggle Mobile Navigation">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Dropdown Menu -->
+    <div id="mobile-menu" class="hidden md:hidden border-t border-white/10 bg-[#070b12] px-4 py-4 space-y-2.5 text-sm font-medium">
+      <div class="text-[10px] font-mono uppercase tracking-widest text-[#00e575] px-3 pt-1">Capabilities</div>
+      <a href="/app" class="block px-3 py-1.5 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575] text-xs">Autonomous AutoML Ensembles</a>
+      <a href="#causal-simulator-section" class="block px-3 py-1.5 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575] text-xs">Causal Discovery &amp; Policy Simulator</a>
+      <a href="/app" class="block px-3 py-1.5 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575] text-xs">Conformal Uncertainty Sets</a>
+      <a href="/app" class="block px-3 py-1.5 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575] text-xs">Pre-computed C99 &amp; WASM Scoring</a>
+      <a href="/app" class="block px-3 py-1.5 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575] text-xs">Governance &amp; Audit Dossiers</a>
+      <div class="border-t border-white/10 my-2"></div>
+      <a href="#architectural-pillars" class="block px-3 py-2 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575]">System Architecture</a>
+      <a href="#execution-pathways" class="block px-3 py-2 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575]">Execution Pathways</a>
+      <a href="/docs" target="_blank" class="block px-3 py-2 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575]">Docs / OpenAPI Spec</a>
+      <button type="button" id="mobile-telemetry-btn" data-telemetry-trigger="true" class="w-full text-left px-3 py-2 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575] flex items-center space-x-2 cursor-pointer">
+        <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+        <span>Health Telemetry HUD</span>
+      </button>
+      <button type="button" id="theme-toggle-btn-mobile" data-theme-toggle class="w-full text-left px-3 py-2 rounded-lg text-slate-200 hover:bg-white/5 hover:text-[#00e575] flex items-center justify-between cursor-pointer">
+        <span class="flex items-center space-x-2">
+          <span>Toggle Night/Day Mode</span>
+        </span>
+        <span class="relative w-4 h-4 flex items-center justify-center pointer-events-none">
+          <svg class="theme-icon-moon w-4 h-4 text-[#00e575]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg class="theme-icon-sun w-4 h-4 text-amber-500 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </span>
+      </button>
+      <div class="pt-2 border-t border-white/10">
+        <a href="/app" class="block w-full py-2.5 px-3 rounded-lg bg-[#00e575] hover:bg-[#00ff82] text-black font-bold text-center text-xs tracking-wide">Launch Workbench &rarr;</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="relative z-10 flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-16 pb-20 w-full">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+      
+      <!-- ─── Left Hero Column: Headline & 3 Action Options ─────────────────────── -->
+      <div class="lg:col-span-6 space-y-7">
+        
+        <!-- Glowing Pill Badge -->
+        <div class="inline-flex items-center space-x-2.5 px-3.5 py-1.5 rounded-full border border-emerald-500/50 bg-emerald-950/40 shadow-[0_0_20px_rgba(0,229,117,0.35)]">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e575] opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-[#00e575] shadow-[0_0_8px_#00e575]"></span>
+          </span>
+          <span class="text-xs font-mono font-bold text-[#00e575] tracking-wider uppercase">ENTERPRISE PLATFORM ACTIVE</span>
+        </div>
+
+        <!-- Bold Hero Title -->
+        <div class="space-y-3">
+          <h1 class="text-4xl sm:text-5xl lg:text-[56px] font-black text-white tracking-tight leading-[1.06]">
+            Data Intelligence<br />at Machine Speed
+          </h1>
+          <p class="text-sm sm:text-base lg:text-lg text-slate-300 leading-relaxed max-w-xl font-normal">
+            Autonomous AutoML ensembles, Pearl's observational causal DAG discovery, conformal uncertainty bounds, and Pre-computed C99 &amp; WebAssembly scoring bundles.
+          </p>
+        </div>
+
+        <!-- 3 Distinct, Clear Action Options -->
+        <div class="pt-2 flex flex-wrap items-center gap-3.5">
+          <!-- Option 1: Launch Interactive Demo -->
+          <button id="btn-launch-demo" class="cta-btn btn-primary px-6 py-3.5 rounded-xl bg-[#00e575] hover:bg-[#00ff82] active:scale-95 text-[#040608] font-bold text-sm sm:text-base flex items-center space-x-2.5 shadow-[0_0_25px_rgba(0,229,117,0.4)] transition-all cursor-pointer">
+            <span>Launch Interactive Demo</span>
+          </button>
+
+          <!-- Option 2: Ingest Custom Data -->
+          <button id="btn-ingest-data" class="cta-btn px-6 py-3.5 rounded-xl border border-white/20 bg-[#0c111a]/90 hover:bg-white/10 active:scale-95 text-white font-semibold text-sm sm:text-base flex items-center space-x-2.5 transition-all cursor-pointer shadow-lg shadow-black/40">
+            <span>Ingest Custom Data</span>
+          </button>
+
+          <!-- Option 3: Go to Dashboard -->
+          <a id="btn-go-dashboard" href="/app" class="cta-btn px-5 py-3.5 rounded-xl border border-white/15 bg-white/5 hover:border-emerald-500/50 hover:bg-white/10 active:scale-95 text-slate-200 hover:text-white text-sm sm:text-base font-semibold flex items-center space-x-2 transition-all group shadow-sm" title="Launch Full Analytical Workbench">
+            <span>Go to Dashboard</span>
+            <svg class="w-4 h-4 stroke-current fill-none group-hover:translate-x-1 transition-transform" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+          </a>
+        </div>
+
+        <!-- Pillar Checkmarks -->
+        <div class="pt-2 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-mono text-slate-300">
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>Observational DAG Induction</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>Pre-computed C99 &amp; WASM Scoring</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>Finite-Sample Conformal Sets</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>Pearl's Do-Calculus</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>Wachter Counterfactual Recourse</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>In-Memory Tenant Isolation</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>CPU-Only Inference</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>In-Browser Scoring, No Server Round-Trip</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-[#00e575] font-bold">&check;</span>
+            <span>Automated Target Leakage Quarantine</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ─── Right Hero Column: 2x2 Feature Cards Grid ─────────────────────── -->
+      <div class="lg:col-span-6" id="architectural-pillars">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+          
+          <!-- Card 1: Wachter Counterfactual Recourse -->
+          <div class="feature-tile spotlight-card p-4 sm:p-5 flex flex-col justify-between space-y-3 group rounded-2xl bg-white/[0.03] border border-white/10 hover:border-emerald-500/30 transition-colors">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-[#00e575] border border-emerald-500/30">RECOURSE</span>
+                <span class="text-[10px] font-mono text-slate-400">L1/L2</span>
+              </div>
+              <h3 class="text-sm font-bold text-white group-hover:text-[#00e575] transition-colors leading-snug">
+                Wachter Counterfactual Recourse
+              </h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Nearest contrastive explanation &amp; actionable recourse paths without model inversion.
+              </p>
+            </div>
+            <div class="text-[11px] font-mono text-emerald-400/90 font-medium pt-2 border-t border-white/5">
+              Pearl Do-Calculus
+            </div>
+          </div>
+
+          <!-- Card 2: Observational DAG Induction -->
+          <div class="feature-tile spotlight-card p-4 sm:p-5 flex flex-col justify-between space-y-3 group rounded-2xl bg-white/[0.03] border border-white/10 hover:border-cyan-500/30 transition-colors">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">GRAPH</span>
+                <span class="text-[10px] font-mono text-slate-400">DAG</span>
+              </div>
+              <h3 class="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors leading-snug">
+                Observational DAG Induction
+              </h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Causal discovery from observational data via conditional independence tests.
+              </p>
+            </div>
+            <div class="text-[11px] font-mono text-cyan-400/90 font-medium pt-2 border-t border-white/5">
+              Markov Blanket
+            </div>
+          </div>
+
+          <!-- Card 3: Pre-computed C99 & WASM Scoring (Zero-overhead Edge Transpiler) -->
+          <div class="feature-tile spotlight-card p-4 sm:p-5 flex flex-col justify-between space-y-3 group rounded-2xl bg-white/[0.03] border border-white/10 hover:border-indigo-500/30 transition-colors">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">RUNTIME</span>
+                <span class="text-[10px] font-mono text-slate-400">&lt;50KB</span>
+              </div>
+              <h3 class="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors leading-snug">
+                Pre-computed C99 &amp; WASM Scoring
+              </h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Microsecond local edge inference via portable sub-50KB compiled binaries. Standalone Zero-overhead Edge Compute Transpiler compiles trained ensembles into portable C99 &amp; WebAssembly evaluation binaries with zero runtime dependencies. Pre-computed WASM Scoring guarantees sub-millisecond execution.
+              </p>
+            </div>
+            <div class="text-[11px] font-mono text-indigo-400/90 font-medium pt-2 border-t border-white/5">
+              Pre-computed WASM Scoring
+            </div>
+          </div>
+
+          <!-- Card 4: Finite-Sample Conformal Sets -->
+          <div class="feature-tile spotlight-card p-4 sm:p-5 flex flex-col justify-between space-y-3 group rounded-2xl bg-white/[0.03] border border-white/10 hover:border-amber-500/30 transition-colors">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">RIGOR</span>
+                <span class="text-[10px] font-mono text-slate-400">1-&alpha;</span>
+              </div>
+              <h3 class="text-sm font-bold text-white group-hover:text-amber-400 transition-colors leading-snug">
+                Finite-Sample Conformal Sets
+              </h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Distribution-free coverage guarantees at exact statistical confidence levels with calibrated prediction sets.
+              </p>
+            </div>
+            <div class="text-[11px] font-mono text-amber-400/90 font-medium pt-2 border-t border-white/5">
+              Conformal Coverage Sets
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ─── Live Causal DAG & Pearl's Do-Calculus Simulator (matching reference mockup) ─ -->
+    <section id="causal-simulator-section" class="mt-12 sm:mt-16 w-full">
+      <div class="spotlight-card rounded-2xl bg-[#060a12]/95 border border-white/10 p-5 sm:p-7 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+        
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-white/10">
+          <div class="flex items-center space-x-2.5">
+            <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#00e575] shadow-[0_0_8px_#00e575] animate-pulse"></span>
+            <span class="text-xs sm:text-sm font-mono font-bold text-[#00e575] tracking-wider uppercase">
+              LIVE CAUSAL DAG &bull; PEARL'S DO-CALCULUS SIMULATOR
+            </span>
+            <span class="sr-only">Live causal graph DAG</span>
+          </div>
+          <div class="text-[11px] font-mono text-slate-400">
+            Click nodes to inspect &bull; Slide policy intervention below
+          </div>
+        </div>
+
+        <!-- Animated SVG Causal DAG matching reference mockup -->
+        <div class="relative py-4 flex items-center justify-center">
+          <svg id="interactive-dag-svg" viewBox="0 0 900 280" class="w-full h-auto max-h-[340px] select-none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <!-- Arrow Markers -->
+              <marker id="dag-arrow-emerald" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="#00e575" />
+              </marker>
+              <marker id="dag-arrow-cyan" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="#06b6d4" />
+              </marker>
+              <marker id="dag-arrow-indigo" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="#818cf8" />
+              </marker>
+              
+              <!-- Glow Filters -->
+              <filter id="node-glow-filter" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="halo-blur-filter" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="8" />
+              </filter>
+            </defs>
+
+            <!-- ─── 6 Directed Dashed Paths with Animated Moving Particles ──────── -->
+            
+            <!-- Path 1: Confounder (Z) -> Treatment do(X) -->
+            <path id="path-z-x" d="M 370 70 Q 260 88 198 135" stroke="#818cf8" stroke-width="1.6" stroke-opacity="0.6" stroke-dasharray="4,4" marker-end="url(#dag-arrow-indigo)" fill="none" />
+            <circle r="3" fill="#818cf8" filter="url(#node-glow-filter)">
+              <animateMotion dur="2.8s" repeatCount="indefinite" path="M 370 70 Q 260 88 198 135" />
+            </circle>
+
+            <!-- Path 2: Confounder (Z) -> Mediator (M) -->
+            <path id="path-z-m" d="M 450 70 L 450 135" stroke="#818cf8" stroke-width="1.6" stroke-opacity="0.6" stroke-dasharray="4,4" marker-end="url(#dag-arrow-indigo)" fill="none" />
+            <circle r="3" fill="#818cf8" filter="url(#node-glow-filter)">
+              <animateMotion dur="2.0s" repeatCount="indefinite" path="M 450 70 L 450 135" />
+            </circle>
+
+            <!-- Path 3: Confounder (Z) -> Outcome (Y) -->
+            <path id="path-z-y" d="M 530 70 Q 640 88 702 135" stroke="#818cf8" stroke-width="1.6" stroke-opacity="0.6" stroke-dasharray="4,4" marker-end="url(#dag-arrow-indigo)" fill="none" />
+            <circle r="3" fill="#818cf8" filter="url(#node-glow-filter)">
+              <animateMotion dur="2.8s" repeatCount="indefinite" path="M 530 70 Q 640 88 702 135" />
+            </circle>
+
+            <!-- Path 4: Treatment do(X) -> Mediator (M) -->
+            <path id="path-x-m" d="M 260 163 L 358 163" stroke="#00e575" stroke-width="2.2" stroke-opacity="0.8" stroke-dasharray="4,4" marker-end="url(#dag-arrow-emerald)" fill="none" />
+            <circle r="3.5" fill="#00e575" filter="url(#node-glow-filter)">
+              <animateMotion dur="1.8s" repeatCount="indefinite" path="M 260 163 L 358 163" />
+            </circle>
+
+            <!-- Path 5: Mediator (M) -> Outcome (Y) -->
+            <path id="path-m-y" d="M 540 163 L 638 163" stroke="#06b6d4" stroke-width="2.2" stroke-opacity="0.8" stroke-dasharray="4,4" marker-end="url(#dag-arrow-cyan)" fill="none" />
+            <circle r="3.5" fill="#06b6d4" filter="url(#node-glow-filter)">
+              <animateMotion dur="1.8s" repeatCount="indefinite" path="M 540 163 L 638 163" />
+            </circle>
+
+            <!-- Path 6: Treatment do(X) -> Outcome (Y) (Lower sweeping arc) -->
+            <path id="path-x-y" d="M 210 191 Q 450 250 675 191" stroke="#00e575" stroke-width="2.2" stroke-opacity="0.8" stroke-dasharray="4,4" marker-end="url(#dag-arrow-emerald)" fill="none" />
+            <circle r="3.5" fill="#00e575" filter="url(#node-glow-filter)">
+              <animateMotion dur="3.0s" repeatCount="indefinite" path="M 210 191 Q 450 250 675 191" />
+            </circle>
+
+            <!-- ─── Interactive Node Cards ────────────────────────────────────── -->
+
+            <!-- Node 1: Confounder (Z) -->
+            <g class="dag-svg-node" id="dag-node-z" onclick="window.selectDagNode('z')" cursor="pointer">
+              <rect x="360" y="20" width="180" height="50" rx="8" ry="8" fill="#0c1527" stroke="#3b82f6" stroke-width="1.5" class="transition-all" />
+              <text x="450" y="39" fill="#818cf8" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">Confounder (Z)</text>
+              <text x="450" y="55" fill="#cbd5e1" font-size="11" font-weight="500" font-family="sans-serif" text-anchor="middle">Credit Score &amp; Age</text>
+            </g>
+
+            <!-- Node 2: Treatment do(X) with glowing emerald halo -->
+            <g class="dag-svg-node ring-active active" id="dag-node-x" onclick="window.selectDagNode('x')" cursor="pointer">
+              <!-- Diffuse glowing halo matching reference mockup -->
+              <rect x="68" y="123" width="204" height="80" rx="16" ry="16" fill="#00e575" fill-opacity="0.14" stroke="#00e575" stroke-width="2.5" opacity="0.6" filter="url(#halo-blur-filter)" class="treatment-halo" />
+              <!-- Card Body -->
+              <rect x="80" y="135" width="180" height="56" rx="8" ry="8" fill="#041f16" stroke="#00e575" stroke-width="2" class="treatment-card-body transition-all" />
+              <text x="170" y="156" fill="#00e575" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">Treatment do(X)</text>
+              <text x="170" y="177" fill="#ffffff" font-size="13" font-weight="bold" font-family="sans-serif" text-anchor="middle">Interest Rate %</text>
+            </g>
+
+            <!-- Node 3: Mediator (M) -->
+            <g class="dag-svg-node" id="dag-node-m" onclick="window.selectDagNode('m')" cursor="pointer">
+              <rect x="360" y="137" width="180" height="52" rx="8" ry="8" fill="#081e2b" stroke="#06b6d4" stroke-width="1.5" class="transition-all" />
+              <text x="450" y="157" fill="#38bdf8" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">Mediator (M)</text>
+              <text x="450" y="175" fill="#cbd5e1" font-size="12" font-weight="500" font-family="sans-serif" text-anchor="middle">Debt-to-Income</text>
+            </g>
+
+            <!-- Node 4: Outcome (Y) -->
+            <g class="dag-svg-node" id="dag-node-y" onclick="window.selectDagNode('y')" cursor="pointer">
+              <rect x="640" y="135" width="180" height="56" rx="8" ry="8" fill="#240b14" stroke="#f43f5e" stroke-width="1.5" class="transition-all" />
+              <text x="730" y="156" fill="#fb7185" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">Outcome (Y)</text>
+              <text x="730" y="177" fill="#ffffff" font-size="13" font-weight="bold" font-family="sans-serif" text-anchor="middle">Default Risk</text>
+            </g>
+
+          </svg>
+        </div>
+
+        <!-- Dynamic Node Inspector Callout Banner matching reference mockup -->
+        <div id="dag-inspector-container" class="mt-2 p-3 sm:p-4 rounded-xl bg-black/60 border border-white/10 text-xs font-mono flex items-start space-x-3">
+          <div class="flex-shrink-0 w-6 h-6 rounded-md bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs mt-0.5 select-none">
+            &#9432;
+          </div>
+          <div class="leading-relaxed flex-grow">
+            <span id="dag-inspector-title" class="font-bold text-[#00e575]">Treatment do(X = Interest Rate %):</span>
+            <span id="dag-inspector-desc" class="text-slate-300 font-sans ml-1">Policy intervention variable. Applying the Do-Operator do(X = x) simulates what would happen if the policy maker forcibly sets the rate, severing natural parental dependencies from Z.</span>
+            <div class="hidden">
+              <span id="dag-inspector-type">Policy Action Variable</span>
+              <span id="dag-inspector-stats">Simulated ATE: -12.8% &bull; 95% CI: [-15.2%, -10.4%]</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Policy Intervention Range Slider matching reference mockup -->
+        <div class="mt-6 pt-4 border-t border-white/5 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div class="flex items-center space-x-2.5">
+              <span class="text-amber-400 text-sm">&#9889;</span>
+              <span class="font-bold text-white tracking-wide">Policy Intervention:</span>
+              <span id="policy-slider-val" class="px-2.5 py-0.5 rounded-md bg-[#00e575]/10 border border-[#00e575]/40 text-[#00e575] font-mono font-bold text-xs">
+                do(Interest Rate = 4.5%)
+              </span>
+            </div>
+            <div class="text-slate-400 font-mono text-[11px]">
+              Baseline Rate: 8.5% &bull; Baseline Default: 25.6%
+            </div>
+          </div>
+
+          <div class="pt-1">
+            <input 
+              type="range" 
+              id="causal-policy-slider" 
+              class="hero-slider cursor-pointer" 
+              min="1.0" 
+              max="16.0" 
+              step="0.5" 
+              value="4.5" 
+              aria-label="Policy Intervention Interest Rate Percentage"
+              oninput="window.updatePolicyIntervention(this.value)"
+            />
+          </div>
+        </div>
+
+        <!-- 4 Live Metric Cards matching reference mockup -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-5">
+          
+          <!-- Card 1: Simulated Default Risk -->
+          <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-1">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+              SIMULATED DEFAULT RISK
+            </div>
+            <div id="metric-sim-default" class="text-xl sm:text-2xl font-bold font-mono text-[#00e575]">
+              12.8%
+            </div>
+            <div id="metric-sim-delta" class="text-[11px] font-mono text-[#00e575]/90">
+              &Delta; -12.8% vs Baseline
+            </div>
+          </div>
+
+          <!-- Card 2: Average Treatment Effect -->
+          <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-1">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+              AVERAGE TREATMENT EFFECT
+            </div>
+            <div id="metric-sim-ate" class="text-xl sm:text-2xl font-bold font-mono text-cyan-400">
+              -12.8%
+            </div>
+            <div id="metric-sim-ci" class="text-[11px] font-mono text-slate-400">
+              95% CI: [-15.2%, -10.4%]
+            </div>
+          </div>
+
+          <!-- Card 3: Backdoor Admissible Set -->
+          <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-1">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+              BACKDOOR ADMISSIBLE SET
+            </div>
+            <div class="text-base sm:text-lg font-bold text-white font-mono pt-1">
+              {Credit Score, Age}
+            </div>
+            <div class="text-[11px] font-mono text-[#00e575]">
+              Conditioning Satisfied
+            </div>
+          </div>
+
+          <!-- Card 4: Identifiability Status -->
+          <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-1">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+              IDENTIFIABILITY STATUS
+            </div>
+            <div class="text-base sm:text-lg font-bold text-[#00e575] font-mono pt-1">
+              YES &bull; Pearl's Rule 2
+            </div>
+            <div class="text-[11px] font-mono text-slate-400">
+              Zero Unobserved Bias
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── Secondary Section: Three Workflows ───────────────────────────────── -->
+    <section id="execution-pathways" class="mt-20 pt-12 border-t border-white/10">
+      <div class="text-center max-w-2xl mx-auto mb-12 space-y-2">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Three Execution Pathways</h2>
+        <p class="text-sm text-slate-400">Choose how you wish to interact with the enterprise data intelligence engine.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Pathway 1 -->
+        <div onclick="window.openModal('upload-modal')" class="spotlight-card pathway-card p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-[#00e575]/50 transition-all cursor-pointer group space-y-4">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-[#00e575] group-hover:scale-110 transition-transform">
+            <svg class="w-5 h-5 stroke-current fill-none" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white group-hover:text-[#00e575] transition-colors">1. Ingest Custom Data</h3>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              Universal loader for CSV, TSV, Parquet, JSON, and Excel. Auto-sanitization, privacy audit, and Great Expectations contract synthesis.
+            </p>
+          </div>
+          <div class="text-xs font-mono font-semibold text-[#00e575] flex items-center space-x-1">
+            <span>Upload File &rarr;</span>
+          </div>
+        </div>
+
+        <!-- Pathway 2 -->
+        <div onclick="window.openModal('demo-modal')" class="spotlight-card pathway-card p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-[#00e575]/50 transition-all cursor-pointer group space-y-4">
+          <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white group-hover:text-cyan-400 transition-colors">2. Launch Interactive Demo</h3>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              1-click pre-loaded enterprise scenarios: Bank Credit Default Risk, Telecom Churn, Hospital Readmission, and Real Estate Valuation.
+            </p>
+          </div>
+          <div class="text-xs font-mono font-semibold text-cyan-400 flex items-center space-x-1">
+            <span>Explore Benchmarks &rarr;</span>
+          </div>
+        </div>
+
+        <!-- Pathway 3 -->
+        <a href="/app" class="spotlight-card pathway-card p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-[#00e575]/50 transition-all cursor-pointer group space-y-4 block">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+            <svg class="w-5 h-5 stroke-current fill-none" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white group-hover:text-indigo-400 transition-colors">3. Go to Dashboard</h3>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              Direct access to the full 3-pane analytical workbench with AutoML leaderboards, ROC curves, SHAP explainers, and governance dossiers.
+            </p>
+          </div>
+          <div class="text-xs font-mono font-semibold text-indigo-400 flex items-center space-x-1">
+            <span>Launch Workbench &rarr;</span>
+          </div>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Clean Enterprise Footer -->
+  <footer class="relative z-10 border-t border-white/10 bg-[#040608]/90 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-slate-400">
+      <div class="flex items-center space-x-3">
+        <span class="px-2 py-0.5 rounded bg-[#00e575] text-[#050505] font-bold">DIA</span>
+        <span>Data Intelligence Assistant Enterprise Edition</span>
+      </div>
+      <div class="flex items-center space-x-6">
+        <a href="/app" class="hover:text-white transition-colors">Workbench</a>
+        <a href="/docs" target="_blank" class="hover:text-white transition-colors">API Docs</a>
+        <a href="/redoc" target="_blank" class="hover:text-white transition-colors">Redoc</a>
+        <a href="/api/v1/health" data-telemetry-trigger="true" onclick="window.openTelemetryModal && window.openTelemetryModal(event); return false;" class="hover:text-white transition-colors cursor-pointer">Health Telemetry</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── Modal 1: Ingest Custom Data ────────────────────────────────────────── -->
+  <div id="upload-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div class="modal-panel w-full max-w-xl bg-[#090e17] border border-emerald-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-emerald-500/10 relative space-y-6 animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Close Button -->
+      <button data-close-modal="upload-modal" class="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+
+      <!-- Modal Header -->
+      <div class="space-y-1">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+          <h3 class="text-xl font-bold text-white">Ingest Custom Dataset</h3>
+        </div>
+        <p class="text-xs text-slate-400">
+          Upload structured tabular data for automated profiling, privacy inspection, and model training.
+        </p>
+      </div>
+
+      <!-- Drag & Drop Dropzone -->
+      <div id="landing-dropzone" class="border-2 border-dashed border-white/20 hover:border-[#00e575] rounded-xl p-8 text-center cursor-pointer transition-all space-y-3 bg-white/[0.02]">
+        <div class="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[#00e575] flex items-center justify-center mx-auto">
+          <svg class="w-6 h-6 stroke-current fill-none" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        </div>
+        <div>
+          <div class="text-sm font-semibold text-white">Click to browse or drop file here</div>
+          <div class="text-xs text-slate-400 mt-1">Supports CSV, TSV, Parquet, JSON, and Excel (up to 500MB)</div>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-300">.CSV</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-300">.TSV</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-300">.PARQUET</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-300">.JSON</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-300">.XLSX</span>
+        </div>
+        <input type="file" id="landing-file-input" class="hidden" accept=".csv,.tsv,.parquet,.json,.xlsx,.xls" />
+      </div>
+
+      <!-- Selected File Info -->
+      <div id="upload-file-info" class="hidden p-3.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between">
+        <div class="flex items-center space-x-3 truncate">
+          <span class="text-lg">📄</span>
+          <div class="truncate">
+            <div id="upload-file-name" class="text-xs font-mono font-semibold text-white truncate">filename.csv</div>
+            <div id="upload-file-size" class="text-[10px] font-mono text-slate-400">0 KB</div>
+          </div>
+        </div>
+        <button id="remove-selected-file-btn" class="text-xs text-slate-400 hover:text-rose-400 transition-colors p-1" title="Remove file">
+          ✕
+        </button>
+      </div>
+
+      <!-- Upload Progress Section -->
+      <div id="upload-progress-section" class="hidden space-y-2">
+        <div class="flex items-center justify-between text-xs font-mono">
+          <span id="upload-progress-text" class="text-slate-300">Uploading and sanitizing...</span>
+          <span id="upload-progress-pct" class="text-[#00e575] font-bold">0%</span>
+        </div>
+        <div class="dia-progress-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+          <div id="upload-progress-bar" class="progress-bar-fill dia-progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Upload Error Display -->
+      <div id="upload-error-msg" class="hidden p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 font-mono text-xs"></div>
+
+      <!-- Modal Action Buttons -->
+      <div class="flex items-center justify-end space-x-3 pt-2">
+        <button data-close-modal="upload-modal" class="px-4 py-2.5 rounded-xl border border-white/10 text-slate-300 hover:text-white text-xs font-medium">
+          Cancel
+        </button>
+        <button id="upload-submit-btn" disabled class="cta-btn btn-primary px-5 py-2.5 rounded-xl bg-[#00e575] text-black font-bold text-xs hover:bg-[#00ff82] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-emerald-500/20">
+          Upload &amp; Launch Workbench
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── Modal 2: Launch Interactive Demo ────────────────────────────────────── -->
+  <div id="demo-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div class="modal-panel w-full max-w-3xl bg-[#090e17] border border-emerald-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-emerald-500/10 relative space-y-6 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+      
+      <!-- Close Button -->
+      <button data-close-modal="demo-modal" class="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+
+      <!-- Modal Header -->
+      <div class="space-y-1">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+          <h3 class="text-xl font-bold text-white">Select Benchmark Scenario</h3>
+        </div>
+        <p class="text-xs text-slate-400">
+          Select an enterprise benchmark scenario to test causal DAG discovery, AutoML leaderboards, and governance dossiers with 1-click execution.
+        </p>
+      </div>
+
+      <!-- 4 Production Benchmarks Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Benchmark 1: Bank Credit Risk & Default -->
+        <div class="spotlight-card benchmark-card p-5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-[#00e575]/50 flex flex-col justify-between space-y-3 group">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-[#00e575] font-bold border border-emerald-500/30">FINANCIAL RISK</span>
+              <span class="text-[10px] font-mono text-slate-400">1,000 Rows &bull; 10 Cols</span>
+            </div>
+            <h4 class="text-base font-bold text-white group-hover:text-[#00e575] transition-colors">Bank Credit Risk &amp; Default</h4>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Corporate loan default modeling with non-linear interest rate confounding and Pearl backdoor criteria.
+            </p>
+          </div>
+          <div>
+            <div id="demo-loading-Bank%20Credit%20Risk%20%26%20Default" class="hidden text-xs font-mono text-emerald-400 mb-2 space-y-1">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="loading-label">Initializing benchmark...</span>
+                <span class="animate-pulse">STREAMING</span>
+              </div>
+              <div class="dia-progress-track h-1.5">
+                <div class="progress-bar-fill dia-progress-fill w-full"></div>
+              </div>
+            </div>
+            <button onclick="window.launchDemoBenchmark('Bank Credit Risk & Default')" class="cta-btn demo-launch-btn w-full py-2.5 px-3 rounded-lg bg-[#00e575] hover:bg-[#00ff82] text-black font-bold text-xs transition-all flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-500/20 cursor-pointer">
+              <span>Launch Banking Scenario &rarr;</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Benchmark 2: Telecom Customer Churn -->
+        <div class="spotlight-card benchmark-card p-5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-cyan-400/50 flex flex-col justify-between space-y-3 group">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-bold border border-cyan-500/30">SUBSCRIPTION RETENTION</span>
+              <span class="text-[10px] font-mono text-slate-400">7,043 Rows &bull; 21 Cols</span>
+            </div>
+            <h4 class="text-base font-bold text-white group-hover:text-cyan-400 transition-colors">Telecom Customer Churn</h4>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Subscriber contract tenure, monthly charges sensitivity, and personalized retention treatment effects.
+            </p>
+          </div>
+          <div>
+            <div id="demo-loading-Telecom%20Customer%20Churn" class="hidden text-xs font-mono text-cyan-400 mb-2 space-y-1">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="loading-label">Initializing benchmark...</span>
+                <span class="animate-pulse">STREAMING</span>
+              </div>
+              <div class="dia-progress-track h-1.5">
+                <div class="progress-bar-fill dia-progress-fill w-full"></div>
+              </div>
+            </div>
+            <button onclick="window.launchDemoBenchmark('Telecom Customer Churn')" class="cta-btn demo-launch-btn w-full py-2.5 px-3 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs transition-all flex items-center justify-center space-x-1.5 shadow-md shadow-cyan-500/20 cursor-pointer">
+              <span>Launch Churn Scenario &rarr;</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Benchmark 3: Hospital Patient Readmission -->
+        <div class="spotlight-card benchmark-card p-5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-indigo-400/50 flex flex-col justify-between space-y-3 group">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30">HEALTHCARE CLINICAL</span>
+              <span class="text-[10px] font-mono text-slate-400">1,500 Rows &bull; 14 Cols</span>
+            </div>
+            <h4 class="text-base font-bold text-white group-hover:text-indigo-400 transition-colors">Hospital Patient Readmission</h4>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              30-day inpatient readmission risk, clinical biomarker panels, and algorithmic fairness audits across cohorts.
+            </p>
+          </div>
+          <div>
+            <div id="demo-loading-Hospital%20Patient%20Readmission" class="hidden text-xs font-mono text-indigo-400 mb-2 space-y-1">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="loading-label">Initializing benchmark...</span>
+                <span class="animate-pulse">STREAMING</span>
+              </div>
+              <div class="dia-progress-track h-1.5">
+                <div class="progress-bar-fill dia-progress-fill w-full"></div>
+              </div>
+            </div>
+            <button onclick="window.launchDemoBenchmark('Hospital Patient Readmission')" class="cta-btn demo-launch-btn w-full py-2.5 px-3 rounded-lg bg-indigo-400 hover:bg-indigo-300 text-black font-bold text-xs transition-all flex items-center justify-center space-x-1.5 shadow-md shadow-indigo-500/20 cursor-pointer">
+              <span>Launch Clinical Scenario &rarr;</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Benchmark 4: Housing Price Valuation -->
+        <div class="spotlight-card benchmark-card p-5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-amber-400/50 flex flex-col justify-between space-y-3 group">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">VALUATION REGRESSION</span>
+              <span class="text-[10px] font-mono text-slate-400">506 Rows &bull; 13 Cols</span>
+            </div>
+            <h4 class="text-base font-bold text-white group-hover:text-amber-400 transition-colors">Housing Price Valuation</h4>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Metropolitan property valuation with environmental covariates and conformal prediction intervals.
+            </p>
+          </div>
+          <div>
+            <div id="demo-loading-Housing%20Price%20Valuation" class="hidden text-xs font-mono text-amber-400 mb-2 space-y-1">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="loading-label">Initializing benchmark...</span>
+                <span class="animate-pulse">STREAMING</span>
+              </div>
+              <div class="dia-progress-track h-1.5">
+                <div class="progress-bar-fill dia-progress-fill w-full"></div>
+              </div>
+            </div>
+            <button onclick="window.launchDemoBenchmark('Housing Price Valuation')" class="cta-btn demo-launch-btn w-full py-2.5 px-3 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-bold text-xs transition-all flex items-center justify-center space-x-1.5 shadow-md shadow-amber-500/20 cursor-pointer">
+              <span>Launch Valuation Scenario &rarr;</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── Modal: Health Telemetry In-App HUD ─────────────────────────────────── -->
+  <div id="health-telemetry-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="health-modal-title" tabindex="-1">
+    <div class="modal-panel w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden relative" style="background-color: var(--card-bg, #090e17); border-color: var(--card-border, rgba(0, 229, 117, 0.25)); color: var(--text-primary, #ffffff);">
+      
+      <!-- Header -->
+      <div class="px-6 py-4 border-b flex items-center justify-between flex-shrink-0" style="border-color: var(--card-border, rgba(255,255,255,0.08)); background-color: var(--bg-secondary, rgba(255,255,255,0.02));">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500/10 border border-emerald-500/30 text-[#00e575]">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 id="health-modal-title" class="text-sm font-bold font-mono tracking-tight" style="color: var(--text-primary, #ffffff);">Infrastructure Telemetry &amp; Health HUD</h3>
+              <span id="telemetry-platform-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 border border-white/10" style="color: var(--text-muted, #94a3b8);">PLATFORM</span>
+            </div>
+            <p class="text-[11px] font-mono" style="color: var(--text-muted, #94a3b8);">Live hardware telemetry, NVMe storage latency, and isolation status</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3">
+          <div id="telemetry-status-pill" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono pulse-pill" style="background-color: var(--badge-live-bg, rgba(0,229,117,0.1)); border-color: var(--badge-live-border, rgba(0,229,117,0.3)); color: var(--badge-live-text, #00e575);">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#00e575]"></span>
+            <span id="telemetry-status-text">HEALTHY &bull; PROBING</span>
+          </div>
+          <button id="close-telemetry-btn" data-close-modal="health-telemetry-modal" class="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Close (Escape)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Telemetry Body Container -->
+      <div id="health-telemetry-body" class="p-6 overflow-y-auto space-y-5 flex-1 text-xs font-mono">
+        <div class="text-center py-12 space-y-3">
+          <div class="inline-block w-6 h-6 border-2 border-[#00e575] border-t-transparent rounded-full animate-spin"></div>
+          <div class="text-xs" style="color: var(--text-muted, #94a3b8);">Interrogating /api/v1/health hardware probes...</div>
+        </div>
+      </div>
+
+      <!-- Footer Toolbar -->
+      <div class="px-6 py-3 border-t flex items-center justify-between text-[11px] font-mono flex-shrink-0" style="border-color: var(--card-border, rgba(255,255,255,0.08)); background-color: var(--bg-secondary, rgba(255,255,255,0.02));">
+        <div class="flex items-center space-x-3">
+          <span style="color: var(--text-muted, #94a3b8);">Auto-Refresh (3s):</span>
+          <button id="telemetry-poll-toggle" class="px-2 py-0.5 rounded border text-[10px] font-bold cursor-pointer transition-colors" style="background-color: var(--card-bg, rgba(255,255,255,0.05)); border-color: var(--card-border, rgba(255,255,255,0.15)); color: #00e575;">
+            ACTIVE
+          </button>
+          <button id="telemetry-refresh-now-btn" class="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer text-slate-400 hover:text-white" title="Refresh Now">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          </button>
+          <span id="telemetry-last-updated" class="text-[10px]" style="color: var(--text-muted, #78746c);"></span>
+        </div>
+        <div class="flex items-center space-x-3">
+          <span class="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10" style="color: var(--text-muted, #94a3b8);">GET /api/v1/health</span>
+          <button data-close-modal="health-telemetry-modal" class="px-3 py-1 rounded-lg border font-semibold hover:bg-white/5 transition-all cursor-pointer text-slate-300 hover:text-white" style="border-color: var(--card-border, rgba(255,255,255,0.15));">
+            Dismiss (Esc)
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Precision Custom Cursor Elements -->
+  <div id="cursor-aura"></div>
+  <div id="cursor-dot"></div>
+  <div id="cursor-ring"></div>
+
+  <!-- Dedicated Health Telemetry Controller Script -->
+  <script src="js/telemetry-modal.js"></script>
+
+  <!-- Dedicated Landing Page Controller Script -->
+  <script type="module" src="js/landing.js"></script>
+</body>
+</html>

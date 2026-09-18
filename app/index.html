@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-screen overflow-hidden">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Intelligence Assistant &bull; Fullstack Enterprise AutoML & Governance</title>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfeff',
+              500: '#06b6d4',
+              600: '#0891b2',
+              900: '#164e63',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Plotly.js for Rich Interactive Charting -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  
+  <!-- Custom Glassmorphism Stylesheet -->
+  <link rel="stylesheet" href="css/style.css" />
+  
+  <!-- Inline Preloader for Instant Theme Application (Prevents FOUC) -->
+  <script>
+    (function() {
+      try {
+        var m = localStorage.getItem('dia_theme_mode') || (localStorage.getItem('dia-theme') === 'tokyo-sand' ? 'day' : 'night');
+        var root = document.documentElement;
+        if (m === 'day') {
+          root.setAttribute('data-theme', 'tokyo-sand');
+          root.setAttribute('data-theme-mode', 'day');
+          root.classList.remove('dark');
+          root.classList.add('light');
+        } else {
+          root.setAttribute('data-theme', 'cyber-aurora');
+          root.setAttribute('data-theme-mode', 'night');
+          root.classList.remove('light');
+          root.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body class="h-screen overflow-hidden flex flex-col antialiased selection:bg-[#00e575] selection:text-black relative" style="background-color: var(--bg-primary); color: var(--text-secondary);">
+
+  <!-- Static Mode Preview Banner for GitHub Pages -->
+  <div id="static-preview-banner" class="w-full bg-emerald-950/80 border-b border-emerald-500/30 px-4 py-2 text-center text-xs font-mono text-emerald-300 flex items-center justify-between z-50 sticky top-0">
+    <div class="flex items-center space-x-2 mx-auto">
+      <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse"></span>
+      <span>GitHub Pages Static Preview &bull; Full ML workbench with live Python training requires running locally or via Docker.</span>
+      <a href="https://github.com/Athish2002/Data-Intelligence-Assistant" target="_blank" class="underline font-bold text-white hover:text-[#00e575] ml-2">Clone &amp; Run &rarr;</a>
+    </div>
+    <button onclick="document.getElementById('static-preview-banner').style.display='none'" class="text-slate-400 hover:text-white text-sm px-2">&times;</button>
+  </div>
+
+
+  <!-- Ambient Cyber Aurora Background Mode Layer -->
+  <div id="ambient-aurora" class="ambient-aurora-bg" aria-hidden="true">
+    <div class="aurora-orb aurora-orb-1"></div>
+    <div class="aurora-orb aurora-orb-2"></div>
+    <div class="aurora-orb aurora-orb-3"></div>
+    <div class="aurora-orb aurora-orb-4"></div>
+    <div class="aurora-grid-pattern"></div>
+    <div class="aurora-vignette"></div>
+  </div>
+
+  <!-- Top Navbar -->
+  <header class="border-b sticky top-0 z-40 px-4 h-12 flex items-center justify-between" style="border-color: var(--card-border); background-color: var(--bg-dock, var(--bg-primary));">
+    <!-- Left brand + dock toggle + Home link -->
+    <div class="flex items-center space-x-2 flex-shrink-0">
+      <button id="toggle-dock-btn" class="p-1.5 rounded hover:bg-white/5 transition-colors cursor-pointer flex-shrink-0" title="Toggle Ingestion Dock (⌘B / Ctrl+B)" style="color: var(--text-muted);">
+        <i data-lucide="panel-left" class="w-4 h-4"></i>
+      </button>
+
+      <!-- Home Navigation Button to Landing Page -->
+      <a href="/" id="nav-landing-home-btn" title="Back to Landing Page" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono font-semibold transition-all cursor-pointer mr-2 active:scale-95" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
+        <span>🏠</span><span>Home</span>
+      </a>
+
+      <a href="/" class="flex items-center space-x-2 cursor-pointer group flex-shrink-0 ml-0.5" title="Navigate back to DIA Landing Page (/)">
+        <div class="px-2 py-0.5 rounded text-[11px] font-mono font-black tracking-wider bg-[#00e575] text-[#050505] group-hover:scale-105 transition-transform flex-shrink-0">
+          DIA
+        </div>
+        <div class="flex items-center space-x-2 flex-shrink-0">
+          <span class="font-bold text-sm tracking-tight hidden sm:inline whitespace-nowrap group-hover:text-[#00e575] transition-colors" style="color: var(--text-primary)">Data Intelligence Assistant</span>
+          <span class="text-[10px] uppercase font-mono font-bold tracking-wider px-1.5 py-0.5 rounded border hidden md:inline whitespace-nowrap" style="background-color: var(--tag-bg); color: var(--tag-text); border-color: var(--card-border)">ENTERPRISE</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Center Command Bar Trigger (⌘K) -->
+    <div class="flex-1 max-w-sm mx-3 hidden sm:block">
+      <button id="command-palette-trigger" class="w-full flex items-center justify-between px-3 py-1 rounded border text-xs font-mono transition-all hover:border-[#333] cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-muted);">
+        <span class="flex items-center space-x-2 truncate">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-[#858076]"></i>
+          <span>Search models, datasets, workspaces...</span>
+        </span>
+        <span class="text-[10px] font-mono px-1.5 py-0.2 rounded border ml-2 flex-shrink-0" style="background-color: var(--tag-bg); border-color: var(--card-border); color: var(--text-muted);">
+          ⌘K
+        </span>
+      </button>
+    </div>
+
+    <!-- Right Controls (Strict Non-Colliding Flow) -->
+    <div class="flex items-center space-x-2 flex-shrink-0">
+      <div id="active-dataset-badge"></div>
+      <div id="active-model-badge"></div>
+      <!-- System Health Telemetry Badge & Modal Trigger -->
+      <div id="system-health-badge" data-telemetry-trigger="true" onclick="window.openTelemetryModal ? window.openTelemetryModal(event) : (window.openSystemMetrics && window.openSystemMetrics())" class="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded border font-mono text-[11px] cursor-pointer hover:border-[#00e575]/50 transition-all active:scale-95" style="background-color: var(--card-bg); border-color: var(--card-border); color: var(--text-muted)" title="Open System Health & Resource Monitor">
+        <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse"></span>
+        <span id="system-health-text">RAM: -- | CPU: --</span>
+      </div>
+      
+      <!-- Inspector Toggle Button (⌘I) -->
+      <button id="toggle-inspector-btn" class="px-2.5 py-1 rounded border text-xs font-mono flex items-center space-x-1.5 hover:bg-white/5 transition-all cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Toggle Model & Feature Inspector (⌘I / Ctrl+I)">
+        <i data-lucide="sidebar" class="w-3.5 h-3.5 text-[#00e575]"></i>
+        <span class="hidden lg:inline">Inspector</span>
+      </button>
+
+      <!-- 1-Click Night / Day Mode Toggle Button -->
+      <button type="button" id="theme-toggle-btn" data-theme-toggle class="p-1.5 rounded-lg border hover:bg-white/5 transition-all cursor-pointer flex items-center justify-center relative shadow-sm active:scale-95 group" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" aria-label="Toggle Night/Day Mode" title="Toggle Night/Day Mode">
+        <span class="relative w-4 h-4 flex items-center justify-center pointer-events-none">
+          <svg class="theme-icon-moon w-4 h-4 text-[#00e575] transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg class="theme-icon-sun w-4 h-4 text-amber-500 hidden transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </span>
+      </button>
+
+      <a href="/docs" target="_blank" class="text-xs hover:opacity-80 flex items-center transition-opacity p-1.5" style="color: var(--text-muted)" title="Swagger API Docs">
+        <i data-lucide="book-open" class="w-3.5 h-3.5 text-[#00e575]"></i>
+      </a>
+    </div>
+  </header>
+
+  <!-- 3-Pane Workbench Architecture (Style 1) -->
+  <div id="workbench-container" class="flex-1 flex overflow-hidden w-full relative z-10">
+    
+    <!-- 1. Left Dock (Collapsible Ingestion & Navigation) -->
+    <aside id="left-dock" class="w-80 border-r flex flex-col justify-between flex-shrink-0 transition-all duration-200 z-30 overflow-y-auto" style="background-color: var(--bg-dock, var(--bg-primary)); border-color: var(--card-border);">
+      <div class="p-3.5 space-y-3.5">
+        
+        <!-- Return to Landing Page Quick Action -->
+        <a href="/" id="dock-landing-home-btn" class="flex items-center justify-center space-x-2 py-2 px-3 rounded-lg border text-xs font-mono font-semibold transition-all hover:border-[#00e575] hover:bg-[#00e575]/10 active:scale-95 group shadow-sm" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Navigate back to DIA Landing Page (/)">
+          <span>🏠</span>
+          <span class="group-hover:underline underline-offset-2">Return to Landing Page</span>
+        </a>
+
+        <!-- Data Ingestion Card -->
+        <div class="glass-card p-3.5">
+          <div class="flex items-center justify-between text-xs font-mono font-bold uppercase tracking-wider mb-2" style="color: var(--text-muted);">
+            <span>DATA SOURCE</span>
+            <span class="text-xs font-mono font-bold text-[#00e575]">STEP 1</span>
+          </div>
+
+          <!-- Upload Dropzone -->
+          <div id="upload-dropzone" class="border border-dashed hover:border-[#00e575] rounded-lg p-3 text-center cursor-pointer transition-all mb-2.5 group relative" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+            <input type="file" id="csv-file-input" accept=".csv,.tsv,.parquet,.json,.jsonl,.xlsx,.xls" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+            <i data-lucide="upload-cloud" class="w-5 h-5 mx-auto text-[#858076] group-hover:text-[#00e575] transition-colors mb-1"></i>
+            <div class="text-sm font-semibold" style="color: var(--text-primary);">Drop Dataset or Click to Upload</div>
+            <div class="text-xs mt-0.5" style="color: var(--text-muted);">CSV, TSV, Parquet, JSON, Excel</div>
+          </div>
+
+          <div class="relative flex py-1.5 items-center">
+            <div class="flex-grow border-t" style="border-color: var(--card-border);"></div>
+            <span class="flex-shrink mx-2 text-xs uppercase font-mono tracking-widest font-bold" style="color: var(--text-muted);">or benchmark</span>
+            <div class="flex-grow border-t" style="border-color: var(--card-border);"></div>
+          </div>
+
+          <!-- Demo Benchmark Selector -->
+          <div class="mt-1 space-y-2">
+            <select id="demo-select" class="w-full glass-input text-sm font-mono">
+              <option value="">Loading benchmarks...</option>
+            </select>
+            <button id="load-demo-btn" class="w-full py-2.5 border text-sm font-semibold rounded-md flex items-center justify-center transition-all hover:bg-white/5 active:scale-95 cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
+              <i data-lucide="database" class="w-4 h-4 mr-1.5 text-[#00e575]"></i> Ingest Benchmark
+            </button>
+          </div>
+        </div>
+
+        <!-- Prediction Goal Card -->
+        <div class="glass-card p-3.5">
+          <div class="flex items-center justify-between text-xs font-mono font-bold uppercase tracking-wider mb-2" style="color: var(--text-muted);">
+            <span>PREDICTION GOAL</span>
+            <span class="text-xs font-mono font-bold text-[#00e575]">STEP 2</span>
+          </div>
+
+          <button id="autodetect-btn" class="w-full py-2.5 mb-2 border text-sm font-semibold rounded-md flex items-center justify-center transition-all hover:bg-white/5 cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
+            <i data-lucide="sparkles" class="w-4 h-4 mr-1.5 text-[#00e575]"></i> Auto-Detect Objectives
+          </button>
+
+          <label class="block text-xs font-semibold mb-1" style="color: var(--text-muted);">Describe Goal in Plain English</label>
+          <textarea id="goal-input" rows="2" class="w-full glass-input text-sm mb-2 resize-none" placeholder="e.g. Predict customer churn risk"></textarea>
+
+          <label class="block text-xs font-semibold mb-1" style="color: var(--text-muted);">Target column (optional override)</label>
+          <input type="text" id="target-col-input" class="w-full glass-input text-sm" placeholder="e.g. churn_flag, default_risk" />
+        </div>
+
+        <!-- Execution Action Button -->
+        <button id="train-btn" disabled class="w-full py-3 font-bold text-sm rounded-lg transition-all flex items-center justify-center space-x-2 uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95" style="background-color: var(--btn-primary-bg); color: var(--btn-primary-text);">
+          <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+          <span>Launch ML Pipeline</span>
+        </button>
+
+        <!-- 5-Stage Animated Training Progress Tracker -->
+        <div id="train-progress" class="glass-card p-3 hidden space-y-2 border" style="border-color: var(--card-border); background-color: var(--card-bg);">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span id="progress-stage-title" class="font-bold text-[#00e575] flex items-center">
+              <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse mr-1.5"></span>
+              Stage 1/5: Ingesting
+            </span>
+            <span id="progress-timer" class="text-xs" style="color: var(--text-muted);">00:00.0s</span>
+          </div>
+
+          <!-- 5-Stage Node Stepper -->
+          <div class="grid grid-cols-5 gap-1 pt-0.5">
+            <div id="p-node-1" class="step-node active border rounded py-1 text-center font-mono text-xs font-bold" title="Stage 1: Ingest & Sanitize">1</div>
+            <div id="p-node-2" class="step-node pending border rounded py-1 text-center font-mono text-xs font-bold" title="Stage 2: Feature Profiling">2</div>
+            <div id="p-node-3" class="step-node pending border rounded py-1 text-center font-mono text-xs font-bold" title="Stage 3: AutoML 6 Models">3</div>
+            <div id="p-node-4" class="step-node pending border rounded py-1 text-center font-mono text-xs font-bold" title="Stage 4: TreeSHAP Attribution">4</div>
+            <div id="p-node-5" class="step-node pending border rounded py-1 text-center font-mono text-xs font-bold" title="Stage 5: Quality Contracts">5</div>
+          </div>
+
+          <!-- Shimmer Progress Bar Track -->
+          <div class="w-full rounded-full h-2 overflow-hidden border border-white/5" style="background-color: var(--bg-secondary);">
+            <div id="progress-bar" class="progress-bar-fill progress-shimmer h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+
+          <!-- Subtask Status Label -->
+          <div class="flex items-center justify-between text-xs font-mono pt-0.5" style="color: var(--text-muted);">
+            <span id="status-text" class="truncate max-w-[190px]">Initializing pipeline...</span>
+            <span id="progress-percent" class="font-bold text-[#00e575]">0%</span>
+          </div>
+        </div>
+
+        <!-- Persistent Sticky Section Outline & Quick Navigation Dock (Eliminates Sidebar Voids) -->
+        <div id="dock-section-outline" class="glass-card p-3 space-y-2 border" style="border-color: var(--card-border); background-color: var(--card-bg);">
+          <div class="flex items-center justify-between text-[11px] font-mono font-bold uppercase tracking-wider" style="color: var(--text-muted);">
+            <span class="flex items-center space-x-1.5">
+              <i data-lucide="compass" class="w-3.5 h-3.5 text-[#00e575]"></i>
+              <span>SECTION OUTLINE</span>
+            </span>
+            <span id="dock-outline-count" class="text-[10px] font-mono px-1.5 py-0.5 rounded border" style="background-color: var(--tag-bg); border-color: var(--card-border); color: var(--text-muted);">4 Anchors</span>
+          </div>
+          <div id="dock-outline-list" class="space-y-1 pt-1 font-mono text-xs">
+            <!-- Populated dynamically based on active workspace and subtab -->
+          </div>
+        </div>
+
+        <!-- Live System Status & Storage Snapshot Widget -->
+        <div id="dock-telemetry-widget" class="glass-card p-3 space-y-2 border" style="border-color: var(--card-border); background-color: var(--card-bg);">
+          <div class="flex items-center justify-between text-[11px] font-mono font-bold uppercase tracking-wider" style="color: var(--text-muted);">
+            <span class="flex items-center space-x-1.5">
+              <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse"></span>
+              <span>TELEMETRY SNAPSHOT</span>
+            </span>
+            <button data-telemetry-trigger="true" onclick="window.openTelemetryModal && window.openTelemetryModal(event)" class="text-[10px] font-mono px-1.5 py-0.5 rounded border hover:border-[#00e575] transition-colors cursor-pointer text-[#00e575]" style="background-color: var(--badge-live-bg); border-color: var(--badge-live-border);" title="Open Telemetry Modal">HUD &rarr;</button>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[11px] font-mono pt-1">
+            <div class="p-1.5 rounded border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+              <div class="text-[9px] uppercase" style="color: var(--text-muted);">Platform</div>
+              <div id="dock-platform-status" class="font-bold text-[#00e575] truncate">Active &bull; Live</div>
+            </div>
+            <div class="p-1.5 rounded border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+              <div class="text-[9px] uppercase" style="color: var(--text-muted);">Storage Engine</div>
+              <div id="dock-storage-status" class="font-bold truncate" style="color: var(--text-primary);">NVMe &bull; Healthy</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Collapsed Icon Rail (visible when dock is collapsed into icon mode) -->
+      <div id="dock-icon-rail" class="hidden flex-col items-center py-3 space-y-3 w-full">
+        <a href="/" class="p-2 rounded-lg hover:bg-white/10 transition-colors" title="Landing Page (/)">
+          <span class="text-base">🏠</span>
+        </a>
+        <div class="w-6 border-t border-white/10"></div>
+        <button onclick="switchWorkspace('dashboard')" class="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer" title="Executive Dashboard">
+          <span class="text-base">📊</span>
+        </button>
+        <button onclick="switchWorkspace('core')" class="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer" title="1. Data Intelligence">
+          <span class="text-base">🔬</span>
+        </button>
+        <button onclick="switchWorkspace('automl')" class="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer" title="2. Autonomous ML">
+          <span class="text-base">🤖</span>
+        </button>
+        <button onclick="switchWorkspace('adaptive')" class="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer" title="3. Adaptive AI">
+          <span class="text-base">🧠</span>
+        </button>
+        <button onclick="switchWorkspace('governance')" class="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer" title="4. Governance &amp; MLOps">
+          <span class="text-base">🛡️</span>
+        </button>
+        <div class="w-6 border-t border-white/10"></div>
+        <button data-telemetry-trigger="true" onclick="window.openTelemetryModal && window.openTelemetryModal(event)" class="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-[#00e575]" title="Open Health Telemetry HUD">
+          <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse block mx-auto"></span>
+        </button>
+        <button onclick="window.toggleDock(true)" class="p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-stone-400 hover:text-white mt-auto" title="Expand Dock">
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 2. Center Fluid Analytical Canvas -->
+    <main id="center-canvas" class="flex-1 min-w-0 overflow-y-auto px-4 lg:px-6 pt-0 pb-3.5 space-y-3.5">
+      
+      <!-- Sticky Workbench Navigation Header (Always stays accessible on scroll) -->
+      <div id="sticky-workspace-header" class="sticky top-0 z-20 space-y-2 pt-2.5 pb-2.5 transition-colors" style="background-color: var(--bg-dock, var(--bg-primary)); border-bottom: 1px solid var(--card-border);">
+        <!-- 5-Pillar Workspace Selector -->
+        <div id="workspace-nav" class="glass-card p-1 flex flex-wrap sm:flex-nowrap gap-1">
+          <button class="workspace-btn active flex-1 py-2.5 px-3 rounded text-sm sm:text-base font-bold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="dashboard">
+            <span>📊 Executive Dashboard</span>
+          </button>
+          <button class="workspace-btn flex-1 py-2.5 px-3 rounded text-sm sm:text-base font-bold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="core">
+            <span>1. Data Intelligence</span>
+          </button>
+          <button class="workspace-btn flex-1 py-2.5 px-3 rounded text-sm sm:text-base font-bold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="automl">
+            <span>2. Autonomous ML</span>
+          </button>
+          <button class="workspace-btn flex-1 py-2 px-2.5 rounded text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="adaptive">
+            <span>3. Adaptive AI</span>
+          </button>
+          <button class="workspace-btn flex-1 py-2 px-2.5 rounded text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 cursor-pointer" data-workspace="governance">
+            <span>4. Governance & MLOps</span>
+          </button>
+        </div>
+
+        <!-- Sub-Tab Navigation Bar -->
+        <div id="subtab-bar" class="flex flex-wrap gap-1.5 border-b pb-1.5" style="border-color: var(--card-border);"></div>
+      </div>
+
+      <!-- Dynamic Content Area -->
+      <div id="tab-content" class="min-h-[420px]">
+        <!-- Populated dynamically via JS -->
+      </div>
+    </main>
+
+    <!-- 3. Right Slide-Out Inspector Drawer -->
+    <aside id="inspector-drawer" class="w-88 xl:w-96 border-l flex flex-col flex-shrink-0 transition-all duration-200 z-30 hidden" style="background-color: var(--bg-dock, var(--bg-primary)); border-color: var(--card-border);">
+      <div class="p-3 border-b flex items-center justify-between" style="border-color: var(--card-border);">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-[#00e575]"></span>
+          <span class="text-xs font-mono font-bold uppercase tracking-wider" style="color: var(--text-primary);">MODEL & METRIC INSPECTOR</span>
+        </div>
+        <button id="close-inspector-btn" class="p-1 rounded hover:bg-white/10 text-xs cursor-pointer" style="color: var(--text-muted);">&times;</button>
+      </div>
+      <div id="inspector-content" class="p-3.5 flex-1 overflow-y-auto space-y-3">
+        <!-- Dynamically rendered by JS -->
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Bottom HUD Status Line -->
+  <footer id="bottom-hud" class="h-7 border-t px-4 flex items-center justify-between text-[10px] font-mono z-40 select-none flex-shrink-0" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-muted);">
+    <div class="flex items-center space-x-3">
+      <!-- Home Navigation Link -->
+      <a href="/" id="hud-landing-home-btn" title="Back to Landing Page" class="flex items-center space-x-1.5 text-[11px] px-2 py-0.5 rounded border transition-all cursor-pointer no-underline" style="background-color: var(--card-bg); border-color: var(--card-border); color: var(--text-primary);">
+        <span>🏠</span><span>Home</span>
+      </a>
+      <span class="text-stone-700">|</span>
+      <button id="hud-health-telemetry-btn" data-telemetry-trigger="true" onclick="window.openTelemetryModal && window.openTelemetryModal(event)" class="hover:text-[#00e575] cursor-pointer flex items-center space-x-1.5 transition-colors bg-transparent border-0 p-0 text-[10px] font-mono" title="View In-App Health Telemetry HUD">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#00e575] animate-pulse"></span>
+        <span style="color: var(--text-primary);">Health Telemetry</span>
+      </button>
+      <span class="hidden sm:inline text-stone-700">|</span>
+      <span id="hud-dataset" class="hidden sm:inline">DATASET: None</span>
+      <span class="hidden md:inline text-stone-700">|</span>
+      <span id="hud-model" class="hidden md:inline">CHAMPION: None</span>
+    </div>
+    <div class="flex items-center space-x-3">
+      <span class="hidden lg:inline hover:text-white cursor-pointer" id="hud-cmd-shortcut">⌘K Command</span>
+      <span class="hidden lg:inline hover:text-white cursor-pointer" id="hud-dock-shortcut">⌘B Dock</span>
+      <span class="hidden lg:inline hover:text-white cursor-pointer" id="hud-inspector-shortcut">⌘I Inspector</span>
+      <span class="text-[#00e575]">Enterprise Edition</span>
+    </div>
+  </footer>
+
+  <!-- Quick Command Palette Modal (⌘K) -->
+  <div id="command-palette-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-start justify-center pt-20 px-4">
+    <div class="w-full max-w-xl rounded-xl border shadow-2xl overflow-hidden" style="background-color: var(--card-bg); border-color: var(--border-active);">
+      <div class="flex items-center px-4 py-3 border-b" style="border-color: var(--card-border);">
+        <i data-lucide="search" class="w-4 h-4 text-[#858076] mr-2.5"></i>
+        <input id="command-input" type="text" placeholder="Type a command or jump to workspace..." class="w-full bg-transparent text-xs outline-none font-mono" style="color: var(--text-primary);" autocomplete="off" />
+        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded border" style="background-color: var(--tag-bg); color: var(--text-muted); border-color: var(--card-border);">ESC</span>
+      </div>
+      <div id="command-results" class="max-h-80 overflow-y-auto p-2 space-y-1 text-xs font-mono">
+        <!-- Populated dynamically via JS -->
+      </div>
+      <div class="px-4 py-2 border-t flex items-center justify-between text-[10px] font-mono" style="border-color: var(--card-border); color: var(--text-muted);">
+        <span>Navigation: ↑ ↓ to select &bull; ↵ to execute</span>
+        <span>Data Intelligence Assistant</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Precision Custom Cursor Elements -->
+  <div id="cursor-aura"></div>
+  <div id="cursor-dot"></div>
+  <div id="cursor-ring"></div>
+
+  <!-- ─── Modal: Health Telemetry In-App HUD ─────────────────────────────────── -->
+  <div id="health-telemetry-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="health-modal-title" tabindex="-1">
+    <div class="modal-panel w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden relative" style="background-color: var(--card-bg, #090e17); border-color: var(--card-border, rgba(0, 229, 117, 0.25)); color: var(--text-primary, #ffffff);">
+      
+      <!-- Header -->
+      <div class="px-6 py-4 border-b flex items-center justify-between flex-shrink-0" style="border-color: var(--card-border, rgba(255,255,255,0.08)); background-color: var(--bg-secondary, rgba(255,255,255,0.02));">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500/10 border border-emerald-500/30 text-[#00e575]">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 id="health-modal-title" class="text-sm font-bold font-mono tracking-tight" style="color: var(--text-primary, #ffffff);">Infrastructure Telemetry &amp; Health HUD</h3>
+              <span id="telemetry-platform-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 border border-white/10" style="color: var(--text-muted, #94a3b8);">PLATFORM</span>
+            </div>
+            <p class="text-[11px] font-mono" style="color: var(--text-muted, #94a3b8);">Live hardware telemetry, NVMe storage latency, and isolation status</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3">
+          <div id="telemetry-status-pill" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono pulse-pill" style="background-color: var(--badge-live-bg, rgba(0,229,117,0.1)); border-color: var(--badge-live-border, rgba(0,229,117,0.3)); color: var(--badge-live-text, #00e575);">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#00e575]"></span>
+            <span id="telemetry-status-text">HEALTHY &bull; PROBING</span>
+          </div>
+          <button id="close-telemetry-btn" data-close-modal="health-telemetry-modal" class="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Close (Escape)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Telemetry Body Container -->
+      <div id="health-telemetry-body" class="p-6 overflow-y-auto space-y-5 flex-1 text-xs font-mono">
+        <div class="text-center py-12 space-y-3">
+          <div class="inline-block w-6 h-6 border-2 border-[#00e575] border-t-transparent rounded-full animate-spin"></div>
+          <div class="text-xs" style="color: var(--text-muted, #94a3b8);">Interrogating /api/v1/health hardware probes...</div>
+        </div>
+      </div>
+
+      <!-- Footer Toolbar -->
+      <div class="px-6 py-3 border-t flex items-center justify-between text-[11px] font-mono flex-shrink-0" style="border-color: var(--card-border, rgba(255,255,255,0.08)); background-color: var(--bg-secondary, rgba(255,255,255,0.02));">
+        <div class="flex items-center space-x-3">
+          <span style="color: var(--text-muted, #94a3b8);">Auto-Refresh (3s):</span>
+          <button id="telemetry-poll-toggle" class="px-2 py-0.5 rounded border text-[10px] font-bold cursor-pointer transition-colors" style="background-color: var(--card-bg, rgba(255,255,255,0.05)); border-color: var(--card-border, rgba(255,255,255,0.15)); color: #00e575;">
+            ACTIVE
+          </button>
+          <button id="telemetry-refresh-now-btn" class="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer text-slate-400 hover:text-white" title="Refresh Now">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          </button>
+          <span id="telemetry-last-updated" class="text-[10px]" style="color: var(--text-muted, #78746c);"></span>
+        </div>
+        <div class="flex items-center space-x-3">
+          <span class="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10" style="color: var(--text-muted, #94a3b8);">GET /api/v1/health</span>
+          <button data-close-modal="health-telemetry-modal" class="px-3 py-1 rounded-lg border font-semibold hover:bg-white/5 transition-all cursor-pointer text-slate-300 hover:text-white" style="border-color: var(--card-border, rgba(255,255,255,0.15));">
+            Dismiss (Esc)
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Dedicated Health Telemetry Controller Script -->
+  <script src="js/telemetry-modal.js"></script>
+
+  <!-- Module Script -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

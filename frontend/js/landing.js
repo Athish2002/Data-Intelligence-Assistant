@@ -314,12 +314,21 @@ export async function submitDatasetUpload() {
       } catch (e) {}
     }
 
+function getWorkbenchUrl(params = '') {
+  const p = window.location.pathname;
+  if (p.includes('/Data-Intelligence-Assistant')) {
+    const base = p.includes('/docs') ? '/Data-Intelligence-Assistant/docs/app.html' : '/Data-Intelligence-Assistant/app.html';
+    return base + params;
+  }
+  return '/app' + params;
+}
+
     // Redirect to full analytical workbench
     setTimeout(() => {
       if (storedInSession) {
-        window.location.href = '/app';
+        window.location.href = getWorkbenchUrl();
       } else {
-        window.location.href = `/app?session_id=${encodeURIComponent(data.session_id)}`;
+        window.location.href = getWorkbenchUrl(`?session_id=${encodeURIComponent(data.session_id)}`);
       }
     }, 500);
   } catch (err) {
@@ -384,7 +393,7 @@ export async function launchDemoBenchmark(demoName) {
     }
 
     // Redirect to full analytical workbench
-    window.location.href = '/app';
+    window.location.href = getWorkbenchUrl();
   } catch (err) {
     allBtns.forEach((b) => {
       b.disabled = false;
@@ -604,4 +613,31 @@ if (document.readyState === 'loading') {
 } else {
   setupLandingEventListeners();
 }
+
+// Adapt relative navigation for GitHub Pages project subpaths
+(function adaptGhPagesLinks() {
+  function rewriteLinks() {
+    const p = window.location.pathname;
+    if (p.includes('/Data-Intelligence-Assistant')) {
+      const isDocs = p.includes('/docs');
+      const homeUrl = isDocs ? '/Data-Intelligence-Assistant/docs/' : '/Data-Intelligence-Assistant/';
+      const appUrl = isDocs ? '/Data-Intelligence-Assistant/docs/app.html' : '/Data-Intelligence-Assistant/app.html';
+
+      document.querySelectorAll('a').forEach((a) => {
+        const href = a.getAttribute('href');
+        if (href === '/' || href === '/landing') {
+          a.setAttribute('href', homeUrl);
+        } else if (href === '/app' || href === '/workbench') {
+          a.setAttribute('href', appUrl);
+        }
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', rewriteLinks);
+  } else {
+    rewriteLinks();
+  }
+})();
 
