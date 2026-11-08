@@ -98,3 +98,14 @@ class TestSimpleVectorIndexSearch:
         monkeypatch.setattr(retrieval, "is_sentence_transformers_available", lambda: False)
         index = build_session_index(tiny_df)
         assert index.search("zzzznonexistentzzzz") == []
+
+
+def test_clear_retrieval_model_cache_idempotency():
+    """Verify clear_retrieval_model_cache safely and idempotently frees loaded transformer models."""
+    from dia.retrieval import _MODEL_CACHE, clear_retrieval_model_cache
+
+    # Verify repeated clears don't raise
+    clear_retrieval_model_cache()
+    assert len(_MODEL_CACHE) == 0
+    clear_retrieval_model_cache()
+    assert len(_MODEL_CACHE) == 0

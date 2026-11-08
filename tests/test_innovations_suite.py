@@ -412,3 +412,26 @@ def test_api_innovations_integrated_endpoints():
     download_resp = export_edge_bundle(session_id=session_id, download=True)
     assert download_resp.media_type == "application/javascript"
     assert "attachment" in download_resp.headers["Content-Disposition"]
+
+
+def test_pearl_do_calculus_mathematical_boundaries():
+    """Verify Pearl's Do-Calculus intervention simulator across extreme boundary intervention values."""
+    np.random.seed(42)
+    n = 150
+    x = np.random.uniform(5, 30, n)
+    y = 1.8 * x + np.random.normal(0, 1.5, n)
+    df = pd.DataFrame({"PolicyRate": x, "Outcome": y})
+
+    for val in [15.0, 0.0, -100.0, 1000.0]:
+        res = simulate_intervention(
+            df=df,
+            treatment="PolicyRate",
+            outcome="Outcome",
+            intervention_value=val,
+            
+        )
+        assert np.isfinite(res.intervened_expected_outcome)
+        assert np.isfinite(res.average_treatment_effect)
+        assert not np.isnan(res.intervened_expected_outcome)
+        assert not np.isnan(res.average_treatment_effect)
+        assert res.confidence_interval_95[0] <= res.confidence_interval_95[1]

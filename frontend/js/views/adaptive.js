@@ -130,39 +130,95 @@ export async function renderAdaptiveCausal() {
 
         <!-- U2: Interactive Causal DAG Studio & Priors Canvas -->
         <div class="glass-card p-6 space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3" style="border-color: var(--card-border);">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3" style="border-color: var(--card-border);">
             <div class="flex items-center space-x-2">
-              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
               <h4 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
-                Interactive Causal DAG Topology & Domain Priors Studio
+                Interactive Causal DAG Topology & Invariant Studio
               </h4>
             </div>
-            <div class="flex items-center space-x-2 text-xs font-mono">
+            <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
               <span id="dag-edge-count" class="text-rose-400 font-bold">${graphRes.edges.length} Active Edges</span>
-              <button id="reset-priors-btn" class="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 cursor-pointer">
+              <button id="clear-conditioning-btn" class="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 active:scale-95 cursor-pointer transition-all">
+                Clear Conditioning Set
+              </button>
+              <button id="reset-priors-btn" class="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 active:scale-95 cursor-pointer transition-all">
                 Reset Priors
               </button>
             </div>
           </div>
 
-          <p class="text-xs text-slate-400">
-            Click any directed edge below or in the table to toggle domain priors (<span class="text-[#00e575] font-semibold">ALLOWED</span> vs <span class="text-rose-400 font-semibold">FORBIDDEN</span>). Changes dynamically re-calibrate backdoor path blocking for policy intervention estimation.
-          </p>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <p class="text-slate-400">
+              Click any node to toggle into <strong>Conditioning Set Z</strong> (visual d-separation & collider detection). Click directed edges to toggle domain priors (<span class="text-[#00e575] font-semibold">ALLOWED</span> vs <span class="text-slate-400 font-semibold">FORBIDDEN</span>).
+            </p>
+            <div id="conditioning-status-badge" class="px-3 py-1 rounded-md bg-slate-900 border border-slate-800 text-[11px] font-mono font-medium flex items-center space-x-1.5 shrink-0">
+              <span class="text-slate-400">Conditioning Set Z:</span>
+              <span id="conditioning-set-display" class="text-cyan-400 font-bold">&empty; (Unconditioned)</span>
+            </div>
+          </div>
 
-          <!-- SVG Visual DAG Canvas -->
+          <!-- Dynamic Berkson's Bias / Collider Warning Shelf -->
+          <div id="berkson-warning-container" class="space-y-2"></div>
+
+          <!-- SVG Visual DAG Canvas with Active/Blocked Path Highlighting -->
           <div class="w-full overflow-x-auto bg-slate-950/80 rounded-xl border border-slate-800/80 p-2 relative flex justify-center">
-            <svg id="causal-dag-svg" class="w-full max-w-4xl h-72 select-none" viewBox="0 0 760 300">
+            <svg id="causal-dag-svg" class="w-full max-w-4xl h-76 select-none" viewBox="0 0 760 300">
               <defs>
                 <marker id="arrow-allowed" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
+                </marker>
+                <marker id="arrow-active" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
+                </marker>
+                <marker id="arrow-rose" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="#f43f5e" />
                 </marker>
-                <marker id="arrow-forbidden" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+                <marker id="arrow-blocked" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />
                 </marker>
+                <marker id="arrow-forbidden" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155" />
+                </marker>
+                <filter id="glow-z" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#10b981" flood-opacity="0.8"/>
+                </filter>
               </defs>
               <g id="dag-edges-group"></g>
               <g id="dag-nodes-group"></g>
             </svg>
+          </div>
+        </div>
+
+        <!-- Axiomatic Conservation Laws & Balance Invariants Shelf -->
+        <div class="glass-card p-6 space-y-4" id="invariants-shelf-card">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3" style="border-color: var(--card-border);">
+            <div class="flex items-center space-x-2">
+              <div class="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <i data-lucide="shield-check" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <span>Axiomatic Conservation Laws & Balance Invariants</span>
+                  <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">CLOSED MANIFOLD</span>
+                </h4>
+                <p class="text-xs text-slate-400 mt-0.5">
+                  Discover, verify, and lock physical conservation laws (Kirchhoff / balance Ax = b) and projection manifolds to enforce strict invariance in projections.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2 shrink-0">
+              <button id="scan-invariants-btn" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold rounded-lg text-xs flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer font-mono">
+                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                <span>Scan Conservation Laws</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="invariants-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="col-span-full p-6 text-center text-slate-500 text-xs font-mono border border-dashed border-slate-800 rounded-xl">
+              Click <strong>[Scan Conservation Laws]</strong> to audit dataset features against closed linear balance axioms, probability simplex invariants, and monotonicity constraints.
+            </div>
           </div>
         </div>
 
@@ -248,15 +304,80 @@ export async function renderAdaptiveCausal() {
 
     lucide.createIcons();
 
-    // Render Causal DAG Graph onto SVG with Interactive Edge Toggles
+    // Render Interactive Causal DAG Graph with Visual d-Separation & Invariant Studio
     const nodes = graphRes.nodes || [];
     const edges = graphRes.edges || [];
     const forbiddenEdges = new Set();
+    const conditioningSet = new Set();
+
+    // Helper: Find all simple paths between start and target in DAG
+    function findAllSimplePaths(start, target, maxDepth = 6) {
+      const activeEdgesList = edges.filter(e => !forbiddenEdges.has(`${e.source}->${e.target}`));
+      const adj = {};
+      nodes.forEach(n => { adj[n] = []; });
+      activeEdgesList.forEach(e => {
+        if (!adj[e.source]) adj[e.source] = [];
+        if (!adj[e.target]) adj[e.target] = [];
+        adj[e.source].push({ neighbor: e.target, direction: 'forward', edge: e });
+        adj[e.target].push({ neighbor: e.source, direction: 'backward', edge: e });
+      });
+
+      const paths = [];
+      function dfs(curr, targetNode, visited, currentPath) {
+        if (currentPath.length > maxDepth) return;
+        if (curr === targetNode) {
+          paths.push([...currentPath]);
+          return;
+        }
+        for (const nextHop of (adj[curr] || [])) {
+          if (!visited.has(nextHop.neighbor)) {
+            visited.add(nextHop.neighbor);
+            currentPath.push(nextHop);
+            dfs(nextHop.neighbor, targetNode, visited, currentPath);
+            currentPath.pop();
+            visited.delete(nextHop.neighbor);
+          }
+        }
+      }
+
+      visitedSet = new Set([start]);
+      dfs(start, target, visitedSet, []);
+      return paths;
+    }
+
+    // Helper: Determine if a trail is active given conditioning set Z
+    function isTrailActive(pathNodes, condSet) {
+      if (pathNodes.length <= 2) return true;
+      for (let i = 1; i < pathNodes.length - 1; i++) {
+        const prev = pathNodes[i - 1];
+        const curr = pathNodes[i];
+        const next = pathNodes[i + 1];
+
+        // Is curr a collider on this path? (prev -> curr and next -> curr)
+        const isCollider = edges.some(e => !forbiddenEdges.has(`${e.source}->${e.target}`) && e.source === prev && e.target === curr) &&
+                           edges.some(e => !forbiddenEdges.has(`${e.source}->${e.target}`) && e.source === next && e.target === curr);
+
+        if (isCollider) {
+          // Collider is active iff curr in Z or descendant of curr in Z
+          if (!condSet.has(curr)) {
+            return false;
+          }
+        } else {
+          // Non-collider: active iff NOT in Z
+          if (condSet.has(curr)) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
 
     function renderSvgDag() {
       const edgesGroup = document.getElementById('dag-edges-group');
       const nodesGroup = document.getElementById('dag-nodes-group');
       const edgeCountEl = document.getElementById('dag-edge-count');
+      const condDisplayEl = document.getElementById('conditioning-set-display');
+      const berksonContainer = document.getElementById('berkson-warning-container');
       if (!edgesGroup || !nodesGroup) return;
 
       const n = nodes.length || 1;
@@ -271,54 +392,187 @@ export async function renderAdaptiveCausal() {
         };
       });
 
-      // Render Directed Edges
+      // 1. Detect colliders in conditioning set & compute Berkson's Bias Warnings
+      const activeEdgesList = edges.filter(e => !forbiddenEdges.has(`${e.source}->${e.target}`));
+      const parentMap = {};
+      nodes.forEach(node => { parentMap[node] = []; });
+      activeEdgesList.forEach(e => {
+        if (!parentMap[e.target]) parentMap[e.target] = [];
+        parentMap[e.target].push(e.source);
+      });
+
+      const berksonWarnings = [];
+      conditioningSet.forEach(condNode => {
+        const parents = parentMap[condNode] || [];
+        if (parents.length >= 2) {
+          const parentA = parents[0];
+          const parentB = parents[1];
+          berksonWarnings.push({
+            node: condNode,
+            parentA: parentA,
+            parentB: parentB,
+            message: `⚠️ Berkson's Bias Warning: Conditioning on collider '${condNode}' opens a spurious association between '${parentA}' and '${parentB}'!`,
+          });
+        }
+      });
+
+      if (berksonContainer) {
+        if (berksonWarnings.length > 0) {
+          berksonContainer.innerHTML = berksonWarnings.map(w => `
+            <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-300 text-xs font-mono flex items-center space-x-2 animate-fadeIn">
+              <span class="text-amber-400 font-bold shrink-0 text-sm">⚠️</span>
+              <span><strong>Berkson's Bias Warning:</strong> Conditioning on collider '<strong>${escapeHtml(w.node)}</strong>' opens a spurious association between '<strong>${escapeHtml(w.parentA)}</strong>' and '<strong>${escapeHtml(w.parentB)}</strong>'!</span>
+            </div>
+          `).join('');
+        } else {
+          berksonContainer.innerHTML = '';
+        }
+      }
+
+      // Update conditioning set badge display
+      if (condDisplayEl) {
+        if (conditioningSet.size === 0) {
+          condDisplayEl.innerHTML = `&empty; <span class="font-normal text-slate-500">(Unconditioned)</span>`;
+          condDisplayEl.className = 'text-cyan-400 font-bold';
+        } else {
+          condDisplayEl.innerHTML = `{ ${Array.from(conditioningSet).map(c => `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">${escapeHtml(c)}</span>`).join(', ')} }`;
+          condDisplayEl.className = 'text-emerald-400 font-bold flex items-center gap-1 flex-wrap';
+        }
+      }
+
+      // 2. Compute Active vs Blocked Paths across all edges
+      // An edge is active if it lies on an unblocked active path (e.g. from treatment/causes to target,
+      // or opened via collider conditioning). If conditioning blocks all through-paths, edge becomes dimmed slate.
+      const activePathEdges = new Set();
+      const blockedPathEdges = new Set();
+
+      edges.forEach(e => {
+        const edgeKey = `${e.source}->${e.target}`;
+        if (forbiddenEdges.has(edgeKey)) {
+          return;
+        }
+
+        // Check if edge is directly incident to a conditioned non-collider
+        const sourceCond = conditioningSet.has(e.source);
+        const targetCond = conditioningSet.has(e.target);
+
+        // Target is a collider if it has >= 2 parents
+        const isTargetCollider = (parentMap[e.target] || []).length >= 2;
+
+        if (targetCond && isTargetCollider) {
+          // Conditioning on collider opens the incoming paths!
+          activePathEdges.add(edgeKey);
+        } else if (sourceCond || targetCond) {
+          // Conditioned non-collider blocks transmission
+          blockedPathEdges.add(edgeKey);
+        } else {
+          // By default, unconditioned edges on causal flow are active
+          activePathEdges.add(edgeKey);
+        }
+      });
+
+      // Render Directed Edges with distinct active vs blocked styling
       let activeCount = 0;
       edgesGroup.innerHTML = edges.map((e) => {
         const p1 = nodePos[e.source] || { x: cx, y: cy };
         const p2 = nodePos[e.target] || { x: cx, y: cy };
         const edgeKey = `${e.source}->${e.target}`;
         const isForbidden = forbiddenEdges.has(edgeKey);
-        if (!isForbidden) activeCount++;
+        const isBlocked = !isForbidden && blockedPathEdges.has(edgeKey) && !activePathEdges.has(edgeKey);
+        const isActive = !isForbidden && !isBlocked;
+
+        if (isActive) activeCount++;
+
+        let strokeColor = '#10b981'; // Bold emerald for active path
+        let strokeWidth = '2.5';
+        let strokeDash = 'none';
+        let opacity = '0.9';
+        let marker = 'url(#arrow-active)';
+
+        if (isForbidden) {
+          strokeColor = '#334155';
+          strokeWidth = '1.5';
+          strokeDash = '4,4';
+          opacity = '0.35';
+          marker = 'url(#arrow-forbidden)';
+        } else if (isBlocked) {
+          strokeColor = '#475569';
+          strokeWidth = '1.5';
+          strokeDash = '4,4';
+          opacity = '0.45';
+          marker = 'url(#arrow-blocked)';
+        }
 
         return `
-          <g class="dag-edge-interactive cursor-pointer" data-edge="${escapeHtml(edgeKey)}">
+          <g class="dag-edge-interactive cursor-pointer" data-edge="${escapeHtml(edgeKey)}" title="${isForbidden ? 'Forbidden by Domain Prior' : (isBlocked ? 'Path Blocked by Conditioning Set Z' : 'Active Causal Path')}">
             <line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}"
-                  stroke="${isForbidden ? '#475569' : '#f43f5e'}"
-                  stroke-width="${isForbidden ? '1.5' : '2.5'}"
-                  stroke-dasharray="${isForbidden ? '4,4' : 'none'}"
-                  opacity="${isForbidden ? '0.35' : '0.85'}"
-                  marker-end="url(#${isForbidden ? 'arrow-forbidden' : 'arrow-allowed'})" />
+                  stroke="${strokeColor}"
+                  stroke-width="${strokeWidth}"
+                  stroke-dasharray="${strokeDash}"
+                  opacity="${opacity}"
+                  marker-end="${marker}" />
           </g>
         `;
       }).join('');
 
       if (edgeCountEl) {
-        edgeCountEl.textContent = `${activeCount} Active Edges (${forbiddenEdges.size} Forbidden)`;
+        edgeCountEl.textContent = `${activeCount} Active Paths (${forbiddenEdges.size} Forbidden, ${blockedPathEdges.size} Blocked)`;
       }
 
-      // Render Circular Nodes
+      // Render Circular Nodes with Conditioning Badges & Highlights
       nodesGroup.innerHTML = nodes.map((node) => {
         const p = nodePos[node] || { x: cx, y: cy };
+        const isConditioned = conditioningSet.has(node);
         const isTarget = node === targetCol;
         const isDirect = (graphRes.direct_causes_of_target || []).includes(node);
 
-        const nodeFill = isTarget ? '#e11d48' : (isDirect ? '#0284c7' : '#1e293b');
-        const strokeColor = isTarget ? '#fda4af' : (isDirect ? '#38bdf8' : '#475569');
+        let nodeFill = isTarget ? '#e11d48' : (isDirect ? '#0284c7' : '#1e293b');
+        let strokeColor = isTarget ? '#fda4af' : (isDirect ? '#38bdf8' : '#475569');
+        let strokeWidth = '2';
+
+        if (isConditioned) {
+          nodeFill = '#047857';
+          strokeColor = '#10b981';
+          strokeWidth = '2.5';
+        }
 
         return `
-          <g transform="translate(${p.x}, ${p.y})" class="select-none">
-            <circle r="15" fill="${nodeFill}" stroke="${strokeColor}" stroke-width="2" />
+          <g transform="translate(${p.x}, ${p.y})"
+             class="dag-node-interactive cursor-pointer select-none transition-transform"
+             data-node="${escapeHtml(node)}"
+             data-conditioned="${isConditioned ? 'true' : 'false'}"
+             title="Click to ${isConditioned ? 'remove from' : 'add to'} Conditioning Set Z">
+            ${isConditioned ? `
+              <circle r="22" fill="none" stroke="#10b981" stroke-width="2.5" stroke-dasharray="3,3" filter="url(#glow-z)" class="animate-pulse" />
+              <rect x="-16" y="-32" width="32" height="13" rx="3" fill="#064e3b" stroke="#10b981" stroke-width="1" />
+              <text text-anchor="middle" dy="-23" fill="#a7f3d0" font-size="8" font-family="monospace" font-weight="bold">Z-SET</text>
+            ` : ''}
+            <circle r="15" fill="${nodeFill}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
             <text text-anchor="middle" dy="4" fill="#ffffff" font-size="9" font-family="monospace" font-weight="bold">
               ${escapeHtml(node.slice(0, 3).toUpperCase())}
             </text>
-            <text text-anchor="middle" dy="26" fill="${isTarget ? '#fda4af' : '#cbd5e1'}" font-size="10" font-family="monospace" font-weight="600">
+            <text text-anchor="middle" dy="26" fill="${isConditioned ? '#a7f3d0' : (isTarget ? '#fda4af' : '#cbd5e1')}" font-size="10" font-family="monospace" font-weight="${isConditioned ? 'bold' : '600'}">
               ${escapeHtml(node)}
             </text>
           </g>
         `;
       }).join('');
 
-      // Wire Edge Click Listeners
+      // Wire Node Click Listeners for Conditioning Set Toggling
+      document.querySelectorAll('.dag-node-interactive').forEach(elem => {
+        elem.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const nodeName = elem.dataset.node;
+          if (conditioningSet.has(nodeName)) {
+            conditioningSet.delete(nodeName);
+          } else {
+            conditioningSet.add(nodeName);
+          }
+          renderSvgDag();
+        });
+      });
+
+      // Wire Edge Click Listeners for Forbidden Domain Priors
       document.querySelectorAll('.dag-edge-interactive').forEach(elem => {
         elem.addEventListener('click', () => {
           const key = elem.dataset.edge;
@@ -334,10 +588,128 @@ export async function renderAdaptiveCausal() {
 
     renderSvgDag();
 
+    // Wire Clear Conditioning Set button
+    document.getElementById('clear-conditioning-btn')?.addEventListener('click', () => {
+      conditioningSet.clear();
+      renderSvgDag();
+    });
+
+    // Wire Reset Priors button
     document.getElementById('reset-priors-btn')?.addEventListener('click', () => {
       forbiddenEdges.clear();
       renderSvgDag();
     });
+
+    // Wire Axiomatic Invariant Scan & Lock Shelf Handlers
+    document.getElementById('scan-invariants-btn')?.addEventListener('click', async () => {
+      const container = document.getElementById('invariants-cards-container');
+      if (!container) return;
+      container.innerHTML = `
+        <div class="col-span-full p-6 text-center text-slate-400 text-xs font-mono flex items-center justify-center space-x-2">
+          <div class="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <span>Auditing dataset features against closed conservation laws (Ax = b)...</span>
+        </div>
+      `;
+
+      try {
+        const res = await ApiClient.scanInvariants(state.sessionId);
+        if (!res.laws || res.laws.length === 0) {
+          container.innerHTML = `
+            <div class="col-span-full p-4 text-center text-slate-400 text-xs font-mono">
+              No linear conservation laws detected in active feature subspace.
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = res.laws.map((law, idx) => `
+          <div class="p-4 bg-slate-900/80 border ${law.is_locked ? 'border-emerald-500/50 bg-emerald-950/10' : 'border-slate-800'} rounded-xl space-y-3 relative overflow-hidden transition-all" id="law-card-${idx}">
+            <div class="flex items-start justify-between gap-2">
+              <div class="space-y-1">
+                <div class="flex items-center space-x-2">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${law.is_locked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'}">
+                    ${escapeHtml(law.category)}
+                  </span>
+                  <h5 class="text-xs font-bold text-slate-200 font-mono">${escapeHtml(law.name)}</h5>
+                </div>
+                <div class="text-xs font-mono text-emerald-400 font-semibold pl-1">
+                  <code>${escapeHtml(law.formula)}</code>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 text-center text-[11px] font-mono py-1 border-y border-slate-800/80">
+              <div class="p-1.5 bg-slate-950/60 rounded">
+                <div class="text-[9px] text-slate-500 uppercase">Residual MAE</div>
+                <div class="text-slate-200 font-bold tabular-nums">${law.residual_mae.toFixed(4)}</div>
+              </div>
+              <div class="p-1.5 bg-slate-950/60 rounded">
+                <div class="text-[9px] text-slate-500 uppercase">Compliance</div>
+                <div class="text-emerald-400 font-bold tabular-nums">${law.compliance_pct.toFixed(1)}%</div>
+              </div>
+              <div class="p-1.5 bg-slate-950/60 rounded">
+                <div class="text-[9px] text-slate-500 uppercase">Tolerance</div>
+                <div class="text-slate-400 tabular-nums">&plusmn;${law.tolerance.toFixed(3)}</div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1" id="law-action-box-${idx}">
+              ${law.is_locked ? `
+                <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-mono font-bold flex items-center space-x-1.5">
+                  <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                  <span>✓ Locked Physical Axiom (Enforced in Projections)</span>
+                </span>
+              ` : `
+                <button class="lock-invariant-btn px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 cursor-pointer font-mono transition-all" data-idx="${idx}" data-law-name="${escapeHtml(law.name)}" data-formula="${escapeHtml(law.formula)}">
+                  <i data-lucide="lock" class="w-3 h-3"></i>
+                  <span>Lock Invariant</span>
+                </button>
+              `}
+            </div>
+          </div>
+        `).join('');
+
+        if (window.lucide) lucide.createIcons();
+
+        // Wire lock buttons
+        document.querySelectorAll('.lock-invariant-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const idx = btn.dataset.idx;
+            const lawName = btn.dataset.lawName;
+            const formula = btn.dataset.formula;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="animate-spin mr-1">⌛</span> Locking...`;
+            try {
+              await ApiClient.lockInvariant(state.sessionId, {
+                invariant_name: lawName,
+                formula: formula,
+              });
+              const actionBox = document.getElementById(`law-action-box-${idx}`);
+              const card = document.getElementById(`law-card-${idx}`);
+              if (card) {
+                card.classList.add('border-emerald-500/50', 'bg-emerald-950/10');
+              }
+              if (actionBox) {
+                actionBox.innerHTML = `
+                  <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-mono font-bold flex items-center space-x-1.5">
+                    <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                    <span>✓ Locked Physical Axiom (Enforced in Projections)</span>
+                  </span>
+                `;
+                if (window.lucide) lucide.createIcons();
+              }
+            } catch (e) {
+              btn.disabled = false;
+              btn.innerHTML = `<i data-lucide="lock" class="w-3 h-3 mr-1"></i> Lock Invariant`;
+              showError(`Failed to lock invariant: ${e.message}`);
+            }
+          });
+        });
+      } catch (err) {
+        container.innerHTML = `<div class="col-span-full p-4 text-center text-rose-400 text-xs font-mono">Scan failed: ${escapeHtml(err.message)}</div>`;
+      }
+    });
+
 
     // Event handler for Do-Calculus intervention simulation
     document.getElementById('do-simulate-btn')?.addEventListener('click', async () => {

@@ -393,6 +393,25 @@ export const ApiClient = {
     return await res.json();
   },
 
+  async scanInvariants(sessionId) {
+    const res = await fetch(`${API_BASE}/invariants/scan/${sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to scan invariants'));
+    return await res.json();
+  },
+
+  async lockInvariant(sessionId, invariantData) {
+    const res = await fetch(`${API_BASE}/invariants/lock/${sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(invariantData),
+    });
+    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Failed to lock invariant'));
+    return await res.json();
+  },
+
   getExportUrl(sessionId, formatType) {
     return `${API_BASE}/export/${sessionId}/${formatType}`;
   },

@@ -113,3 +113,75 @@ def test_system_session_delete_endpoint():
     del_res = delete_session(sid)
     assert del_res["status"] == "success"
     assert sid not in SESSION_STORE
+
+
+def test_session_manager_pop_preserves_data():
+    """Verify BoundedSessionStore.pop() returns session data without clearing nested state."""
+    store = BoundedSessionStore(max_sessions=3, ttl_seconds=600)
+    test_df = pd.DataFrame({"colA": [1, 2, 3], "colB": [4, 5, 6]})
+    pipe_payload = {
+        "best_model_label": "Random Forest Classifier",
+        "score": 0.954,
+        "status": "trained",
+        "metrics": {"accuracy": 0.954, "f1": 0.951},
+    }
+    store["sess_pop_test"] = {
+        "df": test_df,
+        "goal": "Test session eviction",
+        "custom_key": 42,
+        "pipeline_result": pipe_payload,
+    }
+
+    assert "sess_pop_test" in store
+    popped = store.pop("sess_pop_test")
+
+    assert popped is not None, "pop() should return the stored session"
+    assert isinstance(popped, dict), "popped value must be a dictionary"
+    assert popped.get("custom_key") == 42
+    assert "df" in popped
+    assert "pipeline_result" in popped
+    assert popped["pipeline_result"] == pipe_payload
+    assert "sess_pop_test" not in store, "session must be evicted from internal store"
+
+
+def test_session_manager_concurrent_pop_and_set():
+    """Stress test BoundedSessionStore thread-safety under concurrent pop and insertion."""
+    import concurrent.futures
+    store = BoundedSessionStore(max_sessions=10, ttl_seconds=300)
+
+    def worker(idx):
+        sid = f"thread_sess_{idx}"
+        store[sid] = {"df": pd.DataFrame({"x": [idx]}), "id": idx}
+        time.sleep(0.001)
+        return store.pop(sid)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(worker, i) for i in range(40)]
+        results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+    assert len(results) == 40
+    assert len(store) <= 10
+
+
+def test_autoencoder_input_row_capping_50k():
+    """Verify deep autoencoder caps inputs exceeding 50,000 rows to bound tensor memory."""
+    import numpy as np
+    from dia.deep_autoencoder import train_tabular_autoencoder
+
+    n_rows = 50_050
+    n_cols = 4
+    rng = np.random.RandomState(42)
+    X = rng.randn(n_rows, n_cols).astype(np.float32)
+    feat_names = [f"col_{i}" for i in range(n_cols)]
+
+    res = train_tabular_autoencoder(
+        X,
+        feat_names,
+        epochs=1,
+        batch_size=1024,
+        eval_batch_size=1024,
+    )
+    assert res["status"] == "success"
+    assert res["latent_embeddings_shape"][0] == 50_000
+    assert np.isfinite(res["final_reconstruction_loss"])
+

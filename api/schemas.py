@@ -670,3 +670,74 @@ class DriftSentinelResponse(BaseModel):
     top_drifting_features: list[str] = []
     actionable_recommendations: list[str] = []
     status: str = "success"
+
+
+# ─── L6: Axiomatic Conservation & Balance Invariant Schemas ───────────────────
+
+class ConservationLawItem(BaseModel):
+    name: str = Field(description="Display name of conservation law")
+    formula: str = Field(default="", description="Algebraic invariant formula")
+    coefficients: dict[str, float] = Field(default_factory=dict, description="Feature linear coefficients")
+    target_sum: float = Field(0.0, description="Target conservation constraint value (Ax = b)")
+    tolerance: float = Field(1e-6, description="Verification tolerance boundary")
+    variance_explained: float = Field(1.0, description="Proportion of variance explained (R^2)")
+    residual_variance: float = Field(0.0, description="Residual variance of linear combination")
+    residual_mae: float = Field(0.0, description="Mean absolute residual error across dataset")
+    compliance_pct: float = Field(100.0, description="Percentage of records satisfying invariant")
+    category: str = Field("Linear Conservation", description="Law classification")
+    is_locked: bool = Field(False, description="Whether law is locked into projection manifold")
+
+
+# Backward compatibility aliases
+InvariantLawItem = ConservationLawItem
+ConservationLawSchema = ConservationLawItem
+
+
+class InvariantScanRequest(BaseModel):
+    max_features: int = Field(12, description="Maximum number of continuous features to evaluate in SVD")
+    r2_threshold: float = Field(0.9999, description="Minimum R^2 threshold for exact linear invariant")
+    residual_var_tol: float = Field(1e-8, description="Maximum residual variance tolerance")
+
+
+class InvariantScanResponse(BaseModel):
+    session_id: str
+    laws_found: int = Field(0, description="Number of candidate conservation laws detected")
+    candidates: list[ConservationLawItem] = Field(default_factory=list, description="Detected candidate laws")
+    n_laws_discovered: int = Field(0, description="Number of candidate conservation laws detected")
+    laws: list[ConservationLawItem] = Field(default_factory=list, description="Detected candidate laws")
+    status: str = "success"
+
+
+class InvariantLockRequest(BaseModel):
+    laws: list[ConservationLawItem] = Field(default_factory=list, description="Approved conservation laws to lock")
+    invariant_name: Optional[str] = Field(None, description="Optional name if locking a single invariant")
+    formula: Optional[str] = Field(None, description="Formula representation")
+    coefficients: Optional[dict[str, float]] = Field(None, description="Feature linear coefficients")
+    target_sum: Optional[float] = Field(0.0, description="Target conservation constraint value")
+    tolerance: Optional[float] = Field(1e-6, description="Verification tolerance")
+
+
+class InvariantLockResponse(BaseModel):
+    session_id: str
+    locked_count: int = Field(0, description="Count of locked invariants")
+    locked_invariants: list[ConservationLawItem] = Field(default_factory=list, description="Locked invariants list")
+    status: str = "locked"
+    message: str = "✓ Locked Physical Axiom (Enforced in Projections)"
+    locked_invariants_count: int = Field(0, description="Count of locked invariants")
+
+
+class AxiomAuditSummaryResponse(BaseModel):
+    total_records: int
+    passed_records: int
+    violation_rate: float
+    violations_by_law: dict[str, int] = Field(default_factory=dict)
+    is_axiom_compliant: bool
+    details: list[str] = Field(default_factory=list)
+
+
+class InvariantsStatusResponse(BaseModel):
+    session_id: str
+    locked_count: int = Field(0, description="Count of locked invariants")
+    locked_invariants: list[ConservationLawItem] = Field(default_factory=list, description="List of locked laws")
+    audit_report: Optional[AxiomAuditSummaryResponse] = Field(None, description="Compliance audit report")
+    status: str = "success"

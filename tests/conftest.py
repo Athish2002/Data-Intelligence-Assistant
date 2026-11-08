@@ -1,4 +1,4 @@
-﻿"""
+"""
 tests/conftest.py - Shared pytest fixtures and utilities for the DIA test suite.
 """
 
@@ -6,6 +6,9 @@ from __future__ import annotations
 
 import io
 import os
+import threading
+import time
+import urllib.request
 
 import numpy as np
 import pandas as pd
@@ -13,6 +16,44 @@ import pytest
 
 # Base URL
 DIA_BASE_URL = os.environ.get("DIA_BASE_URL", "http://127.0.0.1:8000")
+
+
+def is_server_running(url: str = "http://127.0.0.1:8000/api/v1/health") -> bool:
+    try:
+        with urllib.request.urlopen(url, timeout=0.8) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_server_running():
+    """Ensure local server is running for browser/HTTP tests."""
+    if is_server_running():
+        yield
+        return
+
+    import uvicorn
+    from api.server import app
+
+    for attempt in range(3):
+        try:
+            config = uvicorn.Config(app, host="127.0.0.1", port=8000, log_level="error")
+            server = uvicorn.Server(config)
+            t = threading.Thread(target=server.run, daemon=True)
+            t.start()
+
+            for _ in range(50):
+                time.sleep(0.1)
+                if is_server_running():
+                    break
+            if is_server_running():
+                break
+            time.sleep(1.0)
+        except Exception:
+            time.sleep(1.0)
+    yield
+
 
 
 def launch_browser(playwright_instance):

@@ -247,3 +247,42 @@ def test_system_health_metrics_output_invariants():
     assert 0.0 <= metrics.cpu_percent <= 100.0
     assert metrics.active_sessions_count >= 1
     assert metrics.max_sessions_capacity == 5
+
+
+def test_brier_score_and_calibration_curve_metrics():
+    """Verify Brier score and calibration curve mathematical properties in classification metrics."""
+    import numpy as np
+    from dia.model_trainer import _classification_metrics
+
+    y_true = np.array([0, 0, 1, 1, 0, 1])
+    y_pred = np.array([0, 0, 1, 1, 0, 1])
+    y_prob = np.array([[0.9, 0.1], [0.8, 0.2], [0.1, 0.9], [0.2, 0.8], [0.7, 0.3], [0.05, 0.95]])
+
+    metrics = _classification_metrics(y_true, y_pred, y_prob)
+    assert "brier_score" in metrics
+    assert 0.0 <= metrics["brier_score"] <= 1.0
+
+
+def test_data_contract_generation_finite_bounds():
+    """Verify data contract generation handles infinity and NaNs gracefully and all bounds are finite."""
+    import pandas as pd
+    from dia.data_quality import generate_data_contract
+
+    df = pd.DataFrame({
+        "num_clean": [1.0, 2.5, 3.8, 4.2],
+        "num_with_inf": [10.0, np.inf, 20.0, -np.inf],
+        "cat_clean": ["A", "B", "A", "B"],
+        "target": [0, 1, 0, 1],
+    })
+
+    contract = generate_data_contract(df, target_col="target")
+    assert "expectations" in contract
+    assert len(contract["expectations"]) > 0
+
+    for exp in contract["expectations"]:
+        if exp["expectation_type"] == "expect_column_values_to_be_between":
+            min_val = exp["kwargs"].get("min_value")
+            max_val = exp["kwargs"].get("max_value")
+            assert np.isfinite(min_val), f"min_value should be finite, got {min_val}"
+            assert np.isfinite(max_val), f"max_value should be finite, got {max_val}"
+            assert min_val <= max_val

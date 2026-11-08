@@ -137,3 +137,26 @@ class TestEnvironmentVersatility:
         assert HOST is not None
         assert PORT > 0
         assert len(CORS_ORIGINS) > 0
+
+
+    def test_sql_ingestion_semicolon_handling(self):
+        """Verify trailing semicolons and whitespace are stripped safely during SQL ingestion."""
+        from dia.ingestion.sql_ingestion import SQLSource
+
+        source = SQLSource()
+        if not source.is_available():
+            pytest.skip("SQLAlchemy is not installed")
+
+        queries = [
+            "SELECT 1 AS id, 'A' AS val; ;  ",
+            "SELECT 2 AS id, 'B' AS val;\n;\t  ",
+            "SELECT 3 AS id, 'C' AS val;;;",
+            "SELECT 4 AS id, 'D' AS val;   ",
+            "SELECT 5 AS id, 'E' AS val",
+        ]
+        for q in queries:
+            res = source.load(connection_string="sqlite:///:memory:", query=q)
+            assert res.df is not None, f"Expected valid DataFrame for query {q!r}"
+            assert len(res.df) == 1
+            assert "id" in res.df.columns
+            assert "val" in res.df.columns

@@ -7,6 +7,7 @@ Verifies all 4 workspaces: Core, AutoML, Adaptive AI Engines, and Governance.
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 from api.schemas import (
     BanditSimRequest,
@@ -19,6 +20,7 @@ from api.schemas import (
     TrainPipelineRequest,
 )
 from api.server import (
+    app,
     chat_with_data,
     export_artifact,
     generate_synthetic,
@@ -181,3 +183,47 @@ def test_llm_providers_endpoint_lists_all_backends():
     res = list_llm_providers()
     keys = {p.key for p in res.providers}
     assert keys == {"ollama", "groq", "gemini"}
+
+
+def test_landing_and_workbench_routes():
+    """Verify landing page and workbench HTML routes serve properly."""
+    client = TestClient(app)
+    r1 = client.get("/")
+    assert r1.status_code == 200
+    assert "Data Intelligence" in r1.text
+    r2 = client.get("/app")
+    assert r2.status_code == 200
+
+
+def test_invariants_scan_and_lock_endpoints():
+    """Verify Axiomatic Conservation Laws scan and lock endpoints."""
+    client = TestClient(app)
+    res_ingest = client.post("/api/v1/ingest/demo", json={"demo_name": "Telecom Customer Churn"})
+    assert res_ingest.status_code == 200
+    session_id = res_ingest.json()["session_id"]
+
+    # 1. Scan invariants
+    res_scan = client.post(f"/api/v1/invariants/scan/{session_id}")
+    assert res_scan.status_code == 200
+    scan_body = res_scan.json()
+    assert scan_body["status"] == "success"
+    assert scan_body["n_laws_discovered"] >= 1
+    laws = scan_body["laws"]
+    assert any("Balance" in l["name"] or "Invariant" in l["name"] for l in laws)
+
+    # 2. Lock invariant
+    target_law = laws[0]
+    res_lock = client.post(
+        f"/api/v1/invariants/lock/{session_id}",
+        json={"invariant_name": target_law["name"], "formula": target_law["formula"]},
+    )
+    assert res_lock.status_code == 200
+    lock_body = res_lock.json()
+    assert lock_body["status"] == "locked"
+    assert "Locked Physical Axiom" in lock_body["message"]
+    assert lock_body["locked_invariants_count"] == 1
+
+    # 3. Rescan to confirm locked state is reflected
+    res_scan2 = client.post(f"/api/v1/invariants/scan/{session_id}")
+    scan_body2 = res_scan2.json()
+    assert scan_body2["laws"][0]["is_locked"] is True

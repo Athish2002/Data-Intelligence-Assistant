@@ -213,3 +213,114 @@ def test_end_to_end_automl_on_adversarial_dataset():
     assert result["train_result"]["best_model_key"] in ["rf", "logreg"]
     assert result["train_result"]["best_metrics"]["Accuracy"] > 0
     assert result["readiness"]["score"] > 0
+
+
+from dia.data_profiler import profile_dataframe
+
+def test_unicode_and_emoji_column_names():
+    """Verify data sanitizer, profiler, and trainer handle unicode, diacritics, and emoji columns."""
+    df = pd.DataFrame({
+        "用户_id": [1, 2, 3, 4, 5, 6, 7, 8],
+        "prénom": ["Jean", "Pierre", "Marie", "Chloé", "Luc", "Sophie", "Antoine", "Julie"],
+        "âge_années": [25, 30, 35, 40, 45, 50, 55, 60],
+        "emoji_💰_score": [100.5, 200.2, 150.8, 300.0, 250.4, 400.1, 350.0, 500.2],
+        "cible_target": [0, 1, 0, 1, 0, 1, 0, 1],
+    })
+
+    # 1. Sanitize
+    sanitized_df, report = sanitize_dataframe(df)
+    assert len(sanitized_df) == 8
+    assert "cible_target" in sanitized_df.columns
+
+    # 2. Profile
+    profile = profile_dataframe(sanitized_df)
+    assert len(profile) == 5
+    assert "column" in profile.columns
+    assert "unique_count" in profile.columns
+
+    # 3. Train
+    train_res = train_and_evaluate(
+        sanitized_df,
+        target_col="cible_target",
+        task_type="classification",
+        selected_model_keys=["rf", "logreg"],
+    )
+    assert train_res["best_model_key"] in ["rf", "logreg"]
+    assert "Accuracy" in train_res["best_metrics"]
+
+
+def test_malicious_string_payloads_in_features():
+    """Verify input containing XSS tags, null bytes, and SQL injection payloads are handled safely."""
+    df = pd.DataFrame({
+        "input_text": [
+            "<script>alert('xss')</script>",
+            "SELECT * FROM users WHERE '1'='1';",
+            "DROP TABLE sessions;--",
+            "normal text\x00with null byte",
+            "Robert'); DROP TABLE Students;--",
+            "<img src=x onerror=alert(1)>",
+            "admin' --",
+            "clean string value",
+        ],
+        "num_val": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
+        "target": [0, 1, 0, 1, 0, 1, 0, 1],
+    })
+
+    sanitized_df, report = sanitize_dataframe(df)
+    assert len(sanitized_df) == 8
+    assert "\x00" not in str(sanitized_df["input_text"].iloc[3])
+
+    train_res = train_and_evaluate(
+        sanitized_df,
+        target_col="target",
+        task_type="classification",
+        selected_model_keys=["rf"],
+    )
+    assert "best_model_key" in train_res
+    assert "best_metrics" in train_res
+
+
+def test_severe_class_imbalance():
+    """Verify model trainer handles severely unbalanced binary targets (e.g., 95:5) without crashing."""
+    np.random.seed(42)
+    n = 100
+    y = np.zeros(n, dtype=int)
+    y[:5] = 1
+
+    df = pd.DataFrame({
+        "feat_1": np.random.randn(n),
+        "feat_2": np.random.uniform(10, 100, n),
+        "target": y,
+    })
+
+    train_res = train_and_evaluate(
+        df,
+        target_col="target",
+        task_type="classification",
+        selected_model_keys=["rf", "logreg"],
+    )
+    assert "best_model_key" in train_res
+    assert "Accuracy" in train_res["best_metrics"]
+
+
+def test_noise_only_high_dimensional_features():
+    """Verify AutoML and feature engineering remain stable on 50 noise features."""
+    np.random.seed(123)
+    n_samples = 40
+    n_features = 50
+    noise_matrix = np.random.randn(n_samples, n_features)
+    col_names = [f"noise_{i}" for i in range(n_features)]
+
+    df = pd.DataFrame(noise_matrix, columns=col_names)
+    df["target"] = np.random.choice([0, 1], size=n_samples)
+
+    result = PipelineCoordinator.execute_full_pipeline(
+        df=df,
+        goal_text="Predict binary outcome on high-dimensional noise",
+        user_target_col="target",
+        selected_models=["rf", "logreg"],
+    )
+
+    assert result["pipeline_executed"] is True
+    assert "best_model_key" in result["train_result"]
+    assert len(result["train_result"]["results"]) > 0

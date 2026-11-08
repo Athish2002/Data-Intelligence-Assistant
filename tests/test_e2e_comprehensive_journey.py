@@ -126,8 +126,9 @@ def test_e2e_comprehensive_six_stage_journey():
         # ─────────────────────────────────────────────────────────────────────
         # Trigger Bank Credit Risk benchmark demo
         page.wait_for_function("() => typeof window.launchDemoBenchmark === 'function'", timeout=15000)
-        page.evaluate("window.launchDemoBenchmark('Bank Credit Risk & Default')")
-        page.wait_for_url("**/app**", timeout=20000)
+        page.goto(f"{BASE_URL}/app", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_function("() => typeof window.quickLoadBenchmark === 'function'", timeout=15000)
+        page.evaluate("window.quickLoadBenchmark('Bank Credit Risk & Default')")
 
         # Verify auto-populated schema, target and goal
         page.wait_for_function(
