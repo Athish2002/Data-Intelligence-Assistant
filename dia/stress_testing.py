@@ -19,14 +19,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 log = logging.getLogger("dia.stress")
 
-PRESET_SCENARIOS: Dict[str, Dict[str, float]] = {
+PRESET_SCENARIOS: dict[str, dict[str, float]] = {
     "SEVERE_RECESSION": {
         "income": -0.20,
         "savings": -0.35,
@@ -65,8 +65,8 @@ class ScenarioResult:
     cvar_95: float
     survival_probability: float
     resilience_rating: str  # "AAA", "BBB", "CCC", "VULNERABLE"
-    top_risk_drivers: List[Dict[str, Any]] = field(default_factory=list)
-    tail_distribution: List[float] = field(default_factory=list)
+    top_risk_drivers: list[dict[str, Any]] = field(default_factory=list)
+    tail_distribution: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -76,8 +76,8 @@ class StressTestReport:
     n_evaluated_rows: int
     overall_resilience_grade: str
     baseline_loss_or_default_rate: float
-    scenarios: List[ScenarioResult] = field(default_factory=list)
-    executive_recommendations: List[str] = field(default_factory=list)
+    scenarios: list[ScenarioResult] = field(default_factory=list)
+    executive_recommendations: list[str] = field(default_factory=list)
 
 
 class MonteCarloStressTester:
@@ -89,7 +89,7 @@ class MonteCarloStressTester:
         self.n_simulations = n_simulations
         self.rng = np.random.default_rng(random_seed)
 
-    def _compute_cholesky_cov(self, df_num: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, List[str]]:
+    def _compute_cholesky_cov(self, df_num: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, list[str]]:
         """Computes regularized Cholesky decomposition of feature correlation matrix."""
         cols = list(df_num.columns)
         if not cols:
@@ -127,8 +127,8 @@ class MonteCarloStressTester:
         self,
         model: Any,
         df: pd.DataFrame,
-        feature_names: List[str],
-        custom_shocks: Optional[Dict[str, float]] = None,
+        feature_names: list[str],
+        custom_shocks: dict[str, float] | None = None,
         task_type: str = "classification",
         adverse_class: int = 1,
         loss_threshold: float = 0.5,
@@ -158,15 +158,15 @@ class MonteCarloStressTester:
             log.warning("Baseline evaluation failed: %s", e)
             baseline_rate = 0.15
 
-        scenarios_to_eval: Dict[str, Dict[str, float]] = dict(PRESET_SCENARIOS)
+        scenarios_to_eval: dict[str, dict[str, float]] = dict(PRESET_SCENARIOS)
         if custom_shocks:
             scenarios_to_eval["CUSTOM_SHOCK_POLICY"] = custom_shocks
 
-        scenario_results: List[ScenarioResult] = []
+        scenario_results: list[ScenarioResult] = []
 
         for name, shock_dict in scenarios_to_eval.items():
-            adverse_rates: List[float] = []
-            feature_impacts: Dict[str, List[float]] = {c: [] for c in num_cols}
+            adverse_rates: list[float] = []
+            feature_impacts: dict[str, list[float]] = {c: [] for c in num_cols}
             gen_std = shock_dict.get("general_shock_std", 0.10)
 
             # Generate N Monte Carlo trials
@@ -190,6 +190,7 @@ class MonteCarloStressTester:
                     # Scaled shock + correlated perturbation
                     shocked = orig_vals * (1.0 + shock_val) + corr_noise[:, i] * stds[i]
                     perturbed_df[col] = shocked
+                    feature_impacts[col].append(float(np.mean(corr_noise[:, i])) if len(df_num) > 0 else 0.0)
 
                 try:
                     if task_type == "classification" and hasattr(model, "predict_proba"):
@@ -229,13 +230,27 @@ class MonteCarloStressTester:
 
             # Top risk drivers: compute correlation between feature noise and adverse rate
             drivers = []
-            for col in num_cols[:4]:
+            has_rate_var = bool(np.var(arr_rates) > 1e-6)
+            for col in num_cols:
+                if has_rate_var:
+                    col_noise = np.array(feature_impacts.get(col, []))
+                    if len(col_noise) == len(arr_rates) and np.var(col_noise) > 1e-6:
+                        corr_matrix = np.corrcoef(col_noise, arr_rates)
+                        corr_val = float(corr_matrix[0, 1])
+                        corr_term = 0.0 if np.isnan(corr_val) else abs(corr_val)
+                    else:
+                        corr_term = 0.0
+                    sens = abs(rate_delta) * (1.0 + corr_term)
+                else:
+                    sens = abs(rate_delta)
+
                 drivers.append({
                     "feature": col,
-                    "sensitivity": round(float(abs(rate_delta) * (1.0 + self.rng.uniform(0.1, 0.3))), 3),
+                    "sensitivity": round(float(sens), 3),
                     "suggested_hedge": f"Enforce guardrail threshold buffers on '{col}'",
                 })
             drivers.sort(key=lambda x: x["sensitivity"], reverse=True)
+            drivers = drivers[:4]
 
             # Sample histogram distribution (20 bins)
             hist, _ = np.histogram(arr_rates, bins=15, density=False)
@@ -287,8 +302,8 @@ class MonteCarloStressTester:
 def run_stress_test(
     model: Any,
     df: pd.DataFrame,
-    feature_names: List[str],
-    custom_shocks: Optional[Dict[str, float]] = None,
+    feature_names: list[str],
+    custom_shocks: dict[str, float] | None = None,
     task_type: str = "classification",
 ) -> StressTestReport:
     """Functional entrypoint for stress testing."""
@@ -300,3 +315,8 @@ def run_stress_test(
         custom_shocks=custom_shocks,
         task_type=task_type,
     )
+
+
+# Alias for backward and cross-module compatibility
+StressTestingEngine = MonteCarloStressTester
+

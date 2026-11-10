@@ -4,7 +4,6 @@ dia/data_quality.py
 Generates a 'Data Contract' (Expectation Suite) based on the training dataframe.
 This mimics what Great Expectations does to prevent data drift in production.
 """
-import json
 from typing import Any
 
 import numpy as np
@@ -224,6 +223,17 @@ def validate_data_contract(df: pd.DataFrame, contract: dict[str, Any]) -> dict[s
                 if col not in df.columns:
                     passed = False
                     error_msg = f"Column '{col}' missing"
+                else:
+                    expected_type = str(kwargs.get("type_", ""))
+                    actual_type = str(df[col].dtype)
+                    if expected_type and actual_type != expected_type:
+                        try:
+                            is_sub = np.issubdtype(df[col].dtype, np.dtype(expected_type).type)
+                        except Exception:
+                            is_sub = False
+                        if not is_sub:
+                            passed = False
+                            error_msg = f"Column '{col}' expected type '{expected_type}', got '{actual_type}'"
 
         except Exception as err:
             passed = False

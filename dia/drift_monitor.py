@@ -31,6 +31,10 @@ def calculate_psi(expected: pd.Series, actual: pd.Series, num_buckets: int = 10)
             if len(bins) < 2:
                 return 0.0
 
+            bins = np.array(bins, dtype=float)
+            bins[0] = -np.inf
+            bins[-1] = np.inf
+
             exp_counts = pd.cut(expected, bins=bins, include_lowest=True).value_counts(normalize=True)
             act_counts = pd.cut(actual, bins=bins, include_lowest=True).value_counts(normalize=True)
         else:
@@ -41,8 +45,12 @@ def calculate_psi(expected: pd.Series, actual: pd.Series, num_buckets: int = 10)
         psi_val = 0.0
 
         for cat in all_cats:
-            e = exp_counts.get(cat, 0.0001) or 0.0001
-            a = act_counts.get(cat, 0.0001) or 0.0001
+            e = float(exp_counts.get(cat, 0.0001) or 0.0001)
+            a = float(act_counts.get(cat, 0.0001) or 0.0001)
+            if np.isnan(e) or e <= 0:
+                e = 0.0001
+            if np.isnan(a) or a <= 0:
+                a = 0.0001
             psi_val += (a - e) * np.log(a / e)
 
         return float(max(0.0, psi_val))

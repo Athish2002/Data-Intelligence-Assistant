@@ -61,6 +61,47 @@ def generate_counterfactual(
     best_cf = x_curr.copy()
     found = False
 
+    # Target probability indexing for classification
+    desired_idx: int | None = None
+    if orig_proba is not None:
+        if hasattr(model, "classes_"):
+            classes_arr = getattr(model, "classes_", None)
+            if classes_arr is not None:
+                matches = np.where(classes_arr == desired_outcome)[0]
+                if len(matches) > 0:
+                    desired_idx = int(matches[0])
+        if desired_idx is None:
+            if isinstance(desired_outcome, (int, np.integer)) and 0 <= int(desired_outcome) < len(orig_proba):
+                desired_idx = int(desired_outcome)
+            else:
+                desired_idx = 1 if len(orig_proba) > 1 else 0
+
+    def _calc_score(cand: np.ndarray) -> tuple[float, bool]:
+        pred_cand = model.predict(cand.reshape(1, -1))[0]
+        is_desired = bool(pred_cand == desired_outcome)
+        dist = float(np.sum(((cand - x_orig) / stds) ** 2))
+
+        if hasattr(model, "predict_proba") and desired_idx is not None:
+            probs = model.predict_proba(cand.reshape(1, -1))[0]
+            p_desired = float(probs[desired_idx]) if desired_idx < len(probs) else float(probs[-1])
+            score = (1.0 - p_desired) + 0.05 * dist
+        elif hasattr(model, "decision_function"):
+            df = model.decision_function(cand.reshape(1, -1))
+            val = float(df[0]) if np.ndim(df) == 1 else float(df[0][0])
+            is_pos = (
+                desired_outcome == 1
+                or (hasattr(model, "classes_") and len(model.classes_) == 2 and desired_outcome == model.classes_[1])
+            )
+            target_margin = val if is_pos else -val
+            p_desired = 1.0 / (1.0 + np.exp(-np.clip(target_margin, -20.0, 20.0)))
+            score = (1.0 - p_desired) + 0.05 * dist
+        else:
+            # Regression or predict-only models: margin to target threshold
+            margin = abs(float(pred_cand) - float(desired_outcome))
+            score = margin + 0.05 * dist
+
+        return score, is_desired
+
     # Coordinate search
     for _iteration in range(max_iter):
         pred = model.predict(best_cf.reshape(1, -1))[0]
@@ -78,30 +119,32 @@ def generate_counterfactual(
             candidate_pos[i] = min(maxs[i], candidate_pos[i] + step)
             candidate_neg[i] = max(mins[i], candidate_neg[i] - step)
 
-            pred_pos = model.predict(candidate_pos.reshape(1, -1))[0]
-            pred_neg = model.predict(candidate_neg.reshape(1, -1))[0]
-
-            if pred_pos == desired_outcome:
+            score_pos, match_pos = _calc_score(candidate_pos)
+            if match_pos:
                 best_cf = candidate_pos
                 found = True
                 break
-            if pred_neg == desired_outcome:
+
+            score_neg, match_neg = _calc_score(candidate_neg)
+            if match_neg:
                 best_cf = candidate_neg
                 found = True
                 break
 
-            # Distance tracking
-            dist_pos = np.sum(((candidate_pos - x_orig) / stds) ** 2)
-            dist_neg = np.sum(((candidate_neg - x_orig) / stds) ** 2)
-            diffs.append((dist_pos, candidate_pos))
-            diffs.append((dist_neg, candidate_neg))
+            diffs.append((score_pos, candidate_pos))
+            diffs.append((score_neg, candidate_neg))
 
         if found:
             break
 
-        # Move along least distance direction
-        diffs.sort(key=lambda x: x[0])
-        best_cf = diffs[0][1]
+        # Move along candidate minimizing guidance score
+        if diffs:
+            diffs.sort(key=lambda x: x[0])
+            best_cf = diffs[0][1]
+
+    cf_pred = model.predict(best_cf.reshape(1, -1))[0]
+    if cf_pred == desired_outcome:
+        found = True
 
     # Calculate changes
     changes = []
@@ -185,17 +228,20 @@ def estimate_uplift_t_learner(
     ate = float(np.mean(ite))
 
     # Segment users into 4 Uplift Quadrants
-    # Persuadable: positive impact of treatment (p_treat >= 0.5, p_ctrl < 0.5)
-    # Sure Thing: positive outcome regardless (p_treat >= 0.5, p_ctrl >= 0.5)
-    # Lost Cause: negative outcome regardless (p_treat < 0.5, p_ctrl < 0.5)
-    # Sleeping Dog / Do-not-disturb: treatment causes negative outcome (p_treat < 0.5, p_ctrl >= 0.5)
+    # Persuadable: positive impact of treatment
+    # Sure Thing: positive outcome regardless
+    # Lost Cause: negative outcome regardless
+    # Sleeping Dog / Do-not-disturb: treatment causes negative outcome
+    is_prob = bool(np.all((p_treat >= 0.0) & (p_treat <= 1.0)) and np.all((p_ctrl >= 0.0) & (p_ctrl <= 1.0)))
+    thresh = 0.5 if is_prob else float(np.median(p_ctrl))
+
     quadrants = []
     for pt, pc in zip(p_treat, p_ctrl, strict=True):
-        if pt >= 0.5 and pc < 0.5:
+        if pt >= thresh and pc < thresh:
             quadrants.append("Persuadables (High ROI Target)")
-        elif pt >= 0.5 and pc >= 0.5:
+        elif pt >= thresh and pc >= thresh:
             quadrants.append("Sure Things (Organic Success)")
-        elif pt < 0.5 and pc < 0.5:
+        elif pt < thresh and pc < thresh:
             quadrants.append("Lost Causes (No Intervention ROI)")
         else:
             quadrants.append("Sleeping Dogs (Do-Not-Disturb)")

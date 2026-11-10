@@ -8,7 +8,6 @@ and log transformations, then filters them using Mutual Information.
 
 from __future__ import annotations
 
-import gc
 import logging
 
 import numpy as np
@@ -24,9 +23,25 @@ def auto_engineer_features(
     target_col: str,
     task_type: str = "classification",
     max_new_features: int = 8,
+    train_indices: pd.Index | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
     """
     Automatically creates high-signal engineered features from the dataset.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataset.
+    target_col : str
+        Target variable name.
+    task_type : str
+        'classification' or 'regression'.
+    max_new_features : int
+        Maximum number of engineered features to retain.
+    train_indices : pd.Index | None
+        Optional train split indices. When provided, imputation medians and
+        Mutual Information feature selection are strictly computed on these indices
+        to eliminate data leakage into test sets.
 
     Returns
     -------
@@ -36,6 +51,13 @@ def auto_engineer_features(
     df_out = df.copy()
     candidate_features: dict[str, pd.Series] = {}
     date_cols_extracted: list[str] = []
+
+    if train_indices is not None:
+        if not isinstance(train_indices, pd.Index):
+            train_indices = pd.Index(train_indices)
+        train_indices = df_out.index.intersection(train_indices)
+        if len(train_indices) == 0:
+            train_indices = None
 
     # 1. Date/Time feature extraction
     for col in df_out.columns:
@@ -86,7 +108,11 @@ def auto_engineer_features(
             candidate_features[f"fe_{c1}_x_{c2}"] = df_out[c1] * df_out[c2]
             # Safe ratio
             denominator = df_out[c2].replace(0, np.nan)
-            ratio = (df_out[c1] / denominator).fillna(df_out[c1].median()).fillna(0.0)
+            if train_indices is not None:
+                c1_median = df_out.loc[train_indices, c1].median()
+            else:
+                c1_median = df_out[c1].median()
+            ratio = (df_out[c1] / denominator).fillna(c1_median).fillna(0.0)
             candidate_features[f"fe_ratio_{c1}_div_{c2}"] = ratio
 
     if date_cols_extracted:
@@ -97,21 +123,31 @@ def auto_engineer_features(
 
     candidates_df = pd.DataFrame(candidate_features, index=df_out.index)
     candidates_df = candidates_df.replace([np.inf, -np.inf], np.nan)
-    candidates_df = candidates_df.fillna(candidates_df.median(numeric_only=True)).fillna(0.0)
+    if train_indices is not None:
+        impute_medians = candidates_df.loc[train_indices].median(numeric_only=True)
+    else:
+        impute_medians = candidates_df.median(numeric_only=True)
+    candidates_df = candidates_df.fillna(impute_medians).fillna(0.0)
     candidates_df = candidates_df.clip(lower=-1e15, upper=1e15)
 
     # 4. Filter with Mutual Information against the target variable
     try:
         y_raw = df_out[target_col].dropna()
         valid_idx = y_raw.index
+        if train_indices is not None:
+            train_valid = valid_idx.intersection(train_indices)
+            if len(train_valid) >= 2:
+                valid_idx = train_valid
+
         X_candidates = candidates_df.loc[valid_idx]
+        y_eval = y_raw.loc[valid_idx]
 
         if task_type == "classification":
             le = LabelEncoder()
-            y_enc = le.fit_transform(y_raw.astype(str))
+            y_enc = le.fit_transform(y_eval.astype(str))
             mi_scores = mutual_info_classif(X_candidates, y_enc, random_state=42)
         else:
-            y_num = pd.to_numeric(y_raw, errors="coerce").fillna(0)
+            y_num = pd.to_numeric(y_eval, errors="coerce").fillna(0)
             mi_scores = mutual_info_regression(X_candidates, y_num, random_state=42)
 
         scores_series = pd.Series(mi_scores, index=candidates_df.columns).sort_values(ascending=False)
@@ -124,8 +160,6 @@ def auto_engineer_features(
             df_out[c] = candidates_df[c]
 
         log.info("AutoFE generated %d new features: %s", len(selected_cols), selected_cols)
-        del candidates_df
-        gc.collect()
         return df_out, selected_cols
 
     except Exception as e:
@@ -133,6 +167,4 @@ def auto_engineer_features(
         fallback_cols = list(candidates_df.columns)[:3]
         for c in fallback_cols:
             df_out[c] = candidates_df[c]
-        del candidates_df
-        gc.collect()
         return df_out, fallback_cols

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -28,9 +28,9 @@ log = logging.getLogger("dia.conformal")
 @dataclass
 class ConformalInstanceResult:
     """Evaluation of a single test point."""
-    predicted_label: int | float
-    conformal_set: List[int]
-    conformal_interval: Optional[Tuple[float, float]]
+    predicted_label: int | float | str
+    conformal_set: list[Any]
+    conformal_interval: tuple[float, float] | None
     aleatoric_entropy: float
     epistemic_distance: float
     uncertainty_classification: str  # "HIGH_CONFIDENCE", "ALEATORIC_NOISE", "EPISTEMIC_OOD_FLAG"
@@ -49,7 +49,7 @@ class ConformalCalibrationReport:
     average_set_size_or_width: float
     ood_flagged_count: int
     ood_flagged_pct: float
-    sample_evaluations: List[ConformalInstanceResult] = field(default_factory=list)
+    sample_evaluations: list[ConformalInstanceResult] = field(default_factory=list)
     executive_verdict: str = "CALIBRATION_CERTIFIED"
 
 
@@ -64,9 +64,10 @@ class ConformalUncertaintyEngine:
         """
         self.alpha = alpha
         self.q_hat: float = 0.0
-        self.calib_centroids: Optional[np.ndarray] = None
-        self.calib_stds: Optional[np.ndarray] = None
+        self.calib_centroids: np.ndarray | None = None
+        self.calib_stds: np.ndarray | None = None
         self.task_type: str = "classification"
+        self.classes_: Any | None = None
 
     def calibrate(
         self,
@@ -94,9 +95,23 @@ class ConformalUncertaintyEngine:
             probs = model.predict_proba(x_calib)
             # Non-conformity score: 1 - P(true_class)
             n_classes = probs.shape[1]
+            classes = getattr(model, "classes_", np.unique(arr_y))
+            self.classes_ = classes
+            class_to_idx = {c: idx for idx, c in enumerate(classes)}
+
             scores = []
             for i, true_label in enumerate(arr_y):
-                l_idx = int(true_label) if int(true_label) < n_classes else 0
+                l_idx = class_to_idx.get(true_label, None)
+                if l_idx is None:
+                    try:
+                        int_label = int(true_label)
+                        l_idx = class_to_idx.get(int_label, None)
+                        if l_idx is None and 0 <= int_label < n_classes:
+                            l_idx = int_label
+                    except (ValueError, TypeError):
+                        l_idx = None
+                if l_idx is None or l_idx >= n_classes or l_idx < 0:
+                    l_idx = 0
                 scores.append(1.0 - probs[i, l_idx])
             scores = np.array(scores)
         else:
@@ -108,16 +123,19 @@ class ConformalUncertaintyEngine:
         self.q_hat = float(np.quantile(scores, level))
         return self.q_hat
 
+    fit_calibration = calibrate
+
     def evaluate_instances(
         self,
         model: Any,
         x_eval: pd.DataFrame,
-        y_true: Optional[np.ndarray | pd.Series] = None,
+        y_true: np.ndarray | pd.Series | None = None,
     ) -> ConformalCalibrationReport:
         """
         Evaluates test instances, constructing guaranteed conformal sets and uncertainty flags.
         """
         arr_x = x_eval.select_dtypes(include=[np.number]).fillna(0.0).values
+        arr_y_true = np.asarray(y_true) if y_true is not None else None
         n = len(x_eval)
         if n == 0:
             return ConformalCalibrationReport(
@@ -138,9 +156,9 @@ class ConformalUncertaintyEngine:
         else:
             epistemic_dists = np.zeros(n)
 
-        results: List[ConformalInstanceResult] = []
+        results: list[ConformalInstanceResult] = []
         covered_count = 0
-        set_sizes: List[float] = []
+        set_sizes: list[float] = []
         ood_count = 0
 
         # OOD threshold: > 2.75 normalized standard deviations
@@ -148,15 +166,20 @@ class ConformalUncertaintyEngine:
 
         if self.task_type == "classification" and hasattr(model, "predict_proba"):
             probs = model.predict_proba(x_eval)
+            n_classes = probs.shape[1]
+            raw_classes = getattr(model, "classes_", getattr(self, "classes_", None))
+            if raw_classes is None or len(raw_classes) != n_classes:
+                classes = list(range(n_classes))
+            else:
+                classes = list(raw_classes)
             preds = np.argmax(probs, axis=1)
 
             for i in range(n):
                 p_row = probs[i]
-                # Conformal set: all classes where 1 - p <= q_hat => p >= 1 - q_hat
-                threshold = max(1.0 - self.q_hat, 0.0)
-                conf_set = [c for c, p in enumerate(p_row) if p >= threshold]
+                # Conformal set: all classes where (1.0 - p) <= q_hat
+                conf_set = [classes[c] for c in range(n_classes) if (1.0 - probs[i, c]) <= self.q_hat]
                 if not conf_set:
-                    conf_set = [int(np.argmax(p_row))]
+                    conf_set = [classes[int(np.argmax(p_row))]]
 
                 set_sizes.append(len(conf_set))
 
@@ -177,15 +200,23 @@ class ConformalUncertaintyEngine:
                     verdict = "HIGH_CONFIDENCE"
                     needs_review = False
 
-                if y_true is not None:
-                    t_val = int(y_true[i] if isinstance(y_true, (list, np.ndarray)) else y_true.iloc[i])
-                    if t_val in conf_set:
+                if arr_y_true is not None:
+                    y_val = arr_y_true[i]
+                    if y_val in conf_set:
                         covered_count += 1
+
+                raw_pred = classes[preds[i]]
+                if isinstance(raw_pred, (np.integer, int)):
+                    pred_label: int | float | str = int(raw_pred)
+                elif isinstance(raw_pred, (np.floating, float)):
+                    pred_label = float(raw_pred)
+                else:
+                    pred_label = str(raw_pred)
 
                 results.append(
                     ConformalInstanceResult(
-                        predicted_label=int(preds[i]),
-                        conformal_set=conf_set,
+                        predicted_label=pred_label,
+                        conformal_set=[c.item() if hasattr(c, "item") else c for c in conf_set],
                         conformal_interval=None,
                         aleatoric_entropy=round(entropy, 3),
                         epistemic_distance=round(dist, 3),
@@ -212,8 +243,8 @@ class ConformalUncertaintyEngine:
                     verdict = "HIGH_CONFIDENCE"
                     needs_review = False
 
-                if y_true is not None:
-                    t_val = float(y_true[i] if isinstance(y_true, (list, np.ndarray)) else y_true.iloc[i])
+                if arr_y_true is not None:
+                    t_val = float(arr_y_true[i])
                     if interval[0] <= t_val <= interval[1]:
                         covered_count += 1
 
@@ -251,7 +282,7 @@ def evaluate_conformal_bounds(
     model: Any,
     df: pd.DataFrame,
     target_col: str,
-    feature_names: List[str],
+    feature_names: list[str],
     alpha: float = 0.10,
     task_type: str = "classification",
 ) -> ConformalCalibrationReport:

@@ -47,6 +47,8 @@ from dia.report_generator import generate_executive_html_report
 DEFAULT_CLASSIFICATION_MODELS = ["logreg", "dt", "rf", "lgbm", "xgb"]
 DEFAULT_REGRESSION_MODELS = ["linreg", "dt", "rf", "lgbm", "xgb"]
 
+log = logging.getLogger("dia.pipeline_coordinator")
+
 
 class PipelineCoordinator:
     """Central orchestrator managing multi-stage execution and state propagation."""

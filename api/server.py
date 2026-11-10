@@ -877,7 +877,7 @@ def ingest_demo_dataset(payload: DemoIngestRequest, request: Request = None) -> 
         "sanitize_report": {"total_cells_repaired": 0, "status": "clean_benchmark"},
         "pipeline_result": None,
         "context": context,
-        "rag_index": build_session_index(df, dictionary_entries=load_entries()),
+        "rag_index": build_session_index(df, dictionary_entries=load_entries(tenant_id=user.tenant_id)),
     }
 
     return IngestResponse(
@@ -902,16 +902,25 @@ async def upload_dataset_file(file: UploadFile = File(...), request: Request = N
     if len(raw_bytes) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    try:
+    user: UserContext = _get_effective_user(request) or build_user_context()
+
+    def _process_file(raw: bytes, fname: str, tid: str):
         loader = UniversalLoader()
-        ingest_res = loader.load(raw_bytes=raw_bytes, filename=file.filename)
-        df, sanitize_report = sanitize_dataframe(ingest_res.df)
+        res = loader.load(raw_bytes=raw, filename=fname)
+        cleaned_df, s_rep = sanitize_dataframe(res.df)
+        ctx = infer_dataset_context_locally(cleaned_df)
+        r_idx = build_session_index(cleaned_df, dictionary_entries=load_entries(tenant_id=tid))
+        return res, cleaned_df, s_rep, ctx, r_idx
+
+    try:
+        import anyio
+        ingest_res, df, sanitize_report, context, rag_idx = await anyio.to_thread.run_sync(
+            _process_file, raw_bytes, file.filename, user.tenant_id
+        )
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"File Ingestion Error: {str(e)}") from e
 
-    user: UserContext = _get_effective_user(request) or build_user_context()
     session_id = str(uuid.uuid4())
-    context = infer_dataset_context_locally(df)
     capabilities = _detect_capabilities(df)
 
     # Enrich sanitize_report with universal loader details
@@ -928,7 +937,7 @@ async def upload_dataset_file(file: UploadFile = File(...), request: Request = N
         "sanitize_report": sanitize_report,
         "pipeline_result": None,
         "context": context,
-        "rag_index": build_session_index(df, dictionary_entries=load_entries()),
+        "rag_index": rag_idx,
         "meta": ingest_res.meta,
     }
 
@@ -1149,7 +1158,7 @@ def run_automl_pipeline(payload: TrainPipelineRequest) -> TrainPipelineResponse:
             readiness=pipeline_res.get("readiness"),
             target_col=pipeline_res["target_col"],
             target_type_info=detect_target_type(df, pipeline_res["target_col"]),
-            dictionary_entries=load_entries(),
+            dictionary_entries=load_entries(tenant_id=sess.get("tenant_id") or "default"),
         )
     except Exception:
         log.warning("Failed to rebuild RAG index after training; keeping the ingest-time index.", exc_info=True)
@@ -1899,7 +1908,7 @@ def chat_with_data(payload: ChatRequest) -> ChatResponse:
 
 
 @app.post("/api/v1/dictionary/upload", response_model=DictionaryUploadResponse, tags=["Copilot"])
-async def upload_data_dictionary(file: UploadFile = File(...)) -> DictionaryUploadResponse:
+async def upload_data_dictionary(file: UploadFile = File(...), request: Request = None) -> DictionaryUploadResponse:
     """
     Uploads a business-glossary CSV (columns: term, definition) that grounds the
     chat copilot across all future sessions. Every upload is scanned for likely
@@ -1933,7 +1942,8 @@ async def upload_data_dictionary(file: UploadFile = File(...)) -> DictionaryUplo
             ),
         )
 
-    n_saved = save_entries(result.df.to_dict("records"), source_label=result.source_label)
+    user: UserContext = _get_effective_user(request) or build_user_context()
+    n_saved = save_entries(result.df.to_dict("records"), source_label=result.source_label, tenant_id=user.tenant_id)
     return DictionaryUploadResponse(
         status="success",
         n_terms_parsed=result.meta["n_terms"],
@@ -1943,9 +1953,10 @@ async def upload_data_dictionary(file: UploadFile = File(...)) -> DictionaryUplo
 
 
 @app.get("/api/v1/dictionary", response_model=DictionaryListResponse, tags=["Copilot"])
-def list_data_dictionary() -> DictionaryListResponse:
+def list_data_dictionary(request: Request = None) -> DictionaryListResponse:
     """Lists every locally persisted data-dictionary term."""
-    entries = load_entries()
+    user: UserContext = _get_effective_user(request) or build_user_context()
+    entries = load_entries(tenant_id=user.tenant_id)
     return DictionaryListResponse(
         status="success",
         entries=[
@@ -1957,9 +1968,10 @@ def list_data_dictionary() -> DictionaryListResponse:
 
 
 @app.delete("/api/v1/dictionary/{term}", tags=["Copilot"])
-def delete_data_dictionary_entry(term: str) -> dict[str, Any]:
+def delete_data_dictionary_entry(term: str, request: Request = None) -> dict[str, Any]:
     """Deletes one term from the locally persisted data dictionary."""
-    if not delete_entry(term):
+    user: UserContext = _get_effective_user(request) or build_user_context()
+    if not delete_entry(term, tenant_id=user.tenant_id):
         raise HTTPException(status_code=404, detail=f"Term '{term}' was not found in the data dictionary.")
     return {"status": "success", "deleted_term": term}
 

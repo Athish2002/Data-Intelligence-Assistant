@@ -603,6 +603,17 @@ def _extract_importance(model, feature_names: list[str]) -> pd.Series:
                 sub_imps.append(sub_imp / sub_imp.sum())
         if sub_imps:
             return pd.concat(sub_imps, axis=1).mean(axis=1).sort_values(ascending=False).round(4)
+    elif hasattr(model, "calibrated_classifiers_") and model.calibrated_classifiers_:
+        # Handle CalibratedClassifierCV by averaging sub-estimator importances
+        sub_imps = []
+        for cc in model.calibrated_classifiers_:
+            sub_est = getattr(cc, "estimator", getattr(cc, "base_estimator", None))
+            if sub_est is not None:
+                sub_imp = _extract_importance(sub_est, feature_names)
+                if not sub_imp.empty and sub_imp.sum() > 0:
+                    sub_imps.append(sub_imp / sub_imp.sum())
+        if sub_imps:
+            return pd.concat(sub_imps, axis=1).mean(axis=1).sort_values(ascending=False).round(4)
 
     if importances is None or len(importances) != len(feature_names):
         return pd.Series(dtype=float)
@@ -730,10 +741,37 @@ def train_and_evaluate(
             f"Please select a valid target column."
         )
 
+    if not df_clean.index.is_unique:
+        df_clean = df_clean.reset_index(drop=True)
+
     fe_columns = []
     if enable_autofe:
+        actual_test_size = test_size
+        if len(df_clean) * actual_test_size < 1:
+            actual_test_size = 1 / len(df_clean)
+        if len(df_clean) * (1 - actual_test_size) < 1:
+            actual_test_size = 0.5
+
+        strat_target = None
+        if task_type == "classification":
+            unique_classes, counts = np.unique(df_clean[target_col].dropna().astype(str), return_counts=True)
+            if len(unique_classes) <= 20 and np.all(counts >= 2):
+                strat_target = df_clean[target_col].dropna().astype(str)
+
+        try:
+            train_idx, _ = train_test_split(
+                df_clean.index,
+                test_size=actual_test_size,
+                random_state=random_state,
+                stratify=strat_target,
+            )
+        except Exception:
+            train_idx = None
+
         from dia.feature_engineer import auto_engineer_features
-        df_clean, fe_columns = auto_engineer_features(df_clean, target_col, task_type)
+        df_clean, fe_columns = auto_engineer_features(
+            df_clean, target_col, task_type, train_indices=train_idx
+        )
 
     feature_cols = []
     for c in df_clean.columns:
@@ -961,11 +999,12 @@ def train_and_evaluate(
             # Optional Probability Calibration for classification
             if calibrate_probs and task_type == "classification" and hasattr(estimator, "predict_proba"):
                 try:
-                    calibrator = CalibratedClassifierCV(estimator=estimator, method="sigmoid", cv="prefit")
-                    calibrator.fit(X_test_proc, y_test)
+                    # Train calibrator on training data via internal 3-fold cross validation
+                    calibrator = CalibratedClassifierCV(estimator=estimator, method="sigmoid", cv=3)
+                    calibrator.fit(X_train_proc, y_train)
                     estimator = calibrator
                 except Exception as e:
-                    log.debug("Calibration skipped: %s", e)
+                    log.debug("Calibration skipped or failed: %s", e)
 
             fitted_estimators.append((key, estimator))
             y_pred = estimator.predict(X_test_proc)
@@ -1031,10 +1070,25 @@ def train_and_evaluate(
     # ── 2. Automatic Blended Meta-Ensemble Strategy ───────────────────────────
     if build_ensemble and len(fitted_estimators) >= 2:
         try:
-            ensemble_estimators = fitted_estimators[:3]
+            # Sort fitted estimators by performance on validation/test metrics
+            sorted_estimators = []
+            for k, est in fitted_estimators:
+                entry = next((r for r in results if r.get("model_key") == k and not r.get("error")), None)
+                if entry:
+                    m_dict = entry.get("metrics", {})
+                    score = m_dict.get("ROC-AUC", m_dict.get("F1", m_dict.get("R²", m_dict.get("R2", -999.0))))
+                    sorted_estimators.append((k, est, score))
+            sorted_estimators.sort(key=lambda x: x[2], reverse=True)
+            ensemble_candidates = [(k, est) for k, est, _ in sorted_estimators]
+            ensemble_estimators = ensemble_candidates[:3] if len(ensemble_candidates) >= 3 else ensemble_candidates
+
             if task_type == "classification":
                 # Check all models support predict_proba
                 proba_estimators = [(k, est) for k, est in ensemble_estimators if hasattr(est, "predict_proba")]
+                if len(proba_estimators) < 2 and len(ensemble_candidates) > len(ensemble_estimators):
+                    proba_candidates = [(k, est) for k, est in ensemble_candidates if hasattr(est, "predict_proba")]
+                    proba_estimators = proba_candidates[:3] if len(proba_candidates) >= 3 else proba_candidates
+
                 if len(proba_estimators) >= 2:
                     ensemble = VotingClassifier(estimators=proba_estimators, voting="soft")
                     ensemble.fit(X_train_proc, y_train)

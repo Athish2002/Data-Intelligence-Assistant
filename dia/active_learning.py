@@ -37,7 +37,7 @@ def sample_uncertain_predictions(
             margins = sorted_p[:, -1] - sorted_p[:, -2]
             uncertainty_scores = 1.0 - margins
         else:
-            uncertainty_scores = np.abs(probas[:, 0] - 0.5) * 2.0
+            uncertainty_scores = 1.0 - np.abs(probas[:, 0] - 0.5) * 2.0
     else:
         # Distance to decision function for SVM/Linear models
         if hasattr(model, "decision_function"):
@@ -54,9 +54,16 @@ def sample_uncertain_predictions(
         pred_val = model.predict(X_processed[idx : idx + 1])[0]
         unc_val = float(uncertainty_scores[idx])
 
+        if isinstance(pred_val, int | np.integer):
+            formatted_pred: int | float | str = int(pred_val)
+        elif isinstance(pred_val, float | np.floating):
+            formatted_pred = float(pred_val)
+        else:
+            formatted_pred = str(pred_val)
+
         queue.append({
             "original_row_index": int(idx),
-            "model_prediction": int(pred_val) if isinstance(pred_val, int | np.integer) else float(pred_val),
+            "model_prediction": formatted_pred,
             "uncertainty_score": round(unc_val, 4),
             "status": "Awaiting Human Review",
             "features_preview": {k: v for k, v in list(row_dict.items())[:6]},

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -54,10 +54,10 @@ class RecourseResult:
     target_probability: float
     total_recourse_cost: float
     feasibility: str  # "OPTIMAL_RECOURSE_FOUND", "HIGH_COST_RECOURSE", "INFEASIBLE"
-    actions: List[RecourseAction] = field(default_factory=list)
-    counterfactual_vector: Dict[str, Any] = field(default_factory=dict)
-    executive_guidance: List[str] = field(default_factory=list)
-    immutable_features_locked: List[str] = field(default_factory=list)
+    actions: list[RecourseAction] = field(default_factory=list)
+    counterfactual_vector: dict[str, Any] = field(default_factory=dict)
+    executive_guidance: list[str] = field(default_factory=list)
+    immutable_features_locked: list[str] = field(default_factory=list)
 
 
 class AlgorithmicRecourseEngine:
@@ -67,7 +67,7 @@ class AlgorithmicRecourseEngine:
 
     def __init__(
         self,
-        immutable_features: Optional[List[str]] = None,
+        immutable_features: list[str] | None = None,
         max_iterations: int = 250,
         random_seed: int = 42,
     ) -> None:
@@ -75,7 +75,7 @@ class AlgorithmicRecourseEngine:
         self.max_iterations = max_iterations
         self.rng = np.random.default_rng(random_seed)
 
-    def _infer_immutables(self, columns: List[str]) -> set[str]:
+    def _infer_immutables(self, columns: list[str]) -> set[str]:
         inferred = set(self.user_immutables)
         for col in columns:
             c_low = col.lower().strip()
@@ -86,13 +86,13 @@ class AlgorithmicRecourseEngine:
     def compute_recourse(
         self,
         model: Any,
-        x_input: pd.Series | Dict[str, Any] | np.ndarray,
+        x_input: pd.Series | dict[str, Any] | np.ndarray,
         reference_df: pd.DataFrame,
-        feature_names: List[str],
+        feature_names: list[str],
         desired_class: int = 1,
         target_prob_threshold: float = 0.55,
-        immutable_features: Optional[List[str]] = None,
-        preprocessor: Optional[Any] = None,
+        immutable_features: list[str] | None = None,
+        preprocessor: Any | None = None,
     ) -> RecourseResult:
         """
         Finds minimal actionable shifts to attain desired_class with probability >= target_prob_threshold.
@@ -115,8 +115,8 @@ class AlgorithmicRecourseEngine:
             cols = raw_cands if raw_cands else list(reference_df.columns)
 
         ref_clean = reference_df[cols].copy()
-        cat_mappings: Dict[str, dict] = {}
-        inv_cat_mappings: Dict[str, dict] = {}
+        cat_mappings: dict[str, dict] = {}
+        inv_cat_mappings: dict[str, dict] = {}
         for c in cols:
             if not pd.api.types.is_numeric_dtype(ref_clean[c]):
                 uniques = [u for u in ref_clean[c].dropna().unique()]
@@ -159,7 +159,7 @@ class AlgorithmicRecourseEngine:
                     row_dict[c] = float(vec[i])
             return pd.DataFrame([row_dict], columns=cols)
 
-        def _eval_model(row_df: pd.DataFrame, vec: np.ndarray) -> Tuple[int, float]:
+        def _eval_model(row_df: pd.DataFrame, vec: np.ndarray) -> tuple[int, float]:
             if preprocessor is not None:
                 try:
                     X_proc = preprocessor.transform(row_df)
@@ -211,9 +211,9 @@ class AlgorithmicRecourseEngine:
             immutables.update(immutable_features)
 
         # Compute MAD (Median Absolute Deviation) per feature for normalization
-        mad_dict: Dict[str, float] = {}
-        min_dict: Dict[str, float] = {}
-        max_dict: Dict[str, float] = {}
+        mad_dict: dict[str, float] = {}
+        min_dict: dict[str, float] = {}
+        max_dict: dict[str, float] = {}
         for c in cols:
             if c in cat_mappings:
                 mad_dict[c] = 1.0
@@ -236,7 +236,7 @@ class AlgorithmicRecourseEngine:
         if orig_prob >= target_prob_threshold:
             # Already achieves target class
             cf_map = {}
-            for c, v in zip(cols, x_orig):
+            for c, v in zip(cols, x_orig, strict=False):
                 if c in cat_mappings:
                     cf_map[c] = inv_cat_mappings[c].get(int(round(v)), str(v))
                 else:
@@ -255,7 +255,7 @@ class AlgorithmicRecourseEngine:
             )
 
         # Estimate feature gradients/effects
-        feature_importance: List[Tuple[int, float]] = []
+        feature_importance: list[tuple[int, float]] = []
         for idx in mutable_indices:
             col_name = cols[idx]
             mad_val = mad_dict[col_name]
@@ -295,11 +295,18 @@ class AlgorithmicRecourseEngine:
                         cand_x[idx] = float(target_code)
                         _, p_cand = _eval_model(_build_row_df(cand_x), cand_x)
                         cost = np.sum(np.abs(cand_x - x_orig) / np.array([mad_dict[c] for c in cols]))
-                        if p_cand > best_prob or (p_cand >= target_prob_threshold and cost < best_cost):
-                            current_x = cand_x.copy()
-                            best_prob = float(p_cand)
-                            best_x = cand_x.copy()
-                            best_cost = float(cost)
+                        if best_prob < target_prob_threshold:
+                            if p_cand > best_prob:
+                                current_x = cand_x.copy()
+                                best_prob = float(p_cand)
+                                best_x = cand_x.copy()
+                                best_cost = float(cost)
+                        else:
+                            if p_cand >= target_prob_threshold and cost < best_cost:
+                                current_x = cand_x.copy()
+                                best_prob = float(p_cand)
+                                best_x = cand_x.copy()
+                                best_cost = float(cost)
                         if best_prob >= target_prob_threshold:
                             break
                 else:
@@ -312,11 +319,18 @@ class AlgorithmicRecourseEngine:
                     _, p_cand = _eval_model(_build_row_df(candidate_x), candidate_x)
                     cost = np.sum(np.abs(candidate_x - x_orig) / np.array([mad_dict[c] for c in cols]))
 
-                    if p_cand > best_prob or (p_cand >= target_prob_threshold and cost < best_cost):
-                        current_x = candidate_x.copy()
-                        best_prob = float(p_cand)
-                        best_x = candidate_x.copy()
-                        best_cost = float(cost)
+                    if best_prob < target_prob_threshold:
+                        if p_cand > best_prob:
+                            current_x = candidate_x.copy()
+                            best_prob = float(p_cand)
+                            best_x = candidate_x.copy()
+                            best_cost = float(cost)
+                    else:
+                        if p_cand >= target_prob_threshold and cost < best_cost:
+                            current_x = candidate_x.copy()
+                            best_prob = float(p_cand)
+                            best_x = candidate_x.copy()
+                            best_cost = float(cost)
 
                 if best_prob >= target_prob_threshold:
                     break
@@ -324,8 +338,8 @@ class AlgorithmicRecourseEngine:
                 break
 
         # Generate Action Items
-        actions: List[RecourseAction] = []
-        guidance: List[str] = []
+        actions: list[RecourseAction] = []
+        guidance: list[str] = []
 
         for i, col in enumerate(cols):
             orig_v = float(x_orig[i])
@@ -379,8 +393,8 @@ class AlgorithmicRecourseEngine:
             "HIGH_COST_RECOURSE" if actions else "INFEASIBLE"
         )
 
-        cf_vector: Dict[str, Any] = {}
-        for c, v in zip(cols, best_x):
+        cf_vector: dict[str, Any] = {}
+        for c, v in zip(cols, best_x, strict=False):
             if c in cat_mappings:
                 cf_vector[c] = inv_cat_mappings[c].get(int(round(v)), str(v))
             else:
@@ -402,13 +416,13 @@ class AlgorithmicRecourseEngine:
 
 def compute_recourse(
     model: Any,
-    x_input: pd.Series | Dict[str, Any] | np.ndarray,
+    x_input: pd.Series | dict[str, Any] | np.ndarray,
     reference_df: pd.DataFrame,
-    feature_names: List[str],
+    feature_names: list[str],
     desired_class: int = 1,
     target_prob_threshold: float = 0.55,
-    immutable_features: Optional[List[str]] = None,
-    preprocessor: Optional[Any] = None,
+    immutable_features: list[str] | None = None,
+    preprocessor: Any | None = None,
 ) -> RecourseResult:
     """Convenience functional interface for Algorithmic Recourse."""
     engine = AlgorithmicRecourseEngine(immutable_features=immutable_features)
