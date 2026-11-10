@@ -434,6 +434,7 @@ def generate_smart_insights(
     target_col: str,
     task_type: str,
     max_insights: int = 4,
+    causal_graph: Any = None,
 ) -> list[dict[str, str]]:
     """
     Generate natural language insights by finding multi-variate, non-linear,
@@ -492,23 +493,106 @@ def generate_smart_insights(
             if paradox:
                 dir_glob = "positive" if paradox["r_global"] > 0 else "negative"
                 dir_sub = "negative" if paradox["r_global"] > 0 else "positive"
+                grp_col = paradox["group_col"]
 
-                # Structural Causal Resolution via DAG identifiability
+                # Structural Causal Resolution via DAG identifiability & Causal Discovery
+                from dia.causal_discovery import discover_causal_graph
                 from dia.causal_identifiability import CausalDAG, resolve_simpsons_paradox_algebraically
+
+                # Discover or retrieve causal graph
+                graph = causal_graph
+                if graph is None:
+                    try:
+                        valid_mask = (
+                            temp_df[num_col].notna()
+                            & temp_df["_target"].notna()
+                            & temp_df[grp_col].notna()
+                        )
+                        causal_sample = pd.DataFrame({
+                            num_col: temp_df.loc[valid_mask, num_col].to_numpy(dtype=float),
+                            "_target": temp_df.loc[valid_mask, "_target"].to_numpy(dtype=float),
+                            grp_col: temp_df.loc[valid_mask, grp_col].astype("category").cat.codes.astype(float),
+                        })
+                        for extra_c in numeric_cols[:4]:
+                            if extra_c not in causal_sample.columns and extra_c != target_col:
+                                s = pd.to_numeric(df.loc[valid_mask, extra_c], errors="coerce").fillna(0.0)
+                                if float(s.std()) > 1e-6:
+                                    causal_sample[extra_c] = s.to_numpy(dtype=float)
+
+                        if len(causal_sample) > 1000:
+                            causal_sample = causal_sample.sample(1000, random_state=42)
+
+                        graph = discover_causal_graph(causal_sample, target_col="_target", treatment_col=num_col)
+                    except Exception:
+                        log.debug("Causal graph discovery failed during Simpson's paradox analysis", exc_info=True)
+                        graph = None
+
                 dag = CausalDAG()
-                dag.add_edge(paradox["group_col"], num_col)
-                dag.add_edge(paradox["group_col"], "_target")
+                is_connected_to_treatment = False
+                is_connected_to_outcome = False
+                outcome_target_names = {"_target", target_col}
+
+                if isinstance(graph, CausalDAG):
+                    dag = graph
+                    for src, tgt in dag.edges:
+                        edge_nodes = {src, tgt}
+                        if grp_col in edge_nodes and num_col in edge_nodes:
+                            is_connected_to_treatment = True
+                        if grp_col in edge_nodes and (edge_nodes & outcome_target_names):
+                            is_connected_to_outcome = True
+                elif graph is not None:
+                    for node in graph.nodes:
+                        dag.add_node(node)
+                    for edge in graph.edges:
+                        src = edge.source
+                        tgt = edge.target
+                        if edge.direction in ("-->", "->"):
+                            dag.add_edge(src, tgt)
+                        elif edge.direction in ("<--", "<-"):
+                            dag.add_edge(tgt, src)
+
+                        edge_nodes = {src, tgt}
+                        if grp_col in edge_nodes and num_col in edge_nodes:
+                            is_connected_to_treatment = True
+                        if grp_col in edge_nodes and (edge_nodes & outcome_target_names):
+                            is_connected_to_outcome = True
+
+                outcome_node = "_target" if "_target" in dag.nodes else (target_col if target_col in dag.nodes else "_target")
+                dag.add_node(num_col)
+                dag.add_node(outcome_node)
+                dag.add_node(grp_col)
+
                 resolution = resolve_simpsons_paradox_algebraically(
-                    dag, treatment=num_col, outcome="_target", conditioning_node=paradox["group_col"]
+                    dag, treatment=num_col, outcome=outcome_node, conditioning_node=grp_col
                 )
 
+                if resolution.structural_role in ("Confounder", "Collider", "Mediator"):
+                    verdict_text = (
+                        f"Axiomatic Causal Verdict ({resolution.structural_role}): "
+                        f"{resolution.causal_verdict} {resolution.explanation}"
+                    )
+                elif is_connected_to_treatment and is_connected_to_outcome:
+                    verdict_text = (
+                        f"Unverified Structural Hypothesis: Subgroup reversal observed across `{grp_col}`, "
+                        f"but causal direction is unoriented in observational data. Stratifying by `{grp_col}` "
+                        f"is an unverified structural hypothesis rather than an axiomatic confounder; "
+                        f"domain validation is recommended to rule out collider or mediator bias."
+                    )
+                else:
+                    verdict_text = (
+                        f"Unverified Structural Hypothesis: `{grp_col}` is not causally connected to both `{num_col}` "
+                        f"and `{target_col}` in the discovered causal DAG. The observed subgroup slope reversal "
+                        f"may be an artifact of sample variance or selection bias rather than true confounding; "
+                        f"treat subgroup stratification as an unverified structural hypothesis rather than an axiomatic confounder."
+                    )
+
                 insights.append({
-                    "title": f"Simpson's Paradox: {num_col} vs {target_col} by {paradox['group_col']}",
+                    "title": f"Simpson's Paradox: {num_col} vs {target_col} by {grp_col}",
                     "description": (
                         f"Simpson's Paradox detected: Global correlation is {dir_glob} ({paradox['r_global']:+.2f}), "
-                        f"but in {paradox['reversal_pct']:.0f}% of segments defined by `{paradox['group_col']}`, "
+                        f"but in {paradox['reversal_pct']:.0f}% of segments defined by `{grp_col}`, "
                         f"the correlation is {dir_sub} (mean subgroup r = {paradox['mean_subgroup_r']:+.2f}). "
-                        f"Axiomatic Causal Verdict: {resolution.causal_verdict} {resolution.explanation}"
+                        f"{verdict_text}"
                     ),
                     "type": "neutral",
                 })

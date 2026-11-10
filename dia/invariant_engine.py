@@ -21,12 +21,10 @@ and operational invariants without empirical leakage or drift:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-
 
 # ───────────────────────────────────────────────────────────────────────────
 # 1. Linear Conservation Invariant Projection (A x = b)
@@ -40,7 +38,7 @@ class ConservationLaw:
     e.g., Inflow - Outflow = Delta_Balance
     """
     name: str
-    coefficients: Dict[str, float]
+    coefficients: dict[str, float]
     target_sum: float = 0.0
     tolerance: float = 1e-6
     formula: str = ""
@@ -54,7 +52,7 @@ class ConservationProjector:
     by one or more conservation laws {x in R^d | A x = b}.
     """
 
-    def __init__(self, laws: List[ConservationLaw], feature_names: List[str]):
+    def __init__(self, laws: list[ConservationLaw], feature_names: list[str]):
         self.laws = laws
         self.feature_names = feature_names
         self.feat_to_idx = {f: i for i, f in enumerate(feature_names)}
@@ -79,27 +77,49 @@ class ConservationProjector:
             self.projector_matrix = self.A.T @ inv_A_AT
         except Exception:
             self.projector_matrix = np.linalg.pinv(self.A)
+        self.projector = self.projector_matrix
 
-    def project(self, x: np.ndarray, bounds: Optional[Tuple[np.ndarray, np.ndarray]] = None) -> np.ndarray:
+    def project(
+        self,
+        x: np.ndarray,
+        bounds: tuple[np.ndarray, np.ndarray] | None = None,
+    ) -> np.ndarray:
         """
-        Orthogonally projects vector x onto A x = b.
+        Orthogonally projects vector x (1D) or batch matrix x (2D) onto A x = b.
         If bounds (lower, upper) are provided, clips iteratively.
         """
-        x_vec = np.asarray(x, dtype=float).copy()
-        residual = self.A @ x_vec - self.b
-        correction = self.projector_matrix @ residual
-        x_proj = x_vec - correction
+        x_arr = np.asarray(x, dtype=float).copy()
+        if x_arr.ndim == 1:
+            residual = self.A @ x_arr - self.b
+            x_proj = x_arr - (self.projector @ residual)
 
-        if bounds is not None:
-            lower, upper = bounds
-            x_proj = np.clip(x_proj, lower, upper)
-            # Second projection pass after clipping
-            residual = self.A @ x_proj - self.b
-            x_proj = x_proj - self.projector_matrix @ residual
+            if bounds is not None:
+                lower, upper = bounds
+                x_proj = np.clip(x_proj, lower, upper)
+                # Second projection pass after clipping
+                residual = self.A @ x_proj - self.b
+                x_proj = x_proj - (self.projector @ residual)
 
-        return x_proj
+            return x_proj
+        elif x_arr.ndim == 2:
+            # 2D batch vectorized projection: x_proj = x - residuals @ projector^T
+            residuals = (x_arr @ self.A.T) - self.b  # shape (N, m)
+            x_proj = x_arr - (residuals @ self.projector.T)  # shape (N, d)
 
-    def verify_conservation(self, x: np.ndarray) -> List[Tuple[str, float, bool]]:
+            if bounds is not None:
+                lower, upper = bounds
+                x_proj = np.clip(x_proj, lower, upper)
+                # Second projection pass after clipping
+                residuals = (x_proj @ self.A.T) - self.b
+                x_proj = x_proj - (residuals @ self.projector.T)
+
+            return x_proj
+        else:
+            raise ValueError(
+                f"Expected 1D vector (d,) or 2D batch matrix (N, d), got shape {x_arr.shape}"
+            )
+
+    def verify_conservation(self, x: np.ndarray) -> list[tuple[str, float, bool]]:
         """Verifies if vector x satisfies all conservation laws within tolerance."""
         results = []
         for row_idx, law in enumerate(self.laws):
@@ -155,7 +175,11 @@ def project_to_probability_simplex(v: np.ndarray) -> np.ndarray:
 # 3. Monotonicity Invariant Enforcement (PAVA Algorithm)
 # ───────────────────────────────────────────────────────────────────────────
 
-def enforce_monotonicity_pava(y: np.ndarray, weights: Optional[np.ndarray] = None, increasing: bool = True) -> np.ndarray:
+def enforce_monotonicity_pava(
+    y: np.ndarray,
+    weights: np.ndarray | None = None,
+    increasing: bool = True,
+) -> np.ndarray:
     """
     Pool Adjacent Violators Algorithm (PAVA) for isotonic regression.
     Guarantees strict monotonic progression: y_0 <= y_1 <= ... <= y_{n-1}
@@ -172,7 +196,7 @@ def enforce_monotonicity_pava(y: np.ndarray, weights: Optional[np.ndarray] = Non
     w = np.ones(n, dtype=float) if weights is None else np.asarray(weights, dtype=float)
 
     # Blocks: (weight, sum_val, start_idx, end_idx)
-    stack: List[List[float]] = []
+    stack: list[list[float]] = []
 
     for i in range(n):
         cur_weight = float(w[i])
@@ -215,14 +239,14 @@ class AxiomAuditSummary:
     total_records: int
     passed_records: int
     violation_rate: float
-    violations_by_law: Dict[str, int]
+    violations_by_law: dict[str, int]
     is_axiom_compliant: bool
-    details: List[str]
+    details: list[str]
 
 
 def audit_dataframe_axioms(
     df: pd.DataFrame,
-    laws: List[ConservationLaw],
+    laws: list[ConservationLaw],
 ) -> AxiomAuditSummary:
     """
     Verifies closed conservation laws across rows in a pandas DataFrame.
@@ -233,7 +257,7 @@ def audit_dataframe_axioms(
             total_records=len(df),
             passed_records=len(df),
             violation_rate=0.0,
-            violations_by_law={l.name: 0 for l in laws},
+            violations_by_law={law.name: 0 for law in laws},
             is_axiom_compliant=True,
             details=["No conservation laws specified or DataFrame is empty."],
         )
@@ -241,14 +265,14 @@ def audit_dataframe_axioms(
     cols = list(df.columns)
     projector = ConservationProjector(laws=laws, feature_names=cols)
 
-    violations_count: Dict[str, int] = {l.name: 0 for l in laws}
-    failed_indices: Set[int] = set()
+    violations_count: dict[str, int] = {law.name: 0 for law in laws}
+    failed_indices: set[int] = set()
 
     for idx, row in df.iterrows():
         try:
             x = pd.to_numeric(row, errors="coerce").fillna(0.0).to_numpy(dtype=float)
             checks = projector.verify_conservation(x)
-            for law_name, err, passed in checks:
+            for law_name, _err, passed in checks:
                 if not passed:
                     violations_count[law_name] += 1
                     failed_indices.add(int(idx))
@@ -279,9 +303,9 @@ def audit_dataframe_axioms(
 # 5. Algebraic Invariant Scanner (Suggest & Lock Engine)
 # ───────────────────────────────────────────────────────────────────────────
 
-def _format_law_equation(coeffs: Dict[str, float], target_sum: float = 0.0) -> str:
+def _format_law_equation(coeffs: dict[str, float], target_sum: float = 0.0) -> str:
     """Formats linear coefficients into clean human-readable formula: sum c_i X_i = target_sum."""
-    terms: List[str] = []
+    terms: list[str] = []
     for feat, coef in coeffs.items():
         if abs(coef) < 1e-5:
             continue
@@ -314,7 +338,7 @@ def _format_law_equation(coeffs: Dict[str, float], target_sum: float = 0.0) -> s
     return " ".join(terms) + f" = {t_str}"
 
 
-def _infer_balance_category(features: List[str]) -> str:
+def _infer_balance_category(features: list[str]) -> str:
     """Infers domain balance law archetype from feature nomenclature."""
     feats_lower = [f.lower() for f in features]
     if any(k in f for f in feats_lower for k in ["inflow", "outflow", "delta", "drain"]):
@@ -358,7 +382,7 @@ def scan_dataframe_conservation_laws(
     max_features: int = 12,
     r2_threshold: float = 0.9999,
     residual_var_tol: float = 1e-8,
-) -> List[ConservationLaw]:
+) -> list[ConservationLaw]:
     """
     Uses Singular Value Decomposition (SVD) and Null-Space analysis on normalized
     continuous numerical features to discover exact linear combinations:
@@ -376,7 +400,7 @@ def scan_dataframe_conservation_laws(
         return []
 
     # Drop zero-variance/constant columns
-    valid_cols: List[str] = []
+    valid_cols: list[str] = []
     for c in num_df.columns:
         s = num_df[c].dropna()
         if len(s) > 2 and float(s.std()) > 1e-12:
@@ -404,7 +428,7 @@ def scan_dataframe_conservation_laws(
     Z = M / scales
 
     try:
-        U, S, Vt = np.linalg.svd(Z, full_matrices=False)
+        _U, S, Vt = np.linalg.svd(Z, full_matrices=False)
     except Exception:
         return []
 
@@ -416,7 +440,7 @@ def scan_dataframe_conservation_laws(
     # Convert null vectors back to original feature scale: M @ (v / scales) = Z @ v approx 0
     V_null = Vt[null_mask] / scales
     V_basis = _rref(V_null)
-    candidates: List[ConservationLaw] = []
+    candidates: list[ConservationLaw] = []
 
     for row in V_basis:
         max_abs = np.max(np.abs(row))
@@ -442,7 +466,7 @@ def scan_dataframe_conservation_laws(
         if normalized_row[first_nz_idx] < 0:
             normalized_row = -normalized_row
 
-        cleaned_coeffs: Dict[str, float] = {}
+        cleaned_coeffs: dict[str, float] = {}
         for idx in non_zero_indices:
             feat_name = feature_cols[idx]
             val = float(normalized_row[idx])
@@ -478,7 +502,9 @@ def scan_dataframe_conservation_laws(
         residual_variance = var_y / (c_primary ** 2)
         variance_explained = 1.0 - (residual_variance / var_primary) if var_primary > 1e-12 else 1.0
 
-        if variance_explained < r2_threshold or residual_variance > residual_var_tol:
+        # Scale-invariant residual variance normalized relative to primary feature variance
+        norm_res_var = residual_variance / (var_primary + 1e-12)
+        if variance_explained < r2_threshold or norm_res_var > (1.0 - r2_threshold + 1e-7):
             continue
 
         eq_str = _format_law_equation(active_coeffs, target_sum=0.0)
@@ -499,176 +525,5 @@ def scan_dataframe_conservation_laws(
     return candidates
 
 
-# ───────────────────────────────────────────────────────────────────────────
-# 5. Axiomatic Conservation Law Discovery Scanner
-# ───────────────────────────────────────────────────────────────────────────
-
-def scan_conservation_laws(
-    df: pd.DataFrame,
-    max_tolerance: float = 0.05,
-) -> List[Dict[str, Any]]:
-    """
-    Scans a tabular dataset to discover candidate physical, financial, and
-    balance conservation laws (e.g. Mass Balance: X1 + X2 - X3 = 0).
-    Returns list of discovered invariants ready for axiomatic locking and projection.
-    """
-    if df.empty:
-        return []
-
-    num_cols = [
-        c for c in df.select_dtypes(include=[np.number]).columns
-        if not c.lower().endswith(('_id', 'id')) and df[c].nunique() > 2
-    ]
-    if len(num_cols) < 2:
-        return []
-
-    discovered: List[Dict[str, Any]] = []
-    seen_formulas = set()
-
-    # 1. Check exact or near-exact sum triplets: A + B - C = 0
-    from itertools import combinations
-    sample_cols = num_cols[:8]  # Bound search space to prevent combinatorial explosion
-    for a, b, c in combinations(sample_cols, 3):
-        for combo, (s_a, s_b, s_c) in [
-            (f"{a} + {b} - {c} = 0", (1.0, 1.0, -1.0)),
-            (f"{a} - {b} - {c} = 0", (1.0, -1.0, -1.0)),
-        ]:
-            if combo in seen_formulas:
-                continue
-            res = (s_a * df[a] + s_b * df[b] + s_c * df[c]).abs()
-            scale = max(float(df[c].std() or 1.0), 1e-6)
-            norm_mae = float(res.mean()) / scale
-            if norm_mae < max_tolerance:
-                tol = float(scale * max_tolerance)
-                comp = float((res <= tol).mean() * 100.0)
-                coefs = {a: s_a, b: s_b, c: s_c}
-                discovered.append({
-                    "name": f"Mass Balance: {combo}",
-                    "formula": combo,
-                    "coefficients": coefs,
-                    "target_sum": 0.0,
-                    "tolerance": round(tol, 4),
-                    "residual_mae": round(float(res.mean()), 4),
-                    "compliance_pct": round(comp, 1),
-                    "category": "Physical Conservation",
-                    "is_locked": False,
-                })
-                seen_formulas.add(combo)
-                if len(discovered) >= 4:
-                    break
-        if len(discovered) >= 4:
-            break
-
-    # 2. Check for domain-specific physical/financial conservation laws
-    col_set = set(df.columns)
-    col_lower_map = {c.lower(): c for c in df.columns}
-
-    # Telecom / Billing Balance: e.g. Monthly Charges Ledger Balance
-    if "monthly_charges" in col_set and "tenure_months" in col_set:
-        formula = "monthly_charges - (0.5 * tenure_months) = 0"
-        if formula not in seen_formulas:
-            res = (df["monthly_charges"] - 0.5 * df["tenure_months"]).abs()
-            scale = float(df["monthly_charges"].std() or 1.0)
-            mae = float(res.mean())
-            discovered.append({
-                "name": "Mass Balance: Monthly Charges - Service Allocation = 0",
-                "formula": "Monthly_Charges - 0.5 * Tenure_Months = 0",
-                "coefficients": {"monthly_charges": 1.0, "tenure_months": -0.5},
-                "target_sum": 0.0,
-                "tolerance": round(scale * 0.1, 4),
-                "residual_mae": round(mae, 4),
-                "compliance_pct": round(float((res <= scale * 0.5).mean() * 100.0), 1),
-                "category": "Financial Balance Axiom",
-                "is_locked": False,
-            })
-            seen_formulas.add(formula)
-
-    # Clinical Sepsis / Hemodynamic Homeostasis: e.g. Mean Arterial Pressure / Shock Index Balance
-    if "systolic_bp" in col_set and "heart_rate" in col_set:
-        formula = "systolic_bp - 1.5 * heart_rate = 0"
-        if formula not in seen_formulas:
-            res = (df["systolic_bp"] - 1.5 * df["heart_rate"]).abs()
-            scale = float(df["systolic_bp"].std() or 1.0)
-            discovered.append({
-                "name": "Hemodynamic Balance: Shock Index Homeostasis",
-                "formula": "Systolic_BP - 1.5 * Heart_Rate = 0",
-                "coefficients": {"systolic_bp": 1.0, "heart_rate": -1.5},
-                "target_sum": 0.0,
-                "tolerance": round(scale * 0.15, 4),
-                "residual_mae": round(float(res.mean()), 4),
-                "compliance_pct": round(float((res <= scale * 0.5).mean() * 100.0), 1),
-                "category": "Physiological Invariant",
-                "is_locked": False,
-            })
-            seen_formulas.add(formula)
-
-    # Credit / Solvency Balance
-    if "annual_income" in col_set and "loan_amount" in col_set:
-        formula = "loan_amount - 0.4 * annual_income = 0"
-        if formula not in seen_formulas:
-            res = (df["loan_amount"] - 0.4 * df["annual_income"]).abs()
-            scale = float(df["loan_amount"].std() or 1.0)
-            discovered.append({
-                "name": "Solvency Balance: Debt-to-Capital Capacity Axiom",
-                "formula": "Loan_Amount - 0.4 * Annual_Income = 0",
-                "coefficients": {"loan_amount": 1.0, "annual_income": -0.4},
-                "target_sum": 0.0,
-                "tolerance": round(scale * 0.2, 4),
-                "residual_mae": round(float(res.mean()), 4),
-                "compliance_pct": round(float((res <= scale * 0.6).mean() * 100.0), 1),
-                "category": "Solvency Invariant",
-                "is_locked": False,
-            })
-            seen_formulas.add(formula)
-
-    # 3. Minimum-residual SVD manifold invariant if fewer than 2 discovered
-    if len(discovered) < 2 and len(num_cols) >= 2:
-        top_cols = num_cols[:4]
-        sub_df = df[top_cols].dropna()
-        if len(sub_df) >= 10:
-            sub_mat = sub_df.to_numpy(dtype=float)
-            centered = sub_mat - sub_mat.mean(axis=0)
-            try:
-                _, _, vt = np.linalg.svd(centered, full_matrices=False)
-                v_min = vt[-1]
-                max_abs = np.max(np.abs(v_min)) or 1.0
-                v_norm = np.round(v_min / max_abs, 2)
-                coefs = {top_cols[i]: float(v_norm[i]) for i in range(len(top_cols)) if abs(v_norm[i]) >= 0.1}
-                if len(coefs) >= 2:
-                    terms = []
-                    for col_name, c_val in coefs.items():
-                        sign = "+" if c_val >= 0 else "-"
-                        terms.append(f"{sign} {abs(c_val):.2f} * {col_name}")
-                    formula_str = " ".join(terms).lstrip("+ ").strip() + " = 0"
-                    res = np.abs(sub_mat @ v_norm)
-                    mae = float(np.mean(res))
-                    discovered.append({
-                        "name": f"Manifold Invariant: {top_cols[0]} & {top_cols[1]} Closed Subspace",
-                        "formula": formula_str,
-                        "coefficients": coefs,
-                        "target_sum": 0.0,
-                        "tolerance": round(mae * 1.5, 4),
-                        "residual_mae": round(mae, 4),
-                        "compliance_pct": 95.0,
-                        "category": "Linear Manifold Conservation",
-                        "is_locked": False,
-                    })
-            except Exception:
-                pass
-
-    # Fallback guaranteed balance invariant if needed
-    if not discovered and len(num_cols) >= 2:
-        c1, c2 = num_cols[0], num_cols[1]
-        discovered.append({
-            "name": f"Mass Balance: {c1} - {c2} = 0",
-            "formula": f"{c1} - {c2} = 0",
-            "coefficients": {c1: 1.0, c2: -1.0},
-            "target_sum": 0.0,
-            "tolerance": 1.0,
-            "residual_mae": 0.5,
-            "compliance_pct": 90.0,
-            "category": "Linear Conservation",
-            "is_locked": False,
-        })
-
-    return discovered
+# Canonical export alias for discovery scanner
+scan_conservation_laws = scan_dataframe_conservation_laws

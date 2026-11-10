@@ -48,10 +48,17 @@ def get_demo_dataset(dataset_name: str) -> tuple[pd.DataFrame, str, str]:
         churn_prob = 1.0 / (1.0 + np.exp(-churn_logits))
         churn = (np.random.rand(n) < churn_prob).astype(int)
 
+        rounded_monthly = np.round(monthly_charges, 2)
+        base_charge = np.round(rounded_monthly * 0.70, 2)
+        addon_charge = np.round(rounded_monthly - base_charge, 2)
+        # Invariant: base_charge + addon_charge - monthly_charges == 0
+
         df = pd.DataFrame({
             "customer_id": [f"CUST-{1000 + i}" for i in range(n)],
             "tenure_months": tenure,
-            "monthly_charges": np.round(monthly_charges, 2),
+            "monthly_charges": rounded_monthly,
+            "base_charge": base_charge,
+            "addon_charge": addon_charge,
             "contract_type": contract,
             "internet_service": internet,
             "tech_support": tech_support,

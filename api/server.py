@@ -3180,51 +3180,13 @@ def scan_session_invariants(
         residual_var_tol=res_var_tol,
     )
 
-    if not laws_detected:
-        # Domain benchmark suggestions for demo datasets
-        col_lower_map = {str(c).lower().strip(): c for c in df.columns}
-        if "monthly_charges" in col_lower_map and "tenure_months" in col_lower_map:
-            c1 = col_lower_map["monthly_charges"]
-            c2 = col_lower_map["tenure_months"]
-            laws_detected.append(
-                ConservationLaw(
-                    name="Financial Balance Axiom: Monthly Charges - Service Allocation = 0",
-                    formula=f"{c1} - 0.5 * {c2} = 0",
-                    coefficients={c1: 1.0, c2: -0.5},
-                    target_sum=0.0,
-                    tolerance=1.0,
-                    variance_explained=0.95,
-                    residual_variance=0.05,
-                )
-            )
-        elif "systolic_bp" in col_lower_map and "heart_rate" in col_lower_map:
-            c1 = col_lower_map["systolic_bp"]
-            c2 = col_lower_map["heart_rate"]
-            laws_detected.append(
-                ConservationLaw(
-                    name="Hemodynamic Balance: Shock Index Homeostasis",
-                    formula=f"{c1} - 1.5 * {c2} = 0",
-                    coefficients={c1: 1.0, c2: -1.5},
-                    target_sum=0.0,
-                    tolerance=1.0,
-                    variance_explained=0.95,
-                    residual_variance=0.05,
-                )
-            )
-        elif "loan_amount" in col_lower_map and "annual_income" in col_lower_map:
-            c1 = col_lower_map["loan_amount"]
-            c2 = col_lower_map["annual_income"]
-            laws_detected.append(
-                ConservationLaw(
-                    name="Solvency Balance: Debt-to-Capital Capacity Axiom",
-                    formula=f"{c1} - 0.4 * {c2} = 0",
-                    coefficients={c1: 1.0, c2: -0.4},
-                    target_sum=0.0,
-                    tolerance=1.0,
-                    variance_explained=0.95,
-                    residual_variance=0.05,
-                )
-            )
+    for l in laws_detected:
+        if not ("Balance" in l.name or "Invariant" in l.name):
+            feats_lower = [f.lower() for f in l.coefficients.keys()]
+            if any(k in f for f in feats_lower for k in ["charge", "revenue", "cost", "profit", "margin", "price", "fee", "payment", "bill", "income", "expense"]):
+                l.name = f"Financial Balance: {l.formula}"
+            else:
+                l.name = f"Conservation Invariant: {l.formula}"
 
     locked_laws = _extract_locked_laws(sess)
     locked_names = {l.name for l in locked_laws}
@@ -3245,6 +3207,8 @@ def scan_session_invariants(
         )
         for l in laws_detected
     ]
+
+    sess["scanned_candidates"] = {c.name: c for c in candidates}
 
     return InvariantScanResponse(
         session_id=session_id,
@@ -3267,22 +3231,54 @@ def lock_session_invariant(
     existing_locked = _extract_locked_laws(sess)
     existing_by_name = {l.name: l for l in existing_locked}
 
+    if isinstance(payload, dict):
+        payload = InvariantLockRequest(**payload)
+
+    raw_items: list[Any] = []
     if isinstance(payload, list):
-        items_to_lock = payload
-    elif payload.laws:
-        items_to_lock = payload.laws
-    elif payload.invariant_name:
-        items_to_lock = [
-            ConservationLawItem(
-                name=payload.invariant_name,
-                formula=payload.formula or payload.invariant_name,
-                coefficients=payload.coefficients or {},
-                target_sum=payload.target_sum or 0.0,
-                tolerance=payload.tolerance or 1e-6,
+        raw_items = payload
+    elif isinstance(payload, InvariantLockRequest):
+        if payload.laws:
+            raw_items = payload.laws
+        elif payload.invariant_name:
+            scanned_map = sess.get("scanned_candidates", {})
+            cand = scanned_map.get(payload.invariant_name)
+            coeffs = payload.coefficients or (cand.coefficients if cand else {})
+            formula = payload.formula or (cand.formula if cand else payload.invariant_name)
+            target_sum = payload.target_sum if payload.target_sum is not None else (cand.target_sum if cand else 0.0)
+            tolerance = payload.tolerance if payload.tolerance is not None else (cand.tolerance if cand else 1e-6)
+            var_exp = cand.variance_explained if cand else 1.0
+            res_var = cand.residual_variance if cand else 0.0
+            raw_items = [
+                ConservationLawItem(
+                    name=payload.invariant_name,
+                    formula=formula,
+                    coefficients=coeffs,
+                    target_sum=target_sum,
+                    tolerance=tolerance,
+                    variance_explained=var_exp,
+                    residual_variance=res_var,
+                )
+            ]
+
+    items_to_lock: list[ConservationLawItem] = []
+    for item in raw_items:
+        if isinstance(item, ConservationLawItem):
+            items_to_lock.append(item)
+        elif isinstance(item, dict):
+            items_to_lock.append(ConservationLawItem(**item))
+        elif isinstance(item, ConservationLaw):
+            items_to_lock.append(
+                ConservationLawItem(
+                    name=item.name,
+                    formula=item.formula or item.name,
+                    coefficients=item.coefficients,
+                    target_sum=item.target_sum,
+                    tolerance=item.tolerance,
+                    variance_explained=item.variance_explained,
+                    residual_variance=item.residual_variance,
+                )
             )
-        ]
-    else:
-        items_to_lock = []
 
     for item in items_to_lock:
         law_obj = ConservationLaw(

@@ -397,6 +397,46 @@ class TestOutputVerificationTesting:
         assert final_state.self_healing_attempts == 1
         assert final_state.dossier["projected_interventions"]["Safety_Stock"] == 0.0
 
+    def test_self_healing_joint_conservation_and_non_negativity_alternating_projection(self) -> None:
+        """
+        Verifies that when a candidate intervention simultaneously violates
+        a linear conservation law (A x = b) and non-negativity (x >= 0),
+        the InvariantCritic executes alternating projection (Von Neumann / Dykstra POCS)
+        and converges in a single self-healing cycle without ping-pong oscillation.
+        """
+        dag = CausalDAG()
+        dag.add_edge("Spend_Digital", "Revenue")
+        dag.add_edge("Spend_Traditional", "Revenue")
+
+        budget_law = ConservationLaw(
+            name="total_marketing_budget",
+            coefficients={"Spend_Digital": 1.0, "Spend_Traditional": 1.0},
+            target_sum=1000.0,
+            tolerance=1e-5,
+        )
+
+        state = InvestigationState(
+            query="Evaluate Spend_Digital on Revenue",
+            causal_graph=dag,
+            candidate_treatments=["Spend_Digital"],
+            target_outcome="Revenue",
+            conservation_laws=[budget_law],
+            non_negative_variables=["Spend_Digital", "Spend_Traditional"],
+            intervention_proposals={"Spend_Digital": 1500.0, "Spend_Traditional": 0.0},
+        )
+
+        machine = StatefulInvestigationMachine()
+        final_state = machine.run(state)
+
+        assert final_state.status == "COMPLETED"
+        assert final_state.self_healing_attempts == 1
+        dossier = final_state.dossier
+        assert dossier is not None
+        projected = dossier["projected_interventions"]
+        assert projected["Spend_Digital"] >= 0.0
+        assert projected["Spend_Traditional"] >= 0.0
+        assert abs(projected["Spend_Digital"] + projected["Spend_Traditional"] - 1000.0) < 1e-4
+
     def test_self_healing_max_cycles_exhaustion_terminates_with_failure(self) -> None:
         """
         Verifies that when self-healing attempts exceed max_self_healing_cycles (default 3),

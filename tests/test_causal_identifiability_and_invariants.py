@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from dia.causal_identifiability import (
     CausalDAG,
@@ -33,7 +32,6 @@ from dia.invariant_engine import (
     enforce_monotonicity_pava,
     project_to_probability_simplex,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. Exact d-Separation Invariant Tests
@@ -100,6 +98,39 @@ class TestExactDSeparation:
 
         assert is_d_separated(dag, "A", "C", z=None)
         assert not is_d_separated(dag, "A", "C", z={"D"})
+
+    def test_deep_path_d_separation_beyond_max_depth_invariant(self) -> None:
+        """
+        Deep Chain Topology: N_0 -> N_1 -> ... -> N_24 (Length 25).
+        Polynomial Bayes-Ball / Moralized Ancestral Graph has zero depth truncation.
+        Unconditioned: N_0 and N_24 are dependent (active path of length 24).
+        Conditioning on intermediate node N_12 d-separates N_0 and N_24.
+        """
+        dag = CausalDAG()
+        for i in range(24):
+            dag.add_edge(f"N_{i}", f"N_{i+1}")
+
+        # Active path exists across all 24 edges
+        assert not is_d_separated(dag, "N_0", "N_24", z=None)
+        # Conditioned on intermediate node blocks path
+        assert is_d_separated(dag, "N_0", "N_24", z={"N_12"})
+
+    def test_m_structure_exact_d_separation(self) -> None:
+        """
+        M-Structure:
+        X <- U1 -> M <- U2 -> Y
+        M is an unconditioned collider.
+        Unconditioned: X and Y are d-separated: (X _||_ Y | empty).
+        Conditioned on M: opens the M-path, inducing dependence: not (X _||_ Y | M).
+        """
+        dag = CausalDAG()
+        dag.add_edge("U1", "X")
+        dag.add_edge("U1", "M")
+        dag.add_edge("U2", "M")
+        dag.add_edge("U2", "Y")
+
+        assert is_d_separated(dag, "X", "Y", z=None)
+        assert not is_d_separated(dag, "X", "Y", z={"M"})
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -191,6 +222,27 @@ class TestSimpsonsStructuralResolution:
         assert res.structural_role == "Mediator"
         assert "mediates" in res.causal_verdict.lower()
         assert "do not condition" in res.recommended_action.lower()
+
+    def test_m_bias_collider_resolution_verdict(self) -> None:
+        """
+        M-Bias Topology:
+        X <- U1 -> Z <- U2 -> Y
+        Z is a collider between ancestor of X (U1) and ancestor of Y (U2).
+        Conditioning on Z opens an M-structure backdoor path (Berkson's bias).
+        """
+        dag = CausalDAG()
+        dag.add_edge("U1", "X")
+        dag.add_edge("U1", "Z")
+        dag.add_edge("U2", "Z")
+        dag.add_edge("U2", "Y")
+        dag.add_edge("X", "Y")
+
+        res = resolve_simpsons_paradox_algebraically(dag, treatment="X", outcome="Y", conditioning_node="Z")
+        assert res.structural_role == "M-Bias Collider"
+        assert res.causal_verdict == "Conditioning on Z opens an M-structure backdoor path (Berkson's bias)."
+        assert res.recommended_action == "Do NOT condition on Z."
+        assert "m-structure" in res.explanation.lower()
+        assert "berkson" in res.explanation.lower()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

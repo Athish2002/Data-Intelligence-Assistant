@@ -25,7 +25,6 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from itertools import combinations
-from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 @dataclass
@@ -35,8 +34,8 @@ class CausalDAG:
     Nodes are variable names (strings).
     Edges are directed pairs (source -> target).
     """
-    nodes: Set[str] = field(default_factory=set)
-    edges: Set[Tuple[str, str]] = field(default_factory=set)
+    nodes: set[str] = field(default_factory=set)
+    edges: set[tuple[str, str]] = field(default_factory=set)
 
     def add_node(self, node: str) -> None:
         self.nodes.add(node)
@@ -47,22 +46,22 @@ class CausalDAG:
         self.edges.add((source, target))
 
     @property
-    def parents(self) -> Dict[str, Set[str]]:
-        p: Dict[str, Set[str]] = {n: set() for n in self.nodes}
+    def parents(self) -> dict[str, set[str]]:
+        p: dict[str, set[str]] = {n: set() for n in self.nodes}
         for u, v in self.edges:
             p[v].add(u)
         return p
 
     @property
-    def children(self) -> Dict[str, Set[str]]:
-        c: Dict[str, Set[str]] = {n: set() for n in self.nodes}
+    def children(self) -> dict[str, set[str]]:
+        c: dict[str, set[str]] = {n: set() for n in self.nodes}
         for u, v in self.edges:
             c[u].add(v)
         return c
 
-    def get_ancestors(self, targets: Set[str]) -> Set[str]:
+    def get_ancestors(self, targets: set[str]) -> set[str]:
         """Returns all ancestors of the given target nodes (including targets)."""
-        ancestors: Set[str] = set(targets)
+        ancestors: set[str] = set(targets)
         queue = deque(targets)
         p_map = self.parents
         while queue:
@@ -73,9 +72,9 @@ class CausalDAG:
                     queue.append(p)
         return ancestors
 
-    def get_descendants(self, sources: Set[str]) -> Set[str]:
+    def get_descendants(self, sources: set[str]) -> set[str]:
         """Returns all descendants of the given source nodes (including sources)."""
-        descendants: Set[str] = set(sources)
+        descendants: set[str] = set(sources)
         queue = deque(sources)
         c_map = self.children
         while queue:
@@ -86,9 +85,9 @@ class CausalDAG:
                     queue.append(c)
         return descendants
 
-    def get_undirected_neighbors(self) -> Dict[str, Set[str]]:
+    def get_undirected_neighbors(self) -> dict[str, set[str]]:
         """Returns undirected adjacency representation for path traversal."""
-        adj: Dict[str, Set[str]] = {n: set() for n in self.nodes}
+        adj: dict[str, set[str]] = {n: set() for n in self.nodes}
         for u, v in self.edges:
             adj[u].add(v)
             adj[v].add(u)
@@ -111,7 +110,7 @@ class CausalDAG:
                     queue.append(child)
         return count == len(self.nodes)
 
-    def mutilate_remove_outgoing(self, x_nodes: Set[str]) -> CausalDAG:
+    def mutilate_remove_outgoing(self, x_nodes: set[str]) -> CausalDAG:
         """
         Creates mutilated graph G_{\\underline{X}} by removing all outgoing arrows from X.
         Used for Pearl's Backdoor Criterion identification.
@@ -122,7 +121,7 @@ class CausalDAG:
                 new_dag.add_edge(u, v)
         return new_dag
 
-    def mutilate_remove_incoming(self, x_nodes: Set[str]) -> CausalDAG:
+    def mutilate_remove_incoming(self, x_nodes: set[str]) -> CausalDAG:
         """
         Creates mutilated graph G_{\\overline{X}} by removing all incoming arrows into X.
         Represents graph under active intervention do(X).
@@ -133,24 +132,68 @@ class CausalDAG:
                 new_dag.add_edge(u, v)
         return new_dag
 
+    def find_all_simple_paths(
+        self, start: str, target: str, visited: set[str] | None = None, max_depth: int = 15, max_paths: int = 500
+    ) -> list[list[str]]:
+        return find_all_simple_paths(self, start, target, visited, max_depth, max_paths)
+
 
 # ───────────────────────────────────────────────────────────────────────────
 # Exact d-Separation Algorithm
 # ───────────────────────────────────────────────────────────────────────────
 
+def find_all_simple_paths(
+    dag: CausalDAG,
+    start: str,
+    target: str,
+    visited: set[str] | None = None,
+    max_depth: int = 15,
+    max_paths: int = 500,
+) -> list[list[str]]:
+    """
+    Finds simple undirected paths between start and target in DAG up to max_depth and max_paths.
+    Maintained for path auditing, explanations, and UI visualization.
+    """
+    if visited is None:
+        visited = set()
+    if start == target:
+        return [[start]]
+    if len(visited) >= max_depth:
+        return []
+
+    neighbors = dag.get_undirected_neighbors()
+    paths: list[list[str]] = []
+    visited.add(start)
+    for nxt in sorted(list(neighbors.get(start, set()))):
+        if nxt not in visited:
+            sub_paths = find_all_simple_paths(dag, nxt, target, visited, max_depth, max_paths)
+            for sp in sub_paths:
+                paths.append([start] + sp)
+                if len(paths) >= max_paths:
+                    break
+        if len(paths) >= max_paths:
+            break
+    visited.remove(start)
+    return paths
+
+
 def is_d_separated(
     dag: CausalDAG,
-    x: str | Set[str],
-    y: str | Set[str],
-    z: str | Set[str] | None = None,
+    x: str | set[str],
+    y: str | set[str],
+    z: str | set[str] | None = None,
 ) -> bool:
     """
     Determines if X is d-separated from Y given conditioning set Z in DAG.
-    Uses Pearl's active-trail definition:
-    A path p is active given Z if:
-      1. Every non-collider on p is NOT in Z.
-      2. Every collider on p is in Z or has a descendant in Z.
-    Returns True if X and Y are d-separated (independent given Z).
+    Uses Pearl's exact Moralized Ancestral Graph d-separation algorithm (Lauritzen et al., 1990):
+      1. Identify ancestral set A = Ancestors(X U Y U Z).
+      2. Form induced subgraph G[A].
+      3. Moralize: for every pair of parents of a common child in G[A], add an undirected edge.
+      4. Convert all directed edges to undirected edges.
+      5. Remove conditioning nodes Z (specifically, Z \\ (X U Y)).
+      6. Test connectivity between X and Y via BFS.
+    Returns True if X and Y are d-separated (independent given Z), False otherwise.
+    Runs in polynomial time O(|V| + |E|^2) with zero path truncation or arbitrary depth limits.
     """
     x_set = {x} if isinstance(x, str) else set(x)
     y_set = {y} if isinstance(y, str) else set(y)
@@ -163,52 +206,66 @@ def is_d_separated(
     if x_set & y_set:
         return False
 
-    # Precompute descendants of all nodes for fast collider checks
-    anc_z = dag.get_ancestors(z_set)
-    edges = dag.edges
+    # 1. Identify ancestral set A = Ancestors(X U Y U Z) in DAG
+    target_nodes = (x_set | y_set | z_set) & dag.nodes
+    if not target_nodes:
+        return True
 
-    # Check active paths between every pair in X and Y
-    # A path is a sequence of nodes [v1, v2, ..., vk] with adjacent edges
-    neighbors = dag.get_undirected_neighbors()
+    anc_set = dag.get_ancestors(target_nodes) & dag.nodes
 
-    def find_all_simple_paths(
-        start: str, target: str, visited: Set[str], max_depth: int = 15, max_paths: int = 500
-    ) -> List[List[str]]:
-        if start == target:
-            return [[start]]
-        if len(visited) >= max_depth:
-            return []
-        paths: List[List[str]] = []
-        visited.add(start)
-        for nxt in neighbors.get(start, set()):
-            if nxt not in visited:
-                sub_paths = find_all_simple_paths(nxt, target, visited, max_depth, max_paths)
-                for sp in sub_paths:
-                    paths.append([start] + sp)
-                    if len(paths) >= max_paths:
-                        break
-            if len(paths) >= max_paths:
-                break
-        visited.remove(start)
-        return paths
+    # 2, 3, 4. Build moralized undirected graph on anc_set
+    adj: dict[str, set[str]] = {n: set() for n in anc_set}
 
-    for start_node in x_set:
-        for end_node in y_set:
-            paths = find_all_simple_paths(start_node, end_node, set())
-            for path in paths:
-                # Check if this simple path is active given Z
-                if _is_path_active(path, dag, z_set, anc_z, edges):
-                    return False  # Active path found, not d-separated
+    # Add undirected versions of directed edges in induced subgraph G[A]
+    for u, v in dag.edges:
+        if u in anc_set and v in anc_set:
+            adj[u].add(v)
+            adj[v].add(u)
+
+    # Moralize: marry parents of common children in G[A]
+    parents_map = dag.parents
+    for child in anc_set:
+        parents = [p for p in parents_map.get(child, set()) if p in anc_set]
+        if len(parents) >= 2:
+            for p1, p2 in combinations(parents, 2):
+                adj[p1].add(p2)
+                adj[p2].add(p1)
+
+    # 5. Remove conditioning nodes Z \\ (X U Y)
+    z_blocked = (z_set & anc_set) - (x_set | y_set)
+
+    # 6. Test connectivity between X and Y in the moralized graph
+    start_nodes = [node for node in (x_set & anc_set) if node not in z_blocked]
+    if not start_nodes:
+        return True
+
+    target_y = y_set & anc_set
+    if not target_y:
+        return True
+
+    queue = deque(start_nodes)
+    visited = set(start_nodes)
+
+    while queue:
+        curr = queue.popleft()
+        if curr in target_y:
+            return False  # Active path exists
+        for neighbor in adj.get(curr, set()):
+            if neighbor not in visited and neighbor not in z_blocked:
+                if neighbor in target_y:
+                    return False  # Found target in Y
+                visited.add(neighbor)
+                queue.append(neighbor)
 
     return True
 
 
 def _is_path_active(
-    path: List[str],
+    path: list[str],
     dag: CausalDAG,
-    z_set: Set[str],
-    anc_z: Set[str],
-    edges: Set[Tuple[str, str]],
+    z_set: set[str],
+    anc_z: set[str],
+    edges: set[tuple[str, str]],
 ) -> bool:
     """Evaluates whether a single undirected path is active given Z."""
     if len(path) <= 2:
@@ -246,9 +303,9 @@ class BackdoorVerificationResult:
     is_admissible: bool
     treatment: str
     outcome: str
-    candidate_set: List[str]
-    minimal_adjustment_set: Optional[List[str]]
-    violations: List[str]
+    candidate_set: list[str]
+    minimal_adjustment_set: list[str] | None
+    violations: list[str]
     formula_identifiable: bool
 
 
@@ -256,7 +313,7 @@ def verify_backdoor_criterion(
     dag: CausalDAG,
     treatment: str,
     outcome: str,
-    candidate_z: Set[str],
+    candidate_z: set[str],
 ) -> BackdoorVerificationResult:
     """
     Formally verifies Pearl's Backdoor Criterion:
@@ -264,7 +321,7 @@ def verify_backdoor_criterion(
       1. No node in Z is a descendant of X.
       2. Z d-separates X from Y in G_{\\underline{X}} (mutilated DAG with outgoing edges from X cut).
     """
-    violations: List[str] = []
+    violations: list[str] = []
 
     # 1. Check descendant violation
     descendants_x = dag.get_descendants({treatment}) - {treatment}
@@ -285,7 +342,7 @@ def verify_backdoor_criterion(
     is_admissible = len(violations) == 0
 
     # Minimal adjustment set search
-    minimal_set: Optional[List[str]] = None
+    minimal_set: list[str] | None = None
     if is_admissible:
         minimal_set = find_minimal_backdoor_set(dag, treatment, outcome, candidate_z)
 
@@ -304,8 +361,8 @@ def find_minimal_backdoor_set(
     dag: CausalDAG,
     treatment: str,
     outcome: str,
-    admissible_superset: Set[str],
-) -> List[str]:
+    admissible_superset: set[str],
+) -> list[str]:
     """
     Finds a subset-minimal backdoor adjustment set Z* \\subseteq admissible_superset.
     Greedily prunes unnecessary variables while maintaining d-separation in G_{\\underline{X}}.
@@ -354,7 +411,6 @@ def resolve_simpsons_paradox_algebraically(
     - Mediator: treatment -> Z -> outcome.
       VERDICT: Conditioning on Z blocks the direct mechanism. Z mediates the effect.
     """
-    edges = dag.edges
     parents_map = dag.parents
     children_map = dag.children
 
@@ -399,15 +455,41 @@ def resolve_simpsons_paradox_algebraically(
         # Check if conditioning_node is an ancestor of both in DAG
         ancestors_t = dag.get_ancestors({treatment})
         ancestors_y = dag.get_ancestors({outcome})
-        if conditioning_node in ancestors_t and conditioning_node in ancestors_y:
+        descendants_xy = dag.get_descendants({treatment, outcome})
+        parents_z = parents_map.get(conditioning_node, set())
+
+        is_ancestor_of_t = conditioning_node in ancestors_t
+        is_ancestor_of_y = conditioning_node in ancestors_y
+        is_descendant_of_xy = conditioning_node in descendants_xy
+
+        if is_ancestor_of_t and is_ancestor_of_y:
             role = "Confounder"
-            verdict = f"Indirect confounder. Subgroup stratification is causally valid."
+            verdict = "Indirect confounder. Subgroup stratification is causally valid."
             action = f"Condition on '{conditioning_node}' to isolate direct treatment effect."
             explanation = f"'{conditioning_node}' is an indirect common ancestor of both variables."
+        elif (
+            not is_descendant_of_xy
+            and not is_ancestor_of_t
+            and not is_ancestor_of_y
+            and len(parents_z) >= 2
+            and any(
+                p1 != p2
+                for p1 in (parents_z & ancestors_t)
+                for p2 in (parents_z & ancestors_y)
+            )
+        ):
+            role = "M-Bias Collider"
+            verdict = f"Conditioning on {conditioning_node} opens an M-structure backdoor path (Berkson's bias)."
+            action = f"Do NOT condition on {conditioning_node}."
+            explanation = (
+                f"'{conditioning_node}' is an unconditioned collider on an M-structure path between "
+                f"an ancestor of '{treatment}' and an ancestor of '{outcome}'. Conditioning on "
+                f"'{conditioning_node}' opens an M-structure backdoor path (Berkson's bias)."
+            )
         else:
             role = "Neutral"
-            verdict = f"No direct confounding path identified."
-            action = f"Verify DAG specification for unobserved confounders."
+            verdict = "No direct confounding path identified."
+            action = "Verify DAG specification for unobserved confounders."
             explanation = f"'{conditioning_node}' does not form an obvious triangle or collider with treatment and outcome."
 
     return SimpsonsCausalResolution(

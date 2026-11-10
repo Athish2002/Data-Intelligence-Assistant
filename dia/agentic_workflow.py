@@ -37,7 +37,7 @@ import logging
 import re
 from collections import deque
 from itertools import combinations
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -49,7 +49,6 @@ from dia.causal_identifiability import (
     _is_path_active,
     find_minimal_backdoor_set,
     is_d_separated,
-    verify_backdoor_criterion,
 )
 from dia.invariant_engine import (
     ConservationLaw,
@@ -74,27 +73,31 @@ class InvestigationState(BaseModel):
 
     # Core required specifications
     query: str
-    target_outcome: Optional[str] = None
-    candidate_treatments: List[str] = Field(default_factory=list)
-    causal_graph: Optional[CausalDAG] = None
-    active_paths: List[Dict[str, Any]] = Field(default_factory=list)
-    minimal_adjustment_set: List[str] = Field(default_factory=list)
-    colliders_detected: List[str] = Field(default_factory=list)
-    invariants_checked: List[Dict[str, Any]] = Field(default_factory=list)
+    target_outcome: str | None = None
+    candidate_treatments: list[str] = Field(default_factory=list)
+    causal_graph: CausalDAG | None = None
+    active_paths: list[dict[str, Any]] = Field(default_factory=list)
+    minimal_adjustment_set: list[str] = Field(default_factory=list)
+    colliders_detected: list[str] = Field(default_factory=list)
+    invariants_checked: list[dict[str, Any]] = Field(default_factory=list)
     self_healing_attempts: int = 0
     status: str = "PLANNING"  # "PLANNING", "AUDITING_CAUSALITY", "CHECKING_INVARIANTS", "SYNTHESIZING", "COMPLETED", "FAILED"
-    dossier: Optional[Dict[str, Any]] = None
+    dossier: dict[str, Any] | None = None
 
     # Operational extensions for data & constraints
-    data: Optional[pd.DataFrame] = None
-    conservation_laws: List[ConservationLaw] = Field(default_factory=list)
-    intervention_proposals: Dict[str, float] = Field(default_factory=dict)
-    projected_interventions: Dict[str, float] = Field(default_factory=dict)
-    simplex_groups: List[List[str]] = Field(default_factory=list)
-    non_negative_variables: List[str] = Field(default_factory=list)
-    feedback_history: List[str] = Field(default_factory=list)
+    data: pd.DataFrame | None = None
+    conservation_laws: list[ConservationLaw] = Field(default_factory=list)
+    intervention_proposals: dict[str, float] = Field(default_factory=dict)
+    projected_interventions: dict[str, float] = Field(default_factory=dict)
+    simplex_groups: list[list[str]] = Field(default_factory=list)
+    non_negative_variables: list[str] = Field(default_factory=list)
+    feedback_history: list[str] = Field(default_factory=list)
     max_self_healing_cycles: int = 3
-    error_message: Optional[str] = None
+    error_message: str | None = None
+
+    def copy_with(self, **kwargs: Any) -> InvestigationState:
+        """Returns a clean, decoupled updated copy of the state preserving immutability."""
+        return self.model_copy(update=kwargs, deep=True)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -102,15 +105,15 @@ class InvestigationState(BaseModel):
 # ───────────────────────────────────────────────────────────────────────────
 
 def extract_query_intent(
-    query: str, known_nodes: Optional[Set[str]] = None
-) -> Tuple[Optional[str], List[str]]:
+    query: str, known_nodes: set[str] | None = None
+) -> tuple[str | None, list[str]]:
     """
     Parses a natural language query into target outcome and candidate treatment(s).
     Matches against known causal graph nodes when available.
     """
     clean_q = query.strip()
-    target: Optional[str] = None
-    treatments: List[str] = []
+    target: str | None = None
+    treatments: list[str] = []
 
     # Regex pattern matching
     patterns = [
@@ -146,14 +149,14 @@ def extract_query_intent(
 
 
 def detect_all_colliders(
-    dag: CausalDAG, x: Optional[str] = None, y: Optional[str] = None
-) -> List[str]:
+    dag: CausalDAG, x: str | None = None, y: str | None = None
+) -> list[str]:
     """
     Identifies all colliders in the DAG.
     A node C is a collider if in_degree >= 2 (there exist u != v such that u -> C and v -> C).
     Conditioning on a collider or its descendants activates previously blocked paths (Berkson's bias).
     """
-    colliders: Set[str] = set()
+    colliders: set[str] = set()
     parents_map = dag.parents
     for node, p_set in parents_map.items():
         if len(p_set) >= 2:
@@ -165,9 +168,9 @@ def audit_paths_between(
     dag: CausalDAG,
     x: str,
     y: str,
-    conditioning_set: Set[str],
+    conditioning_set: set[str],
     max_depth: int = 7,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Enumerates all simple undirected paths between x and y up to a bounded depth.
     Records colliders on each path, unconditioned activation, and conditioned activation.
@@ -177,7 +180,7 @@ def audit_paths_between(
     anc_z = dag.get_ancestors(conditioning_set)
     anc_empty = dag.get_ancestors(set())
 
-    def find_simple_paths(curr: str, target: str, visited: Set[str]) -> List[List[str]]:
+    def find_simple_paths(curr: str, target: str, visited: set[str]) -> list[list[str]]:
         if curr == target:
             return [[curr]]
         if len(visited) >= max_depth:
@@ -192,7 +195,7 @@ def audit_paths_between(
         return res
 
     raw_paths = find_simple_paths(x, y, set())
-    audited: List[Dict[str, Any]] = []
+    audited: list[dict[str, Any]] = []
 
     for p in raw_paths:
         path_colliders = []
@@ -223,7 +226,7 @@ def find_optimal_backdoor_adjustment(
     dag: CausalDAG,
     treatment: str,
     outcome: str,
-) -> Tuple[bool, List[str]]:
+) -> tuple[bool, list[str]]:
     """
     Computes a subset-minimal backdoor adjustment set Z* satisfying Pearl's criteria:
     1. No node in Z* is a descendant of treatment X: Z* \\cap (Descendants(X) \\ {X}) = \\emptyset.
@@ -284,8 +287,8 @@ def estimate_backdoor_ate(
     df: pd.DataFrame,
     treatment: str,
     outcome: str,
-    adjustment_set: List[str],
-) -> Dict[str, Any]:
+    adjustment_set: list[str],
+) -> dict[str, Any]:
     """
     Fits linear backdoor adjustment outcome regression Y ~ X + Z_1 + ... + Z_k.
     Computes exact Average Treatment Effect (ATE), standard error, t-statistic,
@@ -364,8 +367,8 @@ def generate_sem_from_dag(
     dag: CausalDAG,
     n_samples: int = 500,
     random_seed: int = 42,
-    treatment: Optional[str] = None,
-    outcome: Optional[str] = None,
+    treatment: str | None = None,
+    outcome: str | None = None,
     true_ate: float = 2.5,
 ) -> pd.DataFrame:
     """
@@ -379,7 +382,7 @@ def generate_sem_from_dag(
     for _, v in dag.edges:
         in_deg[v] += 1
     queue = deque([n for n, d in in_deg.items() if d == 0])
-    topo_order: List[str] = []
+    topo_order: list[str] = []
     children_map = dag.children
     while queue:
         curr = queue.popleft()
@@ -393,7 +396,7 @@ def generate_sem_from_dag(
         if n not in topo_order:
             topo_order.append(n)
 
-    data: Dict[str, np.ndarray] = {}
+    data: dict[str, np.ndarray] = {}
     parents_map = dag.parents
 
     for node in topo_order:
@@ -446,6 +449,7 @@ class PlannerNode:
             if not state.candidate_treatments and len(nodes) >= 2:
                 state.candidate_treatments = [nodes[0]]
 
+        state.candidate_treatments = list(state.candidate_treatments)
         state.status = "AUDITING_CAUSALITY"
         return state
 
@@ -475,11 +479,11 @@ class CausalAuditorNode:
 
         # 1. Detect colliders in the DAG
         colliders = detect_all_colliders(dag, treatment, outcome)
-        state.colliders_detected = colliders
+        state.colliders_detected = list(colliders)
 
         # 2. Compute subset-minimal backdoor adjustment set
         is_identifiable, min_adj = find_optimal_backdoor_adjustment(dag, treatment, outcome)
-        state.minimal_adjustment_set = min_adj
+        state.minimal_adjustment_set = list(min_adj)
 
         # 3. Guard against descendants of treatment
         descendants_x = dag.get_descendants({treatment}) - {treatment}
@@ -501,7 +505,7 @@ class CausalAuditorNode:
             return state
 
         # 5. Audit active and blocked paths between treatment and outcome
-        state.active_paths = audit_paths_between(dag, treatment, outcome, set(min_adj))
+        state.active_paths = list(audit_paths_between(dag, treatment, outcome, set(min_adj)))
 
         state.status = "CHECKING_INVARIANTS"
         return state
@@ -513,13 +517,17 @@ class InvariantCriticNode:
     1. Linear conservation laws Ax = b.
     2. Probability simplex Delta^K (sum = 1, p >= 0).
     3. Non-negativity constraints (x >= 0).
-    If an invariant is violated, self-heals by orthogonally projecting
-    onto the feasible manifold and routes back to Planner/Auditor (max 3 cycles).
+    When both linear conservation laws (Ax = b) and non-negativity/bounds are present,
+    solves for the joint feasible point using an iterative alternating projection
+    (Von Neumann / Dykstra's alternating projection onto convex sets) with a maximum
+    of 50 iterations and tolerance 10^-6, eliminating ping-pong oscillations across
+    self-healing cycles.
     """
     def run(self, state: InvestigationState) -> InvestigationState:
         violations_found = False
         proposals = dict(state.intervention_proposals)
         projected = dict(state.projected_interventions or proposals)
+        invariants_checked = list(state.invariants_checked)
 
         # 1. Check Non-negativity
         if state.non_negative_variables:
@@ -528,7 +536,7 @@ class InvariantCriticNode:
                 if val < 0.0:
                     violations_found = True
                     projected[var] = 0.0
-                    state.invariants_checked.append({
+                    invariants_checked.append({
                         "law": f"non_negativity_{var}",
                         "type": "non_negativity",
                         "status": "SELF_HEALED_PROJECTED",
@@ -547,9 +555,9 @@ class InvariantCriticNode:
                 if sum_err > 1e-5 or has_neg:
                     violations_found = True
                     p_proj = project_to_probability_simplex(v)
-                    for k, val in zip(group, p_proj):
+                    for k, val in zip(group, p_proj, strict=True):
                         projected[k] = float(val)
-                    state.invariants_checked.append({
+                    invariants_checked.append({
                         "law": f"simplex_{'_'.join(group)}",
                         "type": "probability_simplex",
                         "status": "SELF_HEALED_PROJECTED",
@@ -568,22 +576,51 @@ class InvariantCriticNode:
                     active_laws.append(law)
 
             if active_laws:
-                all_feats = sorted(list({f for l in active_laws for f in l.coefficients.keys()}))
+                all_feats = sorted(list({f for law_item in active_laws for f in law_item.coefficients.keys()}))
                 proj_engine = ConservationProjector(laws=active_laws, feature_names=all_feats)
                 x_vec = np.array([projected.get(f, proposals.get(f, 0.0)) for f in all_feats], dtype=float)
                 audit_res = proj_engine.verify_conservation(x_vec)
 
+                non_neg_vars = set(state.non_negative_variables)
+                has_non_neg = bool(non_neg_vars) and any(f in non_neg_vars for f in all_feats)
                 has_law_violation = any(not passed for _, _, passed in audit_res)
-                if has_law_violation:
+                has_non_neg_violation = has_non_neg and any(
+                    x_vec[i] < 0.0 for i, f in enumerate(all_feats) if f in non_neg_vars
+                )
+
+                if has_law_violation or has_non_neg_violation:
                     violations_found = True
-                    # Orthogonal projection onto Ax = b
-                    x_projected = proj_engine.project(x_vec)
-                    for f, val in zip(all_feats, x_projected):
+                    if has_non_neg:
+                        # Alternating projection between affine subspace Ax = b and non-negative orthant x >= 0:
+                        non_neg_mask = np.array([f in non_neg_vars for f in all_feats], dtype=bool)
+                        x = x_vec.copy()
+                        A = proj_engine.A
+                        b = proj_engine.b
+                        projector = proj_engine.projector_matrix
+
+                        for _ in range(50):
+                            # 1. Project onto non-negative orthant
+                            x[non_neg_mask] = np.maximum(x[non_neg_mask], 0.0)
+                            # 2. Project onto Ax = b
+                            res = A @ x - b
+                            x = x - projector @ res
+                            res_check = A @ x - b
+                            if np.all(x[non_neg_mask] >= -1e-6) and np.max(np.abs(res_check)) < 1e-5:
+                                x[non_neg_mask] = np.maximum(x[non_neg_mask], 0.0)
+                                break
+                        else:
+                            x[non_neg_mask] = np.maximum(x[non_neg_mask], 0.0)
+                        x_projected = x
+                    else:
+                        # Orthogonal projection onto Ax = b
+                        x_projected = proj_engine.project(x_vec)
+
+                    for f, val in zip(all_feats, x_projected, strict=True):
                         projected[f] = float(val)
 
                     for law_name, err, passed in audit_res:
-                        if not passed:
-                            state.invariants_checked.append({
+                        if not passed or has_non_neg_violation:
+                            invariants_checked.append({
                                 "law": law_name,
                                 "type": "conservation_law",
                                 "status": "SELF_HEALED_PROJECTED",
@@ -597,7 +634,7 @@ class InvariantCriticNode:
                             })
                 else:
                     for law_name, err, _ in audit_res:
-                        state.invariants_checked.append({
+                        invariants_checked.append({
                             "law": law_name,
                             "type": "conservation_law",
                             "status": "PASSED",
@@ -607,8 +644,9 @@ class InvariantCriticNode:
 
         # Process violations and self-healing routing
         if violations_found:
-            state.projected_interventions = projected
+            state.projected_interventions = dict(projected)
             state.intervention_proposals = dict(projected)
+            state.invariants_checked = invariants_checked
 
             if state.self_healing_attempts < state.max_self_healing_cycles:
                 state.self_healing_attempts += 1
@@ -617,7 +655,9 @@ class InvariantCriticNode:
                     f"Invariant violation detected. Orthogonally projected onto feasible manifold: {projected}. "
                     f"Routing back to Planner with constraint feedback."
                 )
-                state.feedback_history.append(feedback_msg)
+                feedback_history = list(state.feedback_history)
+                feedback_history.append(feedback_msg)
+                state.feedback_history = feedback_history
                 state.status = "PLANNING"
                 return state
             else:
@@ -629,8 +669,8 @@ class InvariantCriticNode:
                 return state
 
         # If no violations detected
-        if not state.invariants_checked:
-            state.invariants_checked.append({
+        if not invariants_checked:
+            invariants_checked.append({
                 "law": "baseline_invariants",
                 "type": "unconstrained",
                 "status": "PASSED",
@@ -638,6 +678,7 @@ class InvariantCriticNode:
                 "details": "All physical conservation and manifold invariants satisfied.",
             })
 
+        state.invariants_checked = invariants_checked
         state.status = "SYNTHESIZING"
         return state
 
@@ -705,9 +746,9 @@ class SynthesizerNode:
             "query": state.query,
             "target_outcome": outcome,
             "treatment": treatment,
-            "candidate_treatments": state.candidate_treatments,
-            "minimal_adjustment_set": state.minimal_adjustment_set,
-            "colliders_detected": state.colliders_detected,
+            "candidate_treatments": list(state.candidate_treatments),
+            "minimal_adjustment_set": list(state.minimal_adjustment_set),
+            "colliders_detected": list(state.colliders_detected),
             "causal_identifiability": True,
             "identifiability_status": "IDENTIFIABLE",
             "average_treatment_effect": float(round(ate, 4)),
@@ -718,9 +759,9 @@ class SynthesizerNode:
             "confidence_interval_lower": float(round(ci_lower, 4)),
             "confidence_interval_upper": float(round(ci_upper, 4)),
             "sample_size": n_samples,
-            "invariants_verified": state.invariants_checked,
+            "invariants_verified": list(state.invariants_checked),
             "self_healing_cycles": state.self_healing_attempts,
-            "projected_interventions": state.projected_interventions,
+            "projected_interventions": dict(state.projected_interventions),
             "causal_interpretation": interp,
             "status": "COMPLETED",
         }
@@ -741,10 +782,10 @@ class StatefulInvestigationMachine:
     """
     def __init__(
         self,
-        planner: Optional[PlannerNode] = None,
-        auditor: Optional[CausalAuditorNode] = None,
-        critic: Optional[InvariantCriticNode] = None,
-        synthesizer: Optional[SynthesizerNode] = None,
+        planner: PlannerNode | None = None,
+        auditor: CausalAuditorNode | None = None,
+        critic: InvariantCriticNode | None = None,
+        synthesizer: SynthesizerNode | None = None,
         max_total_steps: int = 25,
     ):
         self.planner = planner or PlannerNode()
