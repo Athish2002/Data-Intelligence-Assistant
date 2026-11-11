@@ -164,6 +164,32 @@ class TestBackdoorCriterion:
         assert not res_zm.is_admissible
         assert any("descendants" in v.lower() for v in res_zm.violations)
 
+    def test_backdoor_admissibility_treatment_or_outcome_in_set(self) -> None:
+        """
+        Backdoor candidate sets containing treatment X or outcome Y must be
+        strictly rejected with explicit Admissibility violations.
+        """
+        dag = CausalDAG()
+        dag.add_edge("Z", "X")
+        dag.add_edge("Z", "Y")
+        dag.add_edge("X", "Y")
+
+        # Treatment in candidate set
+        res_x = verify_backdoor_criterion(dag, treatment="X", outcome="Y", candidate_z={"Z", "X"})
+        assert not res_x.is_admissible
+        assert "Admissibility violation: Set cannot contain treatment 'X'." in res_x.violations
+
+        # Outcome in candidate set
+        res_y = verify_backdoor_criterion(dag, treatment="X", outcome="Y", candidate_z={"Z", "Y"})
+        assert not res_y.is_admissible
+        assert "Admissibility violation: Set cannot contain outcome 'Y'." in res_y.violations
+
+        # Both in candidate set
+        res_xy = verify_backdoor_criterion(dag, treatment="X", outcome="Y", candidate_z={"X", "Y"})
+        assert not res_xy.is_admissible
+        assert "Admissibility violation: Set cannot contain treatment 'X'." in res_xy.violations
+        assert "Admissibility violation: Set cannot contain outcome 'Y'." in res_xy.violations
+
     def test_find_minimal_backdoor_adjustment_set(self) -> None:
         """
         DAG with redundant non-confounder W:
@@ -222,6 +248,38 @@ class TestSimpsonsStructuralResolution:
         assert res.structural_role == "Mediator"
         assert "mediates" in res.causal_verdict.lower()
         assert "do not condition" in res.recommended_action.lower()
+
+    def test_indirect_mediator_reachability_resolution_verdict(self) -> None:
+        """
+        Indirect causal chain: X -> A -> Z -> B -> Y.
+        Z is an indirect mediator reachable via ancestors/descendants.
+        """
+        dag = CausalDAG()
+        dag.add_edge("X", "A")
+        dag.add_edge("A", "Z")
+        dag.add_edge("Z", "B")
+        dag.add_edge("B", "Y")
+
+        res = resolve_simpsons_paradox_algebraically(dag, treatment="X", outcome="Y", conditioning_node="Z")
+        assert res.structural_role == "Mediator"
+        assert res.causal_verdict == "'Z' mediates the causal effect. Total effect requires leaving it unconditioned."
+        assert "do not condition on 'z'" in res.recommended_action.lower()
+
+    def test_indirect_collider_reachability_resolution_verdict(self) -> None:
+        """
+        Indirect collider: X -> A -> Z <- B <- Y.
+        Z is an indirect collider reachable from both treatment and outcome descendants.
+        """
+        dag = CausalDAG()
+        dag.add_edge("X", "A")
+        dag.add_edge("A", "Z")
+        dag.add_edge("Y", "B")
+        dag.add_edge("B", "Z")
+
+        res = resolve_simpsons_paradox_algebraically(dag, treatment="X", outcome="Y", conditioning_node="Z")
+        assert res.structural_role == "Collider"
+        assert res.causal_verdict == "Conditioning on 'Z' creates false Berkson's bias. Do NOT stratify."
+        assert "do not condition on 'z'" in res.recommended_action.lower()
 
     def test_m_bias_collider_resolution_verdict(self) -> None:
         """

@@ -323,6 +323,11 @@ def verify_backdoor_criterion(
     """
     violations: list[str] = []
 
+    if treatment in candidate_z:
+        violations.append(f"Admissibility violation: Set cannot contain treatment '{treatment}'.")
+    if outcome in candidate_z:
+        violations.append(f"Admissibility violation: Set cannot contain outcome '{outcome}'.")
+
     # 1. Check descendant violation
     descendants_x = dag.get_descendants({treatment}) - {treatment}
     desc_intersection = candidate_z & descendants_x
@@ -416,10 +421,17 @@ def resolve_simpsons_paradox_algebraically(
 
     is_parent_of_t = treatment in children_map.get(conditioning_node, set())
     is_parent_of_y = outcome in children_map.get(conditioning_node, set())
-    is_child_of_t = conditioning_node in children_map.get(treatment, set())
-    is_child_of_y = conditioning_node in children_map.get(outcome, set())
 
-    # 1. Confounder: Z -> X and Z -> Y
+    ancestors_t = dag.get_ancestors({treatment}) - {treatment}
+    ancestors_y = dag.get_ancestors({outcome}) - {outcome}
+    is_ancestor_of_t = conditioning_node in ancestors_t
+    is_ancestor_of_y = conditioning_node in ancestors_y
+
+    descendants_t = dag.get_descendants({treatment}) - {treatment}
+    descendants_y = dag.get_descendants({outcome}) - {outcome}
+    descendants_z = dag.get_descendants({conditioning_node}) - {conditioning_node}
+
+    # 1. Direct or Indirect Confounder: Z -> X and Z -> Y
     if is_parent_of_t and is_parent_of_y:
         role = "Confounder"
         verdict = f"Subgroup effect (conditioned on '{conditioning_node}') is the causal truth."
@@ -429,9 +441,14 @@ def resolve_simpsons_paradox_algebraically(
             f"The aggregate correlation is contaminated by common-cause confounding bias. "
             f"Stratifying by '{conditioning_node}' restores the true invariant causal relationship."
         )
+    elif is_ancestor_of_t and is_ancestor_of_y:
+        role = "Confounder"
+        verdict = "Indirect confounder. Subgroup stratification is causally valid."
+        action = f"Condition on '{conditioning_node}' to isolate direct treatment effect."
+        explanation = f"'{conditioning_node}' is an indirect common ancestor of both variables."
 
-    # 2. Collider: X -> Z <- Y
-    elif is_child_of_t and is_child_of_y:
+    # 2. Collider: X -> ... -> Z <- ... <- Y
+    elif conditioning_node in descendants_t and conditioning_node in descendants_y:
         role = "Collider"
         verdict = f"Conditioning on '{conditioning_node}' creates false Berkson's bias. Do NOT stratify."
         action = f"Do NOT condition on '{conditioning_node}'. Use unconditioned or parent-adjusted model."
@@ -440,8 +457,8 @@ def resolve_simpsons_paradox_algebraically(
             f"Conditioning on a collider opens a non-causal information path, inducing artificial spurious reversal."
         )
 
-    # 3. Mediator: X -> Z -> Y
-    elif is_child_of_t and is_parent_of_y:
+    # 3. Mediator: X -> ... -> Z -> ... -> Y
+    elif conditioning_node in descendants_t and outcome in descendants_z:
         role = "Mediator"
         verdict = f"'{conditioning_node}' mediates the causal effect. Total effect requires leaving it unconditioned."
         action = f"To measure total causal effect, do NOT condition on '{conditioning_node}'."
@@ -452,22 +469,11 @@ def resolve_simpsons_paradox_algebraically(
 
     # 4. Check for M-structure or indirect confounder
     else:
-        # Check if conditioning_node is an ancestor of both in DAG
-        ancestors_t = dag.get_ancestors({treatment})
-        ancestors_y = dag.get_ancestors({outcome})
         descendants_xy = dag.get_descendants({treatment, outcome})
         parents_z = parents_map.get(conditioning_node, set())
-
-        is_ancestor_of_t = conditioning_node in ancestors_t
-        is_ancestor_of_y = conditioning_node in ancestors_y
         is_descendant_of_xy = conditioning_node in descendants_xy
 
-        if is_ancestor_of_t and is_ancestor_of_y:
-            role = "Confounder"
-            verdict = "Indirect confounder. Subgroup stratification is causally valid."
-            action = f"Condition on '{conditioning_node}' to isolate direct treatment effect."
-            explanation = f"'{conditioning_node}' is an indirect common ancestor of both variables."
-        elif (
+        if (
             not is_descendant_of_xy
             and not is_ancestor_of_t
             and not is_ancestor_of_y

@@ -9,6 +9,7 @@ Exposes full-fidelity endpoints for:
 4. Governance, MLOps & Production (Data Contracts, GDPR ROPA, Feature Store, MLflow Model Card, Drift Monitor, SQL Transpiler, Multi-format Artifact Exports)
 """
 
+import asyncio
 import contextvars
 import gc
 import json
@@ -17,6 +18,7 @@ import os
 import platform
 import time
 import uuid
+from contextlib import asynccontextmanager
 from typing import Any
 
 import numpy as np
@@ -29,13 +31,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from sklearn.metrics import confusion_matrix, roc_curve
 
+import dia.config as dia_config
 from dia.active_learning import sample_uncertain_predictions
 from dia.bandit_optimizer import run_contextual_bandit_simulation
 from dia.causal_discovery import discover_causal_graph, simulate_intervention
 from dia.causal_engine import estimate_uplift_t_learner, generate_counterfactual
 from dia.chat_analyst import answer_with_rag
 from dia.compliance import scan_dataset_privacy
-import dia.config as dia_config
 from dia.config import (
     AUTH_ENABLED,
     CORS_ORIGINS,
@@ -44,14 +46,32 @@ from dia.config import (
     DEFAULT_TENANT_ID,
     JWT_EXPIRE_MINUTES,
 )
-
-
-def _is_auth_enabled() -> bool:
-    """Returns dynamic authentication enforcement state."""
-    return bool(getattr(dia_config, "AUTH_ENABLED", AUTH_ENABLED))
-
+from dia.conformal_uncertainty import evaluate_conformal_bounds
+from dia.data_profiler import detect_target_type
+from dia.data_quality import format_contract_markdown, generate_data_contract
+from dia.data_sanitizer import sanitize_dataframe
+from dia.demo_datasets import DEMO_BENCHMARKS, get_demo_dataset
+from dia.dictionary_store import delete_entry, load_entries, save_entries
+from dia.drift_monitor import calculate_drift_report
+from dia.drift_sentinel import DriftSentinel
+from dia.exceptions import DataLoadError, ValidationError
+from dia.gdpr import format_gdpr_audit_markdown, generate_ropa_record
+from dia.graph_engine import construct_and_analyze_entity_graph
+from dia.hardware import get_cpu_cores, is_gpu_available
+from dia.ingestion.data_dictionary import DataDictionarySource
+from dia.ingestion.universal_loader import UniversalLoader
+from dia.invariant_engine import (
+    ConservationLaw,
+    audit_dataframe_axioms,
+    scan_dataframe_conservation_laws,
+)
+from dia.leakage_detector import detect_leakage
+from dia.llm import PROVIDER_REGISTRY
+from dia.llm_context import infer_dataset_context_locally
+from dia.nlp_processor import detect_text_columns, extract_lexical_features
+from dia.pareto_frontier import ParetoFrontierSimulator, compute_pareto_frontier
+from dia.pipeline_coordinator import PipelineCoordinator
 from dia.rbac import (
-    Permission,
     UserContext,
     UserRole,
     audit_logger,
@@ -60,45 +80,16 @@ from dia.rbac import (
     decode_access_token,
     resolve_api_key,
 )
-from dia.storage_provider import get_storage_backend
-from dia.data_profiler import detect_target_type
-from dia.data_quality import format_contract_markdown, generate_data_contract
-from dia.data_sanitizer import sanitize_dataframe
-from dia.demo_datasets import DEMO_BENCHMARKS, get_demo_dataset
-from dia.dictionary_store import delete_entry, load_entries, save_entries
-from dia.drift_monitor import calculate_drift_report
-from dia.exceptions import DataLoadError, ValidationError
-from dia.gdpr import format_gdpr_audit_markdown, generate_ropa_record
-from dia.graph_engine import construct_and_analyze_entity_graph
-from dia.hardware import get_cpu_cores, is_gpu_available
-from dia.ingestion.data_dictionary import DataDictionarySource
-from dia.ingestion.local_csv import LocalCSVSource
-from dia.conformal_uncertainty import ConformalUncertaintyEngine, evaluate_conformal_bounds
-from dia.drift_sentinel import DriftSentinel, audit_drift_sentinel
-from dia.ingestion.universal_loader import UniversalLoader
-from dia.leakage_detector import detect_leakage
-from dia.llm import PROVIDER_REGISTRY
-from dia.llm_context import infer_dataset_context_locally
-from dia.nlp_processor import detect_text_columns, extract_lexical_features
-from dia.pareto_frontier import ParetoFrontierSimulator, compute_pareto_frontier
-from dia.pipeline_coordinator import PipelineCoordinator
-from dia.recourse_engine import AlgorithmicRecourseEngine, compute_recourse
+from dia.recourse_engine import AlgorithmicRecourseEngine
 from dia.retrieval import build_session_index
 from dia.session_manager import BoundedSessionStore
+from dia.storage_provider import get_storage_backend
 from dia.streaming_learner import simulate_streaming_incremental_fit
-from dia.stress_testing import MonteCarloStressTester, run_stress_test
-from dia.invariant_engine import (
-    ConservationLaw,
-    ConservationProjector,
-    audit_dataframe_axioms,
-    scan_dataframe_conservation_laws,
-)
-scan_conservation_laws = scan_dataframe_conservation_laws
-from dia.symbolic_features import SymbolicFeatureDiscovery, discover_symbolic_features
+from dia.stress_testing import MonteCarloStressTester
+from dia.symbolic_features import SymbolicFeatureDiscovery
 from dia.synthetic_data import generate_synthetic_dataset
 from dia.time_series import detect_time_series_column, train_time_series_forecaster
 from dia.wasm_compiler import transpile_to_edge_bundle
-
 
 from .schemas import (
     ActiveLearningResponse,
@@ -110,35 +101,17 @@ from .schemas import (
     AuthTokenResponse,
     AutoDetectRequest,
     AutoDetectResponse,
-    ConformalBoundsRequest,
-    ConformalBoundsResponse,
-    ConformalInstanceItem,
-    DiscoveredFormulaItem,
-    DriftSentinelRequest,
-    DriftSentinelResponse,
-    FeatureDriftItem,
-    RecourseActionItem,
-    RecourseRequest,
-    RecourseResponse,
-    StressScenarioItem,
-    StressTestRequest,
-    StressTestResponse,
-    SymbolicDiscoveryRequest,
-    SymbolicDiscoveryResponse,
-    AxiomAuditSummaryResponse,
-    ConservationLawItem,
-    InvariantLawItem,
-    InvariantLockRequest,
-    InvariantLockResponse,
-    InvariantScanRequest,
-    InvariantScanResponse,
-    InvariantsStatusResponse,
     AutoencoderResponse,
+    AxiomAuditSummaryResponse,
     BanditSimRequest,
     BanditSimResponse,
     ChatRequest,
     ChatResponse,
     ColumnRoleItem,
+    ConformalBoundsRequest,
+    ConformalBoundsResponse,
+    ConformalInstanceItem,
+    ConservationLawItem,
     CounterfactualRequest,
     CounterfactualResponse,
     DataContractResponse,
@@ -147,11 +120,20 @@ from .schemas import (
     DictionaryEntry,
     DictionaryListResponse,
     DictionaryUploadResponse,
+    DiscoveredFormulaItem,
     DriftMonitorResponse,
+    DriftSentinelRequest,
+    DriftSentinelResponse,
+    FeatureDriftItem,
     GdprAuditResponse,
     GraphAnalysisResponse,
     HealthResponse,
     IngestResponse,
+    InvariantLockRequest,
+    InvariantLockResponse,
+    InvariantScanRequest,
+    InvariantScanResponse,
+    InvariantsStatusResponse,
     LLMProvidersResponse,
     LLMProviderStatus,
     NlpAnalysisResponse,
@@ -160,6 +142,9 @@ from .schemas import (
     PredictResponse,
     ProfileResponse,
     ReadinessResponse,
+    RecourseActionItem,
+    RecourseRequest,
+    RecourseResponse,
     RoiOptimizeRequest,
     RoiOptimizeResponse,
     SessionDetailItem,
@@ -167,6 +152,11 @@ from .schemas import (
     SimulateResponse,
     StorageFileListResponse,
     StorageStatusResponse,
+    StressScenarioItem,
+    StressTestRequest,
+    StressTestResponse,
+    SymbolicDiscoveryRequest,
+    SymbolicDiscoveryResponse,
     SyntheticGenerateRequest,
     SyntheticGenerateResponse,
     SystemGcResponse,
@@ -183,6 +173,47 @@ from .schemas import (
 
 log = logging.getLogger("dia.api")
 
+scan_conservation_laws = scan_dataframe_conservation_laws
+
+
+def _is_auth_enabled() -> bool:
+    """Returns dynamic authentication enforcement state."""
+    return bool(getattr(dia_config, "AUTH_ENABLED", AUTH_ENABLED))
+
+# ─── FastAPI Lifespan Handler ───────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: validate JWT_SECRET if auth enabled
+    if _is_auth_enabled():
+        secret = str(getattr(dia_config, "JWT_SECRET", "")).strip()
+        if secret in ("dia-enterprise-insecure-secret-change-in-production", "change-this-in-production", "secret", ""):
+            log.warning("SECURITY ALERT: AUTH_ENABLED=True with default/insecure JWT_SECRET. Overriding with runtime high-entropy key.")
+            dia_config.JWT_SECRET = uuid.uuid4().hex + uuid.uuid4().hex
+
+    # Background session sweeper task (runs every 60s)
+    stop_event = asyncio.Event()
+    async def _sweeper_loop():
+        while not stop_event.is_set():
+            try:
+                await asyncio.sleep(60)
+                SESSION_STORE._cleanup_expired_locked()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                log.debug("Session sweeper notice: %s", e)
+
+    sweeper_task = asyncio.create_task(_sweeper_loop())
+    yield
+    # Shutdown:
+    stop_event.set()
+    sweeper_task.cancel()
+    try:
+        await sweeper_task
+    except asyncio.CancelledError:
+        pass
+    log.info("API shutdown complete.")
+
+
 # ─── FastAPI App Initialization ──────────────────────────────────────────────
 app = FastAPI(
     title="Data Intelligence Assistant API",
@@ -190,6 +221,7 @@ app = FastAPI(
     description="Autonomous AutoML, Governance, Explainability & Adaptive ML Engine REST API",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ─── CORS Middleware ─────────────────────────────────────────────────────────
@@ -3192,32 +3224,32 @@ def scan_session_invariants(
         residual_var_tol=res_var_tol,
     )
 
-    for l in laws_detected:
-        if not ("Balance" in l.name or "Invariant" in l.name):
-            feats_lower = [f.lower() for f in l.coefficients.keys()]
+    for law in laws_detected:
+        if not ("Balance" in law.name or "Invariant" in law.name):
+            feats_lower = [f.lower() for f in law.coefficients.keys()]
             if any(k in f for f in feats_lower for k in ["charge", "revenue", "cost", "profit", "margin", "price", "fee", "payment", "bill", "income", "expense"]):
-                l.name = f"Financial Balance: {l.formula}"
+                law.name = f"Financial Balance: {law.formula}"
             else:
-                l.name = f"Conservation Invariant: {l.formula}"
+                law.name = f"Conservation Invariant: {law.formula}"
 
     locked_laws = _extract_locked_laws(sess)
-    locked_names = {l.name for l in locked_laws}
+    locked_names = {law.name for law in locked_laws}
 
     candidates = [
         ConservationLawItem(
-            name=l.name,
-            formula=l.formula,
-            coefficients=l.coefficients,
-            target_sum=l.target_sum,
-            tolerance=l.tolerance,
-            variance_explained=l.variance_explained,
-            residual_variance=l.residual_variance,
-            residual_mae=float(np.sqrt(max(0.0, l.residual_variance))),
-            compliance_pct=100.0 if l.residual_variance <= res_var_tol else 0.0,
-            category=l.name.split(":")[0] if ":" in l.name else "Conservation Law",
-            is_locked=(l.name in locked_names),
+            name=law.name,
+            formula=law.formula,
+            coefficients=law.coefficients,
+            target_sum=law.target_sum,
+            tolerance=law.tolerance,
+            variance_explained=law.variance_explained,
+            residual_variance=law.residual_variance,
+            residual_mae=float(np.sqrt(max(0.0, law.residual_variance))),
+            compliance_pct=100.0 if law.residual_variance <= res_var_tol else 0.0,
+            category=law.name.split(":")[0] if ":" in law.name else "Conservation Law",
+            is_locked=(law.name in locked_names),
         )
-        for l in laws_detected
+        for law in laws_detected
     ]
 
     sess["scanned_candidates"] = {c.name: c for c in candidates}
@@ -3241,7 +3273,7 @@ def lock_session_invariant(
     """Locks approved conservation laws into session state for inference projection and verification."""
     sess = _get_session_or_404(session_id, user_context=_get_effective_user(request))
     existing_locked = _extract_locked_laws(sess)
-    existing_by_name = {l.name: l for l in existing_locked}
+    existing_by_name = {law.name: law for law in existing_locked}
 
     if isinstance(payload, dict):
         payload = InvariantLockRequest(**payload)
@@ -3292,7 +3324,19 @@ def lock_session_invariant(
                 )
             )
 
+    df = sess.get("df")
+    df_cols = set(df.columns) if df is not None and hasattr(df, "columns") else set()
+
     for item in items_to_lock:
+        missing_features = [f for f in (item.coefficients.keys() if item.coefficients else []) if f not in df_cols]
+        if not item.coefficients or missing_features:
+            if not item.coefficients:
+                missing_features = missing_features or []
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid invariant law '{item.name}': features {missing_features} not found in session dataset.",
+            )
+
         law_obj = ConservationLaw(
             name=item.name,
             coefficients=item.coefficients,
@@ -3459,10 +3503,10 @@ def serve_landing_page():
     """Serves the standalone marketing and showcase landing page."""
     landing_file = os.path.join(frontend_dir, "landing.html")
     if os.path.exists(landing_file):
-        with open(landing_file, "r", encoding="utf-8") as f:
+        with open(landing_file, encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     index_file = os.path.join(frontend_dir, "index.html")
-    with open(index_file, "r", encoding="utf-8") as f:
+    with open(index_file, encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
 
@@ -3474,7 +3518,7 @@ def serve_workbench_page():
     """Serves the full 3-pane analytical workbench."""
     index_file = os.path.join(frontend_dir, "index.html")
     if os.path.exists(index_file):
-        with open(index_file, "r", encoding="utf-8") as f:
+        with open(index_file, encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     raise HTTPException(status_code=404, detail="Workbench index.html not found")
 

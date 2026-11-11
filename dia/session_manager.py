@@ -21,6 +21,8 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+from dia.retrieval import clear_retrieval_model_cache
+
 log = logging.getLogger("dia.session_manager")
 
 
@@ -30,26 +32,38 @@ class BoundedSessionStore:
     Emulates standard dictionary access while enforcing memory constraints.
     """
 
-    def __init__(self, max_sessions: int = 5, ttl_seconds: int = 1800):
+    def __init__(self, max_sessions: int = 5, ttl_seconds: int = 1800, max_sessions_per_tenant: int = 3):
         self.max_sessions = max(1, max_sessions)
         self.ttl_seconds = ttl_seconds
+        self.max_sessions_per_tenant = max(1, max_sessions_per_tenant)
         self._store: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._meta: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
 
     def _cleanup_expired_locked(self) -> int:
-        """Purges sessions older than ttl_seconds. Assumes lock is held."""
-        now = time.time()
-        expired_keys = [
-            sid for sid, meta in self._meta.items()
-            if (now - meta.get("last_accessed", now)) > self.ttl_seconds
-        ]
-        for sid in expired_keys:
-            log.info("Session %s expired (idle for >%ds). Evicting from memory.", sid, self.ttl_seconds)
-            self._evict_locked(sid)
-        return len(expired_keys)
+        """Purges sessions older than ttl_seconds."""
+        evicted = 0
+        fully_released = False
+        with self._lock:
+            is_outer = getattr(self._lock, "_recursion_count", lambda: 1)() == 1
+            now = time.time()
+            expired_keys = [
+                sid for sid, meta in self._meta.items()
+                if (now - meta.get("last_accessed", now)) > self.ttl_seconds
+            ]
+            for sid in expired_keys:
+                log.info("Session %s expired (idle for >%ds). Evicting from memory.", sid, self.ttl_seconds)
+                if self._evict_locked(sid):
+                    evicted += 1
+            if is_outer:
+                fully_released = True
 
-    def _evict_locked(self, session_id: str) -> None:
+        if evicted > 0 and fully_released:
+            gc.collect()
+
+        return evicted
+
+    def _evict_locked(self, session_id: str) -> bool:
         """Explicitly deallocates memory associated with session_id. Assumes lock is held."""
         sess = self._store.pop(session_id, None)
         self._meta.pop(session_id, None)
@@ -68,37 +82,61 @@ class BoundedSessionStore:
                 sess.clear()
             except Exception as e:
                 log.warning("Exception while clearing session %s: %s", session_id, e)
-            finally:
-                gc.collect()
+            return True
+        return False
 
     def __contains__(self, session_id: str) -> bool:
+        evicted = 0
         with self._lock:
-            self._cleanup_expired_locked()
-            return session_id in self._store
+            evicted = self._cleanup_expired_locked()
+            res = session_id in self._store
+        if evicted > 0:
+            gc.collect()
+        return res
 
     def __len__(self) -> int:
+        evicted = 0
         with self._lock:
-            self._cleanup_expired_locked()
-            return len(self._store)
+            evicted = self._cleanup_expired_locked()
+            res = len(self._store)
+        if evicted > 0:
+            gc.collect()
+        return res
 
     def __getitem__(self, session_id: str) -> dict[str, Any]:
+        evicted = 0
         with self._lock:
-            self._cleanup_expired_locked()
+            evicted = self._cleanup_expired_locked()
             if session_id not in self._store:
                 raise KeyError(f"Session '{session_id}' not found or expired.")
             # Move to end to mark as recently used (LRU policy)
             self._store.move_to_end(session_id)
             if session_id in self._meta:
-                self._meta[session_id]["last_accessed"] = time.time()
-                self._meta[session_id]["access_count"] += 1
-            return self._store[session_id]
+                meta = self._meta.pop(session_id)
+                meta["last_accessed"] = time.time()
+                meta["access_count"] += 1
+                self._meta[session_id] = meta
+            sess = self._store[session_id]
+        if evicted > 0:
+            gc.collect()
+        return sess
 
     def __setitem__(self, session_id: str, value: dict[str, Any]) -> None:
+        evicted = False
         with self._lock:
-            self._cleanup_expired_locked()
+            if self._cleanup_expired_locked() > 0:
+                evicted = True
 
             incoming_tenant = str(value.get("tenant_id") or "default")
             incoming_org = str(value.get("org_id") or "default")
+
+            df = value.get("df")
+            est_bytes = 0
+            if df is not None:
+                try:
+                    est_bytes = int(df.memory_usage(deep=True).sum()) if hasattr(df, "memory_usage") else sys.getsizeof(df)
+                except Exception:
+                    est_bytes = sys.getsizeof(df)
 
             # If key exists, ensure tenant isolation before updating
             if session_id in self._store:
@@ -110,39 +148,58 @@ class BoundedSessionStore:
                 self._store[session_id] = value
                 self._store.move_to_end(session_id)
                 now = time.time()
-                self._meta[session_id]["last_accessed"] = now
-                df = value.get("df")
-                if df is not None and hasattr(df, "shape"):
-                    self._meta[session_id]["n_rows"] = int(df.shape[0])
-                    self._meta[session_id]["n_cols"] = int(df.shape[1])
-                if "goal" in value:
-                    self._meta[session_id]["goal"] = str(value.get("goal", "Predict target"))
-                return
+                if session_id in self._meta:
+                    meta = self._meta.pop(session_id)
+                    meta["last_accessed"] = now
+                    if df is not None and hasattr(df, "shape"):
+                        meta["n_rows"] = int(df.shape[0])
+                        meta["n_cols"] = int(df.shape[1])
+                    if "goal" in value:
+                        meta["goal"] = str(value.get("goal", "Predict target"))
+                    meta["memory_bytes"] = est_bytes
+                    self._meta[session_id] = meta
+            else:
+                # Multi-Tenant Bulkhead Quota: check before global eviction
+                tenant_sids = [sid for sid, m in self._meta.items() if m.get("tenant_id") == incoming_tenant]
+                while len(tenant_sids) >= self.max_sessions_per_tenant:
+                    oldest_tenant_sid = tenant_sids.pop(0)
+                    log.info(
+                        "Tenant '%s' quota reached (%d). Evicting tenant's LRU session %s.",
+                        incoming_tenant,
+                        self.max_sessions_per_tenant,
+                        oldest_tenant_sid,
+                    )
+                    if self._evict_locked(oldest_tenant_sid):
+                        evicted = True
 
-            # If at capacity, evict least-recently-used session (first item)
-            while len(self._store) >= self.max_sessions:
-                oldest_sid, _ = next(iter(self._store.items()))
-                log.info("Session capacity reached (%d). Evicting LRU session %s.", self.max_sessions, oldest_sid)
-                self._evict_locked(oldest_sid)
+                # If at capacity, evict least-recently-used session (first item)
+                while len(self._store) >= self.max_sessions:
+                    oldest_sid, _ = next(iter(self._store.items()))
+                    log.info("Session capacity reached (%d). Evicting LRU session %s.", self.max_sessions, oldest_sid)
+                    if self._evict_locked(oldest_sid):
+                        evicted = True
 
-            now = time.time()
-            df = value.get("df")
-            n_rows = int(df.shape[0]) if df is not None and hasattr(df, "shape") else 0
-            n_cols = int(df.shape[1]) if df is not None and hasattr(df, "shape") else 0
-            tenant_id = str(value.get("tenant_id") or "default")
-            org_id = str(value.get("org_id") or "default")
+                now = time.time()
+                n_rows = int(df.shape[0]) if df is not None and hasattr(df, "shape") else 0
+                n_cols = int(df.shape[1]) if df is not None and hasattr(df, "shape") else 0
+                tenant_id = incoming_tenant
+                org_id = incoming_org
 
-            self._store[session_id] = value
-            self._meta[session_id] = {
-                "created_at": now,
-                "last_accessed": now,
-                "access_count": 1,
-                "goal": str(value.get("goal", "Predict target")),
-                "n_rows": n_rows,
-                "n_cols": n_cols,
-                "tenant_id": tenant_id,
-                "org_id": org_id,
-            }
+                self._store[session_id] = value
+                self._meta[session_id] = {
+                    "created_at": now,
+                    "last_accessed": now,
+                    "access_count": 1,
+                    "goal": str(value.get("goal", "Predict target")),
+                    "n_rows": n_rows,
+                    "n_cols": n_cols,
+                    "tenant_id": tenant_id,
+                    "org_id": org_id,
+                    "memory_bytes": est_bytes,
+                }
+
+        if evicted:
+            gc.collect()
 
     def get(self, session_id: str, default: Any = None) -> Any:
         with self._lock:
@@ -152,22 +209,33 @@ class BoundedSessionStore:
                 return default
 
     def pop(self, session_id: str, default: Any = None) -> Any:
+        evicted = False
+        val = default
         with self._lock:
-            self._cleanup_expired_locked()
-            if session_id not in self._store:
-                return default
-            self._meta.pop(session_id, None)
-            return self._store.pop(session_id)
+            if self._cleanup_expired_locked() > 0:
+                evicted = True
+            if session_id in self._store:
+                self._meta.pop(session_id, None)
+                val = self._store.pop(session_id)
+                evicted = True
+        if evicted:
+            gc.collect()
+        return val
 
     def can_access_session(self, session_id: str, tenant_id: str = "default", is_admin: bool = False) -> bool:
         """Verifies if tenant is authorized to access the given session."""
+        evicted = 0
         with self._lock:
-            self._cleanup_expired_locked()
+            evicted = self._cleanup_expired_locked()
             if session_id not in self._store:
-                return False
-            if is_admin or tenant_id in ("*", "_all"):
-                return True
-            return self._meta.get(session_id, {}).get("tenant_id", "default") == tenant_id
+                res = False
+            elif is_admin or tenant_id in ("*", "_all"):
+                res = True
+            else:
+                res = self._meta.get(session_id, {}).get("tenant_id", "default") == tenant_id
+        if evicted > 0:
+            gc.collect()
+        return res
 
     def get_for_tenant(self, session_id: str, tenant_id: str = "default", is_admin: bool = False) -> dict[str, Any]:
         """Retrieves session ensuring tenant isolation. Raises PermissionError on tenant breach."""
@@ -187,13 +255,17 @@ class BoundedSessionStore:
             sess_tenant = self._meta.get(session_id, {}).get("tenant_id", "default")
             if not is_admin and tenant_id not in ("*", "_all") and sess_tenant != tenant_id:
                 raise PermissionError(f"Tenant '{tenant_id}' is not authorized to delete session '{session_id}' (owner: '{sess_tenant}').")
-            return self.pop(session_id)
+        return self.pop(session_id)
 
     def get_active_tenants(self) -> set[str]:
         """Returns the set of all unique tenant IDs with active in-memory sessions."""
+        evicted = 0
         with self._lock:
-            self._cleanup_expired_locked()
-            return {meta.get("tenant_id", "default") for meta in self._meta.values()}
+            evicted = self._cleanup_expired_locked()
+            tenants = {meta.get("tenant_id", "default") for meta in self._meta.values()}
+        if evicted > 0:
+            gc.collect()
+        return tenants
 
     def clear(self) -> None:
         """Purges all sessions and sweeps memory."""
@@ -204,16 +276,16 @@ class BoundedSessionStore:
             self._store.clear()
             self._meta.clear()
             try:
-                from dia.retrieval import clear_retrieval_model_cache
                 clear_retrieval_model_cache()
             except Exception:
-                pass
-            gc.collect()
+                log.debug("Failed clearing retrieval model cache during session clear", exc_info=True)
+        gc.collect()
 
     def get_sessions_summary(self, tenant_id: str | None = None, is_admin: bool = False) -> list[dict[str, Any]]:
         """Returns structured metadata for active sessions, optionally filtered by tenant."""
+        evicted = 0
         with self._lock:
-            self._cleanup_expired_locked()
+            evicted = self._cleanup_expired_locked()
             now = time.time()
             summaries = []
             for sid, meta in self._meta.items():
@@ -223,13 +295,7 @@ class BoundedSessionStore:
                         continue
 
                 sess = self._store.get(sid, {})
-                df = sess.get("df")
-                est_bytes = 0
-                if df is not None and hasattr(df, "memory_usage"):
-                    try:
-                        est_bytes = int(df.memory_usage(deep=True).sum())
-                    except Exception:
-                        est_bytes = sys.getsizeof(df)
+                est_bytes = meta.get("memory_bytes", 0)
 
                 has_pipeline = sess.get("pipeline_result") is not None
                 best_model = None
@@ -250,14 +316,15 @@ class BoundedSessionStore:
                     "tenant_id": sess_tenant,
                     "org_id": meta.get("org_id", "default"),
                 })
-            return summaries
+        if evicted > 0:
+            gc.collect()
+        return summaries
 
 
 def trigger_system_garbage_collection() -> None:
     """Purges cached retrieval models and triggers a garbage collection cycle."""
     try:
-        from dia.retrieval import clear_retrieval_model_cache
         clear_retrieval_model_cache()
     except Exception:
-        pass
+        log.debug("Failed clearing retrieval model cache during gc", exc_info=True)
     gc.collect()

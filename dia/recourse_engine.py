@@ -58,6 +58,24 @@ class RecourseResult:
     counterfactual_vector: dict[str, Any] = field(default_factory=dict)
     executive_guidance: list[str] = field(default_factory=list)
     immutable_features_locked: list[str] = field(default_factory=list)
+    direction_constraints: dict[str, str] = field(default_factory=dict)
+
+
+def _parse_direction_constraint(constraint_str: Any) -> str:
+    """
+    Normalizes direction constraint string to 'increasing', 'decreasing', or 'none'.
+    Supported representations:
+      - Increasing: ">=", ">", "increasing", "+", "increase", "monotone_increasing", "monotone_non_decreasing"
+      - Decreasing: "<=", "<", "decreasing", "-", "decrease", "monotone_decreasing", "monotone_non_increasing"
+    """
+    if not constraint_str:
+        return "none"
+    c = str(constraint_str).lower().strip()
+    if c in {">=", ">", "increasing", "+", "increase", "monotone_increasing", "monotone_non_decreasing", "non-decreasing", "non_decreasing"}:
+        return "increasing"
+    if c in {"<=", "<", "decreasing", "-", "decrease", "monotone_decreasing", "monotone_non_increasing", "non-increasing", "non_increasing"}:
+        return "decreasing"
+    return "none"
 
 
 class AlgorithmicRecourseEngine:
@@ -68,10 +86,12 @@ class AlgorithmicRecourseEngine:
     def __init__(
         self,
         immutable_features: list[str] | None = None,
+        direction_constraints: dict[str, str] | None = None,
         max_iterations: int = 250,
         random_seed: int = 42,
     ) -> None:
         self.user_immutables = set(immutable_features or [])
+        self.direction_constraints = dict(direction_constraints or {})
         self.max_iterations = max_iterations
         self.rng = np.random.default_rng(random_seed)
 
@@ -83,6 +103,157 @@ class AlgorithmicRecourseEngine:
                 inferred.add(col)
         return inferred
 
+    def _generate_recourse(
+        self,
+        x_orig: np.ndarray,
+        cols: list[str],
+        mutable_indices: list[int],
+        mad_dict: dict[str, float],
+        min_dict: dict[str, float],
+        max_dict: dict[str, float],
+        cat_mappings: dict[str, dict],
+        eval_model_fn: Any,
+        build_row_df_fn: Any,
+        orig_prob: float,
+        target_prob_threshold: float,
+        direction_constraints: dict[str, str] | None = None,
+    ) -> tuple[np.ndarray, float, float]:
+        """
+        Executes constrained coordinate descent to find minimal cost counterfactual candidate vector.
+        Enforces directional monotonicity constraints:
+          - 'increasing' / '>=' / '+': feature must not decrease (x'_j >= x_j)
+          - 'decreasing' / '<=' / '-': feature must not increase (x'_j <= x_j)
+        Returns (best_x, best_prob, best_cost).
+        """
+        # Resolve direction constraints
+        effective_constraints = direction_constraints if direction_constraints is not None else self.direction_constraints
+        constraint_map: dict[str, str] = {}
+        if effective_constraints:
+            for k, v in effective_constraints.items():
+                parsed = _parse_direction_constraint(v)
+                if parsed != "none":
+                    constraint_map[k] = parsed
+                    constraint_map[k.lower().strip()] = parsed
+
+        # Estimate feature gradients/effects
+        feature_importance: list[tuple[int, float]] = []
+        for idx in mutable_indices:
+            col_name = cols[idx]
+            mad_val = mad_dict[col_name]
+            test_hi = x_orig.copy()
+            test_hi[idx] += mad_val * 0.5
+            test_lo = x_orig.copy()
+            test_lo[idx] -= mad_val * 0.5
+
+            try:
+                _, p_hi = eval_model_fn(build_row_df_fn(test_hi), test_hi)
+                _, p_lo = eval_model_fn(build_row_df_fn(test_lo), test_lo)
+                grad = (p_hi - p_lo) / (mad_val if mad_val > 1e-4 else 1.0)
+                feature_importance.append((idx, float(grad)))
+            except Exception:
+                feature_importance.append((idx, 0.0))
+
+        # Sort mutables by potential impact
+        feature_importance.sort(key=lambda item: abs(item[1]), reverse=True)
+
+        current_x = x_orig.copy()
+        best_x = x_orig.copy()
+        best_prob = orig_prob
+        best_cost = float("inf")
+        step_sizes = [0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
+
+        # Greedy coordinate descent across highest leverage features
+        for step in step_sizes:
+            for idx, grad in feature_importance:
+                col_name = cols[idx]
+                mad_val = mad_dict[col_name]
+                c_type = constraint_map.get(col_name) or constraint_map.get(col_name.lower().strip(), "none")
+
+                if col_name in cat_mappings:
+                    # Categorical feature: evaluate discrete candidate category switches
+                    n_categories = len(cat_mappings[col_name])
+                    cur_code = int(round(current_x[idx]))
+                    orig_code = int(round(x_orig[idx]))
+                    for target_code in range(n_categories):
+                        if target_code == cur_code:
+                            continue
+                        # If ordered, enforce directionality against current/original code
+                        if c_type == "increasing" and target_code < orig_code:
+                            continue
+                        if c_type == "decreasing" and target_code > orig_code:
+                            continue
+
+                        cand_x = current_x.copy()
+                        cand_x[idx] = float(target_code)
+                        _, p_cand = eval_model_fn(build_row_df_fn(cand_x), cand_x)
+                        cost = float(np.sum(np.abs(cand_x - x_orig) / np.array([mad_dict[c] for c in cols])))
+                        if best_prob < target_prob_threshold:
+                            if p_cand > best_prob:
+                                current_x = cand_x.copy()
+                                best_prob = float(p_cand)
+                                best_x = cand_x.copy()
+                                best_cost = float(cost)
+                        else:
+                            if p_cand >= target_prob_threshold and cost < best_cost:
+                                current_x = cand_x.copy()
+                                best_prob = float(p_cand)
+                                best_x = cand_x.copy()
+                                best_cost = float(cost)
+                        if best_prob >= target_prob_threshold:
+                            break
+                else:
+                    # Numerical feature: move along gradient in raw feature units
+                    dirs_to_try = [1.0 if grad >= 0 else -1.0]
+                    if c_type == "increasing" and dirs_to_try[0] < 0:
+                        dirs_to_try = [1.0]
+                    elif c_type == "decreasing" and dirs_to_try[0] > 0:
+                        dirs_to_try = [-1.0]
+
+                    for direction in dirs_to_try:
+                        candidate_x = current_x.copy()
+                        candidate_x[idx] += direction * step * mad_val
+                        candidate_x[idx] = np.clip(candidate_x[idx], min_dict[col_name], max_dict[col_name])
+
+                        # Monotonicity constraints:
+                        # If increasing constraint and candidate move is negative (candidate_x[idx] < x_orig[idx]), skip move.
+                        if c_type == "increasing" and candidate_x[idx] < x_orig[idx] - 1e-9:
+                            continue
+                        # If decreasing constraint and candidate move is positive (candidate_x[idx] > x_orig[idx]), skip move.
+                        if c_type == "decreasing" and candidate_x[idx] > x_orig[idx] + 1e-9:
+                            continue
+
+                        _, p_cand = eval_model_fn(build_row_df_fn(candidate_x), candidate_x)
+                        cost = float(np.sum(np.abs(candidate_x - x_orig) / np.array([mad_dict[c] for c in cols])))
+
+                        if best_prob < target_prob_threshold:
+                            if p_cand > best_prob:
+                                current_x = candidate_x.copy()
+                                best_prob = float(p_cand)
+                                best_x = candidate_x.copy()
+                                best_cost = float(cost)
+                        else:
+                            if p_cand >= target_prob_threshold and cost < best_cost:
+                                current_x = candidate_x.copy()
+                                best_prob = float(p_cand)
+                                best_x = candidate_x.copy()
+                                best_cost = float(cost)
+
+                if best_prob >= target_prob_threshold:
+                    break
+            if best_prob >= target_prob_threshold:
+                break
+
+        # Defensive final enforcement of monotonic constraints
+        for idx in mutable_indices:
+            col_name = cols[idx]
+            c_type = constraint_map.get(col_name) or constraint_map.get(col_name.lower().strip(), "none")
+            if c_type == "increasing" and best_x[idx] < x_orig[idx] - 1e-9:
+                best_x[idx] = x_orig[idx]
+            elif c_type == "decreasing" and best_x[idx] > x_orig[idx] + 1e-9:
+                best_x[idx] = x_orig[idx]
+
+        return best_x, best_prob, best_cost
+
     def compute_recourse(
         self,
         model: Any,
@@ -92,6 +263,7 @@ class AlgorithmicRecourseEngine:
         desired_class: int = 1,
         target_prob_threshold: float = 0.55,
         immutable_features: list[str] | None = None,
+        direction_constraints: dict[str, str] | None = None,
         preprocessor: Any | None = None,
     ) -> RecourseResult:
         """
@@ -100,6 +272,12 @@ class AlgorithmicRecourseEngine:
         discretizes categorical perturbations back to category labels, and returns
         perturbations in raw unnormalized feature units.
         """
+        if direction_constraints is not None and not isinstance(direction_constraints, dict):
+            preprocessor = direction_constraints
+            direction_constraints = None
+
+        effective_constraints = direction_constraints if direction_constraints is not None else self.direction_constraints
+
         if isinstance(x_input, dict):
             x_series = pd.Series(x_input)
         elif isinstance(x_input, np.ndarray):
@@ -134,8 +312,8 @@ class AlgorithmicRecourseEngine:
                     ival = int(round(float(val)))
                     if ival in inv_cat_mappings[col_name]:
                         return float(ival)
-                except Exception:
-                    pass
+                except (ValueError, TypeError):
+                    return 0.0
                 return 0.0
             try:
                 if pd.isna(val):
@@ -172,8 +350,8 @@ class AlgorithmicRecourseEngine:
                         pred = int(model.predict(X_proc)[0])
                         prob = 1.0 if pred == desired_class else 0.0
                         return pred, prob
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("Preprocessor transform failed in recourse evaluation: %s", e)
             try:
                 if hasattr(model, "predict_proba"):
                     probs = model.predict_proba(row_df)[0]
@@ -184,8 +362,8 @@ class AlgorithmicRecourseEngine:
                     pred = int(model.predict(row_df)[0])
                     prob = 1.0 if pred == desired_class else 0.0
                     return pred, prob
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("DataFrame prediction failed in recourse evaluation: %s", e)
             # Direct numpy array fallback
             try:
                 cand_arr = np.array([vec])
@@ -229,10 +407,6 @@ class AlgorithmicRecourseEngine:
 
         mutable_indices = [i for i, c in enumerate(cols) if c not in immutables]
 
-        best_x = x_orig.copy()
-        best_prob = orig_prob
-        best_cost = float("inf")
-
         if orig_prob >= target_prob_threshold:
             # Already achieves target class
             cf_map = {}
@@ -252,90 +426,24 @@ class AlgorithmicRecourseEngine:
                 counterfactual_vector=cf_map,
                 executive_guidance=["Input instance already meets favorable prediction criteria."],
                 immutable_features_locked=sorted(list(immutables)),
+                direction_constraints=effective_constraints or {},
             )
 
-        # Estimate feature gradients/effects
-        feature_importance: list[tuple[int, float]] = []
-        for idx in mutable_indices:
-            col_name = cols[idx]
-            mad_val = mad_dict[col_name]
-            test_hi = x_orig.copy()
-            test_hi[idx] += mad_val * 0.5
-            test_lo = x_orig.copy()
-            test_lo[idx] -= mad_val * 0.5
-
-            try:
-                _, p_hi = _eval_model(_build_row_df(test_hi), test_hi)
-                _, p_lo = _eval_model(_build_row_df(test_lo), test_lo)
-                grad = (p_hi - p_lo) / (mad_val if mad_val > 1e-4 else 1.0)
-                feature_importance.append((idx, float(grad)))
-            except Exception:
-                feature_importance.append((idx, 0.0))
-
-        # Sort mutables by potential impact
-        feature_importance.sort(key=lambda item: abs(item[1]), reverse=True)
-
-        current_x = x_orig.copy()
-        step_sizes = [0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
-
-        # Greedy coordinate descent across highest leverage features
-        for step in step_sizes:
-            for idx, grad in feature_importance:
-                col_name = cols[idx]
-                mad_val = mad_dict[col_name]
-
-                if col_name in cat_mappings:
-                    # Categorical feature: evaluate discrete candidate category switches
-                    n_categories = len(cat_mappings[col_name])
-                    cur_code = int(round(current_x[idx]))
-                    for target_code in range(n_categories):
-                        if target_code == cur_code:
-                            continue
-                        cand_x = current_x.copy()
-                        cand_x[idx] = float(target_code)
-                        _, p_cand = _eval_model(_build_row_df(cand_x), cand_x)
-                        cost = np.sum(np.abs(cand_x - x_orig) / np.array([mad_dict[c] for c in cols]))
-                        if best_prob < target_prob_threshold:
-                            if p_cand > best_prob:
-                                current_x = cand_x.copy()
-                                best_prob = float(p_cand)
-                                best_x = cand_x.copy()
-                                best_cost = float(cost)
-                        else:
-                            if p_cand >= target_prob_threshold and cost < best_cost:
-                                current_x = cand_x.copy()
-                                best_prob = float(p_cand)
-                                best_x = cand_x.copy()
-                                best_cost = float(cost)
-                        if best_prob >= target_prob_threshold:
-                            break
-                else:
-                    # Numerical feature: move along gradient in raw feature units
-                    direction = 1.0 if grad >= 0 else -1.0
-                    candidate_x = current_x.copy()
-                    candidate_x[idx] += direction * step * mad_val
-                    candidate_x[idx] = np.clip(candidate_x[idx], min_dict[col_name], max_dict[col_name])
-
-                    _, p_cand = _eval_model(_build_row_df(candidate_x), candidate_x)
-                    cost = np.sum(np.abs(candidate_x - x_orig) / np.array([mad_dict[c] for c in cols]))
-
-                    if best_prob < target_prob_threshold:
-                        if p_cand > best_prob:
-                            current_x = candidate_x.copy()
-                            best_prob = float(p_cand)
-                            best_x = candidate_x.copy()
-                            best_cost = float(cost)
-                    else:
-                        if p_cand >= target_prob_threshold and cost < best_cost:
-                            current_x = candidate_x.copy()
-                            best_prob = float(p_cand)
-                            best_x = candidate_x.copy()
-                            best_cost = float(cost)
-
-                if best_prob >= target_prob_threshold:
-                    break
-            if best_prob >= target_prob_threshold:
-                break
+        # Generate counterfactual candidates via constrained search
+        best_x, best_prob, best_cost = self._generate_recourse(
+            x_orig=x_orig,
+            cols=cols,
+            mutable_indices=mutable_indices,
+            mad_dict=mad_dict,
+            min_dict=min_dict,
+            max_dict=max_dict,
+            cat_mappings=cat_mappings,
+            eval_model_fn=_eval_model,
+            build_row_df_fn=_build_row_df,
+            orig_prob=orig_prob,
+            target_prob_threshold=target_prob_threshold,
+            direction_constraints=effective_constraints,
+        )
 
         # Generate Action Items
         actions: list[RecourseAction] = []
@@ -352,14 +460,15 @@ class AlgorithmicRecourseEngine:
                 orig_label = inv_cat_mappings[col].get(orig_code, str(orig_v))
                 prop_label = inv_cat_mappings[col].get(prop_code, str(prop_v))
                 if orig_code != prop_code:
+                    direction_str = "INCREASE" if prop_code > orig_code else ("DECREASE" if prop_code < orig_code else "SWITCH")
                     actions.append(
                         RecourseAction(
                             feature=col,
                             original_value=orig_label,
                             proposed_value=prop_label,
-                            delta=1.0,
+                            delta=float(prop_code - orig_code),
                             delta_display=f"{orig_label} -> {prop_label}",
-                            direction="SWITCH",
+                            direction=direction_str,
                             normalized_cost=1.0,
                             relative_difficulty="LOW",
                         )
@@ -411,6 +520,7 @@ class AlgorithmicRecourseEngine:
             counterfactual_vector=cf_vector,
             executive_guidance=guidance or ["No significant modifications required."],
             immutable_features_locked=sorted(list(immutables)),
+            direction_constraints=effective_constraints or {},
         )
 
 
@@ -422,10 +532,18 @@ def compute_recourse(
     desired_class: int = 1,
     target_prob_threshold: float = 0.55,
     immutable_features: list[str] | None = None,
+    direction_constraints: dict[str, str] | None = None,
     preprocessor: Any | None = None,
 ) -> RecourseResult:
     """Convenience functional interface for Algorithmic Recourse."""
-    engine = AlgorithmicRecourseEngine(immutable_features=immutable_features)
+    if direction_constraints is not None and not isinstance(direction_constraints, dict):
+        preprocessor = direction_constraints
+        direction_constraints = None
+
+    engine = AlgorithmicRecourseEngine(
+        immutable_features=immutable_features,
+        direction_constraints=direction_constraints,
+    )
     return engine.compute_recourse(
         model=model,
         x_input=x_input,
@@ -434,5 +552,6 @@ def compute_recourse(
         desired_class=desired_class,
         target_prob_threshold=target_prob_threshold,
         immutable_features=immutable_features,
+        direction_constraints=direction_constraints,
         preprocessor=preprocessor,
     )

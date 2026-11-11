@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -33,14 +33,14 @@ class ParetoPoint(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     model_name: str = "model"
-    threshold: Optional[float] = None
+    threshold: float | None = None
     roi_profit: float
     default_risk: float
     fairness_ratio: float  # Demographic Parity / Disparate Impact ratio [0.0, 1.0]
     is_pareto_optimal: bool = False
     classification: str = "SUB_OPTIMAL"  # MAX_PROFIT, MIN_RISK, MAX_FAIRNESS, BALANCED_KNEE, SUB_OPTIMAL
-    metrics: Dict[str, float] = Field(default_factory=dict)
-    label: Optional[str] = None
+    metrics: dict[str, float] = Field(default_factory=dict)
+    label: str | None = None
 
     # Properties for aliases
     @property
@@ -56,27 +56,27 @@ class ParetoFrontierResult(BaseModel):
     """Result of multi-objective Pareto optimization across Profit, Risk, and Fairness."""
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    frontier_points: List[ParetoPoint]
-    all_evaluated_points: List[ParetoPoint]
-    knee_point: Optional[ParetoPoint] = None
-    max_profit_point: Optional[ParetoPoint] = None
-    min_risk_point: Optional[ParetoPoint] = None
-    max_fairness_point: Optional[ParetoPoint] = None
-    recommended_point: Optional[ParetoPoint] = None
-    dimensions: List[str] = Field(
+    frontier_points: list[ParetoPoint]
+    all_evaluated_points: list[ParetoPoint]
+    knee_point: ParetoPoint | None = None
+    max_profit_point: ParetoPoint | None = None
+    min_risk_point: ParetoPoint | None = None
+    max_fairness_point: ParetoPoint | None = None
+    recommended_point: ParetoPoint | None = None
+    dimensions: list[str] = Field(
         default_factory=lambda: ["roi_profit", "default_risk", "fairness_ratio"]
     )
     hypervolume: float = 0.0
-    protected_attribute: Optional[str] = None
-    sensitive_groups: List[str] = Field(default_factory=list)
-    flight_recommendations: List[str] = Field(default_factory=list)
+    protected_attribute: str | None = None
+    sensitive_groups: list[str] = Field(default_factory=list)
+    flight_recommendations: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
 # Core Algorithmic Routines
 # ---------------------------------------------------------------------------
 
-def _extract_metric(item: Dict[str, Any], keys: List[str], default: float = 0.0) -> float:
+def _extract_metric(item: dict[str, Any], keys: list[str], default: float = 0.0) -> float:
     """Extracts a numeric metric from a dictionary checking multiple alias keys."""
     for k in keys:
         if k in item and item[k] is not None:
@@ -124,27 +124,91 @@ def _dominates(a: ParetoPoint, b: ParetoPoint) -> bool:
     return strict
 
 
-def _calculate_hypervolume_3d(points: List[ParetoPoint], nadir: Tuple[float, float, float]) -> float:
+def _calculate_hypervolume_3d(points: list[ParetoPoint], nadir: tuple[float, float, float]) -> float:
     """
-    Approximates 3D dominated hypervolume of normalized frontier points.
-    nadir: (min_profit, max_risk, min_fairness)
+    Exact 3D Lebesgue hypervolume calculation using dimension-slicing.
+    Computes the exact volume of the union of axis-aligned boxes bounded by non-dominated
+    points and the nadir reference point.
+
+    Objectives with respect to nadir:
+      u_i = max(0.0, p.roi_profit - nadir[0])
+      v_i = max(0.0, nadir[1] - p.default_risk)
+      w_i = max(0.0, p.fairness_ratio - nadir[2])
     """
     if not points:
         return 0.0
 
-    # Project to positive box [0, 1]^3
-    # Objectives: x = profit (max), y = 1 - risk (max), z = fairness (max)
-    volumes: List[float] = []
+    # Extract coordinates relative to nadir
+    raw_coords: list[tuple[float, float, float]] = []
     for p in points:
-        v_x = max(0.0, p.roi_profit - nadir[0])
-        v_y = max(0.0, nadir[1] - p.default_risk)
-        v_z = max(0.0, p.fairness_ratio - nadir[2])
-        volumes.append(v_x * v_y * v_z)
+        u_i = max(0.0, float(p.roi_profit) - float(nadir[0]))
+        v_i = max(0.0, float(nadir[1]) - float(p.default_risk))
+        w_i = max(0.0, float(p.fairness_ratio) - float(nadir[2]))
+        if u_i > 0.0 and v_i > 0.0 and w_i > 0.0:
+            raw_coords.append((u_i, v_i, w_i))
 
-    # Return union approximation (upper bound on non-dominated set hypervolume)
-    if not volumes:
+    if not raw_coords:
         return 0.0
-    return float(round(np.mean(volumes) * len(volumes) / (1.0 + len(volumes) * 0.05), 4))
+
+    # Find all unique sorted w levels: 0 = w_0 < w_1 < w_2 < ... < w_K
+    unique_w = sorted({w for _, _, w in raw_coords if w > 0.0})
+    if not unique_w:
+        return 0.0
+
+    w_levels = [0.0] + unique_w
+    total_hv = 0.0
+
+    # For each slice interval [w_{k-1}, w_k] with height delta_w_k = w_k - w_{k-1}
+    for k in range(1, len(w_levels)):
+        w_prev = w_levels[k - 1]
+        w_curr = w_levels[k]
+        delta_w = w_curr - w_prev
+        if delta_w <= 0.0:
+            continue
+
+        # Active 2D points are { (u_i, v_i) | w_i >= w_k }
+        active_points = [(u, v) for u, v, w in raw_coords if w >= w_curr]
+        if not active_points:
+            continue
+
+        # Compute exact 2D area of union of rectangles [0, u_i] x [0, v_i]:
+        # Aggregate maximum v for each unique u
+        u_to_v: dict[float, float] = {}
+        for u, v in active_points:
+            if u not in u_to_v or v > u_to_v[u]:
+                u_to_v[u] = v
+
+        # Filter to 2D non-dominated points
+        sorted_u_desc = sorted(u_to_v.keys(), reverse=True)
+        non_dominated: list[tuple[float, float]] = []
+        max_v_so_far = -1.0
+        for u in sorted_u_desc:
+            v = u_to_v[u]
+            if v > max_v_so_far:
+                non_dominated.append((u, v))
+                max_v_so_far = v
+
+        # Sort by u ascending: 0 = u_0 < u_1 < ... < u_m
+        non_dominated.reverse()
+        m = len(non_dominated)
+        if m == 0:
+            continue
+
+        u_coords = [pt[0] for pt in non_dominated]
+        v_coords = [pt[1] for pt in non_dominated]
+
+        # Area = sum_{j=1}^m (u_j - u_{j-1}) * max_{k >= j} v_k
+        area = 0.0
+        u_prev = 0.0
+        for j in range(m):
+            u_j = u_coords[j]
+            max_v = max(v_coords[k] for k in range(j, m))
+            area += (u_j - u_prev) * max_v
+            u_prev = u_j
+
+        total_hv += area * delta_w
+
+    return float(round(total_hv, 4))
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +216,7 @@ def _calculate_hypervolume_3d(points: List[ParetoPoint], nadir: Tuple[float, flo
 # ---------------------------------------------------------------------------
 
 def compute_pareto_frontier(
-    models_data: List[Dict[str, Any]],
+    models_data: list[dict[str, Any]],
     profit_weight: float = 1.0,
     risk_weight: float = 1.0,
     fairness_weight: float = 1.0,
@@ -188,7 +252,7 @@ def compute_pareto_frontier(
         )
 
     # 1. Parse and standardize all input records
-    evaluated_points: List[ParetoPoint] = []
+    evaluated_points: list[ParetoPoint] = []
     for idx, item in enumerate(models_data):
         m_name = str(item.get("model_name") or item.get("name") or item.get("label") or f"Model_{idx + 1}")
         thresh = item.get("threshold")
@@ -318,7 +382,7 @@ def compute_pareto_frontier(
     hv = _calculate_hypervolume_3d(frontier_points, nadir)
 
     # 6. Strategic Flight Recommendations
-    recommendations: List[str] = [
+    recommendations: list[str] = [
         f"Balanced Knee Point selected: '{knee_pt.model_name}' achieves Net Profit ${knee_pt.roi_profit:,.2f} "
         f"with Risk Rate {knee_pt.default_risk:.2%} and Fairness Ratio {knee_pt.fairness_ratio:.2f}.",
     ]
@@ -369,7 +433,7 @@ class ParetoFrontierSimulator:
         self,
         y_true: np.ndarray,
         y_prob: np.ndarray,
-        protected_series: Optional[pd.Series] = None,
+        protected_series: pd.Series | None = None,
         cost_fp: float = 20.0,
         cost_fn: float = 150.0,
         val_tp: float = 100.0,
@@ -389,11 +453,11 @@ class ParetoFrontierSimulator:
             return compute_pareto_frontier([])
 
         thresholds = np.linspace(0.01, 0.99, num=self.steps)
-        models_data: List[Dict[str, Any]] = []
+        models_data: list[dict[str, Any]] = []
 
         # Identify sensitive groups if provided
         groups = None
-        group_names: List[str] = []
+        group_names: list[str] = []
         if protected_series is not None:
             groups = np.asarray(protected_series)
             group_names = [str(g) for g in np.unique(groups)]
@@ -415,7 +479,7 @@ class ParetoFrontierSimulator:
 
             # 3. Demographic Parity Fairness Ratio: min(P(Y_hat=1|G=g)) / max(P(Y_hat=1|G=g))
             if groups is not None and len(group_names) > 1:
-                rates: List[float] = []
+                rates: list[float] = []
                 for g in np.unique(groups):
                     mask = (groups == g)
                     g_size = np.sum(mask)

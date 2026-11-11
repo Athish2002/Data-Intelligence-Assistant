@@ -265,22 +265,21 @@ def audit_dataframe_axioms(
     cols = list(df.columns)
     projector = ConservationProjector(laws=laws, feature_names=cols)
 
-    violations_count: dict[str, int] = {law.name: 0 for law in laws}
-    failed_indices: set[int] = set()
+    # Convert dataframe columns to numeric 2D array
+    X = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    # Shape: (N, d), A shape: (m, d), b shape: (m,)
+    # Residuals matrix: |X @ A.T - b| -> shape (N, m)
+    residuals = np.abs(X @ projector.A.T - projector.b)
+    tolerances = np.array([law.tolerance for law in laws], dtype=float)
 
-    for idx, row in df.iterrows():
-        try:
-            x = pd.to_numeric(row, errors="coerce").fillna(0.0).to_numpy(dtype=float)
-            checks = projector.verify_conservation(x)
-            for law_name, _err, passed in checks:
-                if not passed:
-                    violations_count[law_name] += 1
-                    failed_indices.add(int(idx))
-        except Exception:
-            failed_indices.add(int(idx))
+    violated = residuals > tolerances  # (N, m) boolean mask
+    violations_count: dict[str, int] = {}
+    for i, law in enumerate(laws):
+        violations_count[law.name] = int(np.sum(violated[:, i]))
 
+    failed_mask = np.any(violated, axis=1)
     total = len(df)
-    n_failed = len(failed_indices)
+    n_failed = int(np.sum(failed_mask))
     n_passed = total - n_failed
     rate = (n_failed / total) if total > 0 else 0.0
 
@@ -333,8 +332,11 @@ def _format_law_equation(coeffs: dict[str, float], target_sum: float = 0.0) -> s
             else:
                 terms.append(f"- {c_abs_str} {feat}")
 
-    t_round = round(target_sum, 4)
-    t_str = "0" if abs(t_round) < 1e-5 else str(t_round)
+    if target_sum == 0.0 or abs(target_sum) < 1e-5:
+        t_str = "0"
+    else:
+        b_val = round(target_sum, 2)
+        t_str = f"{int(b_val)}" if abs(b_val - int(b_val)) < 1e-5 else f"{b_val}"
     return " ".join(terms) + f" = {t_str}"
 
 
@@ -419,16 +421,18 @@ def scan_dataframe_conservation_laws(
     # Clean rows with complete values in selected features
     sub_df = num_df[feature_cols].replace([np.inf, -np.inf], np.nan).dropna()
     N, d = sub_df.shape
-    if N < 3 or N < d or d < 2:
+    if N < 3 or N < d + 1 or d < 2:
         return []
 
     M = sub_df.to_numpy(dtype=float)
     scales = np.linalg.norm(M, axis=0)
     scales = np.where(scales < 1e-12, 1.0, scales)
     Z = M / scales
+    # Augment normalized matrix with intercept column 1_N / sqrt(N) to discover affine laws
+    Z_aug = np.hstack([Z, np.ones((N, 1), dtype=float) / np.sqrt(N)])
 
     try:
-        _U, S, Vt = np.linalg.svd(Z, full_matrices=False)
+        _U, S, Vt = np.linalg.svd(Z_aug, full_matrices=False)
     except Exception:
         return []
 
@@ -437,16 +441,17 @@ def scan_dataframe_conservation_laws(
     if not np.any(null_mask):
         return []
 
-    # Convert null vectors back to original feature scale: M @ (v / scales) = Z @ v approx 0
-    V_null = Vt[null_mask] / scales
+    # Convert null vectors back to original feature scale: [w, -\beta]^T
+    aug_scales = np.append(scales, np.sqrt(N))
+    V_null = Vt[null_mask] / aug_scales
     V_basis = _rref(V_null)
     candidates: list[ConservationLaw] = []
 
     for row in V_basis:
-        max_abs = np.max(np.abs(row))
+        max_abs = np.max(np.abs(row[:d]))
         if max_abs < 1e-12:
             continue
-        row_clean = row.copy()
+        row_clean = row[:d].copy()
         row_clean[np.abs(row_clean) < 1e-5 * max_abs] = 0.0
 
         non_zero_indices = np.where(np.abs(row_clean) > 1e-5)[0]
@@ -489,6 +494,15 @@ def scan_dataframe_conservation_laws(
             cand_vec[idx] = active_coeffs.get(feature_cols[idx], 0.0)
 
         y = M @ cand_vec
+        target_sum = float(np.mean(y))
+        std_y = float(np.std(y))
+        if abs(target_sum) < 1e-4 * std_y or abs(target_sum) < 1e-5:
+            target_sum = 0.0
+        elif abs(target_sum - round(target_sum)) < 1e-4:
+            target_sum = float(round(target_sum))
+        else:
+            target_sum = round(target_sum, 4)
+
         var_y = float(np.var(y))
 
         primary_idx = max(
@@ -507,14 +521,14 @@ def scan_dataframe_conservation_laws(
         if variance_explained < r2_threshold or norm_res_var > (1.0 - r2_threshold + 1e-7):
             continue
 
-        eq_str = _format_law_equation(active_coeffs, target_sum=0.0)
+        eq_str = _format_law_equation(active_coeffs, target_sum=target_sum)
         category = _infer_balance_category(list(active_coeffs.keys()))
         law_name = f"{category}: {eq_str}"
 
         law = ConservationLaw(
             name=law_name,
             coefficients=active_coeffs,
-            target_sum=0.0,
+            target_sum=target_sum,
             tolerance=1e-6,
             formula=eq_str,
             variance_explained=float(variance_explained),

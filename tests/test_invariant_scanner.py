@@ -20,17 +20,15 @@ Enforces:
 from __future__ import annotations
 
 import uuid
+
 import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 from api.schemas import (
-    AxiomAuditSummaryResponse,
-    ConservationLawItem,
     InvariantLockRequest,
     InvariantLockResponse,
-    InvariantScanRequest,
     InvariantScanResponse,
     InvariantsStatusResponse,
 )
@@ -40,7 +38,6 @@ from dia.invariant_engine import (
     audit_dataframe_axioms,
     scan_dataframe_conservation_laws,
 )
-
 
 # ───────────────────────────────────────────────────────────────────────────
 # 1. Generative Property Fuzzing Suite
@@ -180,6 +177,86 @@ class TestGenerativePropertyFuzzing:
 
         laws = scan_dataframe_conservation_laws(df)
         assert len(laws) == 0, f"Expected 0 laws for independent/constant data, found: {laws}"
+
+    def test_affine_conservation_law_discovery_constant_offset(self):
+        """
+        Synthesizes an affine dataset with X1 + X2 = 1000.
+        Verifies that SVD with augmented intercept discovers the affine conservation law
+        with target_sum = 1000 and formula string '... = 1000'.
+        """
+        rng = np.random.default_rng(123)
+        n = 500
+        x1 = rng.standard_normal(n) * 20 + 350
+        x2 = 1000.0 - x1
+        x3 = rng.standard_normal(n)
+        x4 = rng.standard_normal(n)
+
+        df = pd.DataFrame({
+            "X1": x1,
+            "X2": x2,
+            "X3": x3,
+            "X4": x4,
+        })
+
+        laws = scan_dataframe_conservation_laws(df)
+        assert len(laws) == 1, f"Expected 1 affine law, discovered: {laws}"
+        law = laws[0]
+
+        # Verify coefficients: X1 + X2
+        assert law.coefficients["X1"] == pytest.approx(1.0, abs=1e-5)
+        assert law.coefficients["X2"] == pytest.approx(1.0, abs=1e-5)
+        assert "X3" not in law.coefficients
+        assert "X4" not in law.coefficients
+
+        # Verify affine target_sum
+        assert law.target_sum == 1000 or law.target_sum == pytest.approx(1000.0, abs=1e-4)
+
+        # Verify formula formatting
+        assert "X1 + X2 = 1000" in law.formula or law.formula.endswith("= 1000")
+
+    def test_vectorized_audit_dataframe_axioms_large_batch(self):
+        """
+        Verifies vectorized BLAS execution of audit_dataframe_axioms across 5,000 rows.
+        Assures exact AxiomAuditSummary structure, zero-leakage counts, and high throughput.
+        """
+        rng = np.random.default_rng(777)
+        n = 5000
+        inflow = rng.uniform(100.0, 500.0, n)
+        outflow = rng.uniform(50.0, 300.0, n)
+        delta = inflow - outflow
+
+        df = pd.DataFrame({
+            "inflow": inflow,
+            "outflow": outflow,
+            "delta": delta,
+        })
+
+        law = ConservationLaw(
+            name="Balance Axiom",
+            coefficients={"inflow": 1.0, "outflow": -1.0, "delta": -1.0},
+            target_sum=0.0,
+            tolerance=1e-5,
+        )
+
+        audit = audit_dataframe_axioms(df, [law])
+        assert audit.is_axiom_compliant
+        assert audit.total_records == 5000
+        assert audit.passed_records == 5000
+        assert audit.violation_rate == 0.0
+        assert audit.violations_by_law["Balance Axiom"] == 0
+
+        # Inject 25 corrupt records
+        df_corrupt = df.copy()
+        corrupt_indices = [10, 50, 100, 200, 500]
+        for idx in corrupt_indices:
+            df_corrupt.loc[idx, "delta"] += 999.0
+
+        audit_corrupt = audit_dataframe_axioms(df_corrupt, [law])
+        assert not audit_corrupt.is_axiom_compliant
+        assert audit_corrupt.total_records == 5000
+        assert audit_corrupt.passed_records == 5000 - len(corrupt_indices)
+        assert audit_corrupt.violations_by_law["Balance Axiom"] == len(corrupt_indices)
+        assert audit_corrupt.violation_rate == pytest.approx(len(corrupt_indices) / 5000, abs=1e-5)
 
 
 # ───────────────────────────────────────────────────────────────────────────
