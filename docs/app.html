@@ -84,35 +84,35 @@
   </div>
 
   <!-- Top Navbar -->
-  <header class="border-b sticky top-0 z-40 px-4 h-12 flex items-center justify-between" style="border-color: var(--card-border); background-color: var(--bg-dock, var(--bg-primary));">
+  <header class="border-b sticky top-0 z-40 px-3 sm:px-4 h-12 flex items-center justify-between" style="border-color: var(--card-border); background-color: var(--bg-dock, var(--bg-primary));">
     <!-- Left brand + dock toggle + Home link -->
-    <div class="flex items-center space-x-2 flex-shrink-0">
+    <div class="flex items-center space-x-1.5 sm:space-x-2 min-w-0 flex-shrink">
       <button id="toggle-dock-btn" class="p-1.5 rounded hover:bg-white/5 transition-colors cursor-pointer flex-shrink-0" title="Toggle Ingestion Dock (⌘B / Ctrl+B)" style="color: var(--text-muted);">
         <i data-lucide="panel-left" class="w-4 h-4"></i>
       </button>
 
       <!-- Home Navigation Button to Landing Page -->
-      <a href="/" id="nav-landing-home-btn" title="Back to Landing Page" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono font-semibold transition-all cursor-pointer mr-2 active:scale-95" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
-        <span>🏠</span><span>Home</span>
+      <a href="/" id="nav-landing-home-btn" title="Back to Landing Page" class="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-mono font-semibold transition-all cursor-pointer mr-1 sm:mr-2 active:scale-95 flex-shrink-0" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
+        <span>🏠</span><span class="hidden sm:inline">Home</span>
       </a>
 
-      <a href="/" class="flex items-center space-x-2 cursor-pointer group flex-shrink-0 ml-0.5" title="Navigate back to DIA Landing Page (/)">
-        <div class="px-2 py-0.5 rounded text-[11px] font-mono font-black tracking-wider bg-[#00e575] text-[#050505] group-hover:scale-105 transition-transform flex-shrink-0">
+      <a href="/" class="flex items-center space-x-2 cursor-pointer group flex-shrink min-w-0 ml-0.5" title="Navigate back to DIA Landing Page (/)">
+        <div class="px-2 py-0.5 rounded text-[11px] font-mono font-black tracking-wider bg-emerald-500 text-slate-950 group-hover:scale-105 transition-transform flex-shrink-0">
           DIA
         </div>
-        <div class="flex items-center space-x-2 flex-shrink-0">
-          <span class="font-bold text-sm tracking-tight hidden sm:inline whitespace-nowrap group-hover:text-[#00e575] transition-colors" style="color: var(--text-primary)">Data Intelligence Assistant</span>
-          <span class="text-[10px] uppercase font-mono font-bold tracking-wider px-1.5 py-0.5 rounded border hidden md:inline whitespace-nowrap" style="background-color: var(--tag-bg); color: var(--tag-text); border-color: var(--card-border)">ENTERPRISE</span>
+        <div class="flex items-center space-x-2 min-w-0">
+          <span class="font-bold text-sm tracking-tight hidden sm:inline truncate group-hover:text-emerald-400 transition-colors" style="color: var(--text-primary)">Data Intelligence Assistant</span>
+          <span class="text-[10px] uppercase font-mono font-bold tracking-wider px-1.5 py-0.5 rounded border hidden xl:inline whitespace-nowrap flex-shrink-0" style="background-color: var(--tag-bg); color: var(--tag-text); border-color: var(--card-border)">ENTERPRISE</span>
         </div>
       </a>
     </div>
 
     <!-- Center Command Bar Trigger (⌘K) -->
-    <div class="flex-1 max-w-sm mx-3 hidden sm:block">
+    <div class="flex-1 min-w-0 max-w-xs md:max-w-sm mx-2 md:mx-3 hidden sm:block">
       <button id="command-palette-trigger" class="w-full flex items-center justify-between px-3 py-1 rounded border text-xs font-mono transition-all hover:border-[#333] cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-muted);">
-        <span class="flex items-center space-x-2 truncate">
-          <i data-lucide="search" class="w-3.5 h-3.5 text-[#858076]"></i>
-          <span>Search models, datasets, workspaces...</span>
+        <span class="flex items-center space-x-2 truncate min-w-0">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-[#858076] flex-shrink-0"></i>
+          <span class="truncate">Search models, datasets, workspaces...</span>
         </span>
         <span class="text-[10px] font-mono px-1.5 py-0.2 rounded border ml-2 flex-shrink-0" style="background-color: var(--tag-bg); border-color: var(--card-border); color: var(--text-muted);">
           ⌘K
@@ -121,28 +121,28 @@
     </div>
 
     <!-- Right Controls (Strict Non-Colliding Flow) -->
-    <div class="flex items-center space-x-2 flex-shrink-0">
+    <div class="flex items-center space-x-1.5 sm:space-x-2 flex-shrink-0">
       <div id="active-dataset-badge"></div>
       <div id="active-model-badge"></div>
       <!-- System Health Telemetry Badge & Modal Trigger -->
-      <div id="system-health-badge" data-telemetry-trigger="true" onclick="window.openTelemetryModal ? window.openTelemetryModal(event) : (window.openSystemMetrics && window.openSystemMetrics())" class="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded border font-mono text-[11px] cursor-pointer hover:border-[#00e575]/50 transition-all active:scale-95" style="background-color: var(--card-bg); border-color: var(--card-border); color: var(--text-muted)" title="Open System Health & Resource Monitor">
-        <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse"></span>
+      <div id="system-health-badge" data-telemetry-trigger="true" onclick="window.openTelemetryModal ? window.openTelemetryModal(event) : (window.openSystemMetrics && window.openSystemMetrics())" class="hidden xl:flex items-center space-x-1.5 px-2.5 py-1 rounded border font-mono text-[11px] cursor-pointer hover:border-emerald-500/50 transition-all active:scale-95 flex-shrink-0" style="background-color: var(--card-bg); border-color: var(--card-border); color: var(--text-muted)" title="Open System Health & Resource Monitor">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         <span id="system-health-text">RAM: -- | CPU: --</span>
       </div>
       
       <!-- Inspector Toggle Button (⌘I) -->
-      <button id="toggle-inspector-btn" class="px-2.5 py-1 rounded border text-xs font-mono flex items-center space-x-1.5 hover:bg-white/5 transition-all cursor-pointer" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Toggle Model & Feature Inspector (⌘I / Ctrl+I)">
-        <i data-lucide="sidebar" class="w-3.5 h-3.5 text-[#00e575]"></i>
+      <button id="toggle-inspector-btn" class="px-2.5 py-1 rounded border text-xs font-mono flex items-center space-x-1.5 hover:bg-white/5 transition-all cursor-pointer flex-shrink-0" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Toggle Model & Feature Inspector (⌘I / Ctrl+I)">
+        <i data-lucide="sidebar" class="w-3.5 h-3.5 text-emerald-400"></i>
         <span class="hidden lg:inline">Inspector</span>
       </button>
 
-      <!-- 1-Click Night / Day Mode Toggle Button -->
-      <button type="button" id="theme-toggle-btn" data-theme-toggle class="p-1.5 rounded-lg border hover:bg-white/5 transition-all cursor-pointer flex items-center justify-center relative shadow-sm active:scale-95 group" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" aria-label="Toggle Night/Day Mode" title="Toggle Night/Day Mode">
-        <span class="relative w-4 h-4 flex items-center justify-center pointer-events-none">
-          <svg class="theme-icon-moon w-4 h-4 text-[#00e575] transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- 1-Click Night / Day Mode Toggle Button (Prominent Pill) -->
+      <button type="button" id="theme-toggle-btn" data-theme-toggle class="flex-shrink-0 flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-xs font-mono font-medium transition-all cursor-pointer shadow-sm active:scale-95 group hover:border-emerald-500/50" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" aria-label="Toggle Night/Day Mode" title="Toggle Night/Day Mode">
+        <span class="relative w-4 h-4 flex items-center justify-center pointer-events-none flex-shrink-0">
+          <svg class="theme-icon-moon w-3.5 h-3.5 text-emerald-400 transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
           </svg>
-          <svg class="theme-icon-sun w-4 h-4 text-amber-500 hidden transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="theme-icon-sun w-3.5 h-3.5 text-amber-500 hidden transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"></circle>
             <line x1="12" y1="1" x2="12" y2="3"></line>
             <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -154,10 +154,11 @@
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
           </svg>
         </span>
+        <span class="theme-label-text hidden md:inline text-[11px] font-semibold tracking-wide">Night</span>
       </button>
 
-      <a href="/docs" target="_blank" class="text-xs hover:opacity-80 flex items-center transition-opacity p-1.5" style="color: var(--text-muted)" title="Swagger API Docs">
-        <i data-lucide="book-open" class="w-3.5 h-3.5 text-[#00e575]"></i>
+      <a href="/docs" target="_blank" class="text-xs hover:opacity-80 flex items-center transition-opacity p-1.5 flex-shrink-0" style="color: var(--text-muted)" title="Swagger API Docs">
+        <i data-lucide="book-open" class="w-3.5 h-3.5 text-emerald-400"></i>
       </a>
     </div>
   </header>

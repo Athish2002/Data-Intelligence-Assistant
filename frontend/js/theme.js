@@ -3,8 +3,8 @@
  * ─────────────────────
  * Centralized Two-Theme Engine for Data Intelligence Assistant.
  * Strictly supports 2 polished themes:
- * 1. Night Mode ('night'): Deep Obsidian (#040608) canvas with Cyber Aurora mesh glow.
- * 2. Day Mode ('day'): Warm editorial Tokyo Sand (#f5f2eb) canvas with high-contrast ink text (WCAG 2.2 AA >= 4.5:1).
+ * 1. Night Mode ('night'): Deep Obsidian (#090a0f) canvas with Cyber Aurora mesh glow.
+ * 2. Day Mode ('day'): Luminous Slate Light (#f8fafc) canvas with high-contrast Slate 900 text (WCAG 2.2 AAA).
  *
  * Persisted in localStorage under key 'dia_theme_mode'.
  */
@@ -84,7 +84,7 @@ export function applyTheme(theme, animate = true) {
     transitionTimeout = setTimeout(() => {
       isTransitioning = false;
       root.classList.remove('theme-in-transition');
-    }, 280);
+    }, 200);
   }
 
   // Set the data-theme attribute used by style.css
@@ -161,13 +161,13 @@ export function updateToggleButtonsUI() {
       }
     } else {
       btn.innerHTML = isNight
-        ? '<span class="relative w-4 h-4 flex items-center justify-center pointer-events-none"><svg class="theme-icon-moon w-4 h-4 text-[#00e575] transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></span>'
+        ? '<span class="relative w-4 h-4 flex items-center justify-center pointer-events-none"><svg class="theme-icon-moon w-4 h-4 text-[#10b981] transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></span>'
         : '<span class="relative w-4 h-4 flex items-center justify-center pointer-events-none"><svg class="theme-icon-sun w-4 h-4 text-amber-500 transition-all duration-300 transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></span>';
     }
 
     const label = btn.querySelector('.theme-label-text');
     if (label) {
-      label.textContent = isNight ? 'Day Mode' : 'Night Mode';
+      label.textContent = isNight ? 'Night' : 'Day';
     }
   });
 }

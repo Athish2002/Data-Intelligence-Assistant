@@ -167,7 +167,7 @@ export function updateToggleButtonsUI() {
 
     const label = btn.querySelector('.theme-label-text');
     if (label) {
-      label.textContent = isNight ? 'Day Mode' : 'Night Mode';
+      label.textContent = isNight ? 'Night' : 'Day';
     }
   });
 }
