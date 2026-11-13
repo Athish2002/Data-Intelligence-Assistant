@@ -9,6 +9,7 @@ and memoized caching for end-to-end data intelligence workflows.
 from __future__ import annotations
 
 import gc
+import json
 import logging
 from typing import Any
 
@@ -67,6 +68,7 @@ class PipelineCoordinator:
         use_voting: bool = True,
         hpo_trials: int = 10,
         test_size: float = 0.20,
+        session: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Executes all 5 core stages synchronously and produces the complete session state dictionary.
@@ -220,6 +222,16 @@ class PipelineCoordinator:
         # Contracts & Active Learning
         data_contract_json = generate_data_contract(clean_df, target_col)
         data_contract_md = format_contract_markdown(data_contract_json)
+        data_contract_cached = {
+            "status": "success",
+            "contract_yaml": data_contract_md,
+            "great_expectations_json": json.dumps(data_contract_json, indent=2),
+            "n_expectations": len(data_contract_json.get("expectations", [])),
+            "expectations": data_contract_json.get("expectations", []),
+        }
+        if session is not None and isinstance(session, dict):
+            session["data_contract"] = data_contract_cached
+
         uncertain_samples = sample_uncertain_predictions(
             train_result["best_model"], clean_df, train_result["X_test_processed"]
         )
@@ -308,6 +320,7 @@ class PipelineCoordinator:
             "model_card_md": model_card_md,
             "data_contract_json": data_contract_json,
             "data_contract_md": data_contract_md,
+            "data_contract": data_contract_cached,
             "uncertain_samples": uncertain_samples,
             "executive_html": executive_html,
             "code_script": code_script,

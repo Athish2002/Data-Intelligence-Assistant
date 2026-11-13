@@ -1172,6 +1172,7 @@ def run_automl_pipeline(payload: TrainPipelineRequest) -> TrainPipelineResponse:
             goal_text=payload.goal,
             user_target_col=payload.user_target_col,
             selected_models=payload.selected_models,
+            session=sess,
         )
     except Exception as e:
         log.exception("Pipeline execution failed: %s", e)
@@ -1180,6 +1181,8 @@ def run_automl_pipeline(payload: TrainPipelineRequest) -> TrainPipelineResponse:
     sess["pipeline_result"] = pipeline_res
     sess["goal"] = payload.goal
     sess["target"] = pipeline_res["target_col"]
+    if "data_contract" not in sess and "data_contract" in pipeline_res:
+        sess["data_contract"] = pipeline_res["data_contract"]
 
     # Upgrade the retrieval index now that readiness/target info exists —
     # same call-twice pattern as the rest of the pipeline: cheap to recompute,
@@ -1822,19 +1825,66 @@ def get_graph_intelligence(session_id: str) -> GraphAnalysisResponse:
 def get_data_contract_suite(session_id: str) -> DataContractResponse:
     """Generates Great Expectations validation suite and Pydantic data contracts."""
     sess = _get_session(session_id)
+
+    # 1. Check cached data contract first for sub-millisecond response
+    cached = sess.get("data_contract")
+    if cached is not None:
+        if isinstance(cached, DataContractResponse):
+            return cached
+        if isinstance(cached, dict):
+            if "contract_yaml" in cached and "great_expectations_json" in cached:
+                resp = DataContractResponse(
+                    status=cached.get("status", "success"),
+                    contract_yaml=cached["contract_yaml"],
+                    great_expectations_json=cached["great_expectations_json"],
+                    n_expectations=cached.get("n_expectations", len(cached.get("expectations", []))),
+                    expectations=cached.get("expectations", []),
+                )
+                sess["data_contract"] = resp
+                return resp
+            # Raw contract dictionary
+            contract_dict = cached.get("data_contract_json") or cached
+            contract_yaml = cached.get("data_contract_md") or format_contract_markdown(contract_dict)
+            resp = DataContractResponse(
+                status="success",
+                contract_yaml=contract_yaml,
+                great_expectations_json=json.dumps(contract_dict, indent=2),
+                n_expectations=len(contract_dict.get("expectations", [])),
+                expectations=contract_dict.get("expectations", []),
+            )
+            sess["data_contract"] = resp
+            return resp
+
+    # Check if pipeline_result already computed it
+    pipeline_res = sess.get("pipeline_result")
+    if isinstance(pipeline_res, dict) and "data_contract_json" in pipeline_res:
+        contract_dict = pipeline_res["data_contract_json"]
+        contract_yaml = pipeline_res.get("data_contract_md") or format_contract_markdown(contract_dict)
+        resp = DataContractResponse(
+            status="success",
+            contract_yaml=contract_yaml,
+            great_expectations_json=json.dumps(contract_dict, indent=2),
+            n_expectations=len(contract_dict.get("expectations", [])),
+            expectations=contract_dict.get("expectations", []),
+        )
+        sess["data_contract"] = resp
+        return resp
+
     df = sess["df"]
     target = sess.get("target") or df.columns[-1]
 
     contract_dict = generate_data_contract(df, target_col=target)
     contract_yaml = format_contract_markdown(contract_dict)
 
-    return DataContractResponse(
+    resp = DataContractResponse(
         status="success",
         contract_yaml=contract_yaml,
         great_expectations_json=json.dumps(contract_dict, indent=2),
         n_expectations=len(contract_dict.get("expectations", [])),
         expectations=contract_dict.get("expectations", []),
     )
+    sess["data_contract"] = resp
+    return resp
 
 
 @app.get("/api/v1/governance/gdpr/{session_id}", response_model=GdprAuditResponse, tags=["Governance & Production"])

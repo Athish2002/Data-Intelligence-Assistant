@@ -4,6 +4,7 @@ dia/data_quality.py
 Generates a 'Data Contract' (Expectation Suite) based on the training dataframe.
 This mimics what Great Expectations does to prevent data drift in production.
 """
+import warnings
 from typing import Any
 
 import numpy as np
@@ -14,6 +15,8 @@ def generate_data_contract(df: pd.DataFrame, target_col: str) -> dict:
     """
     Generate a JSON-serializable dictionary of data quality expectations
     based on the observed properties of the training dataframe.
+    Optimized with vectorized null-rate evaluation, batch numeric bounds,
+    and vectorized categorical unique extraction.
     """
     expectations = []
 
@@ -35,6 +38,60 @@ def generate_data_contract(df: pd.DataFrame, target_col: str) -> dict:
         "kwargs": {"column": target_col}
     })
 
+    n_rows = len(df)
+
+    # Vectorized null rate computation across the entire DataFrame in one pass
+    if n_rows > 0:
+        null_rates = (df.isna().sum() / n_rows).to_dict()
+    else:
+        null_rates = {col: 0.0 for col in df.columns}
+
+    # Vectorized numeric column identification and bounds calculation in batch
+    numeric_cols = [
+        col for col in df.columns
+        if col != target_col and pd.api.types.is_numeric_dtype(df[col])
+    ]
+    numeric_set = set(numeric_cols)
+    numeric_bounds: dict[str, tuple[float, float]] = {}
+
+    if numeric_cols and n_rows > 0:
+        try:
+            arr = df[numeric_cols].to_numpy(dtype=float, copy=True)
+            arr[~np.isfinite(arr)] = np.nan
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                mins = np.nanmin(arr, axis=0)
+                maxs = np.nanmax(arr, axis=0)
+            for i, col in enumerate(numeric_cols):
+                if np.isfinite(mins[i]) and np.isfinite(maxs[i]):
+                    numeric_bounds[col] = (float(mins[i]), float(maxs[i]))
+        except Exception:
+            clean_num = df[numeric_cols].replace([np.inf, -np.inf], np.nan)
+            agg_bounds = clean_num.agg(["min", "max"])
+            for col in numeric_cols:
+                mn = agg_bounds.at["min", col]
+                mx = agg_bounds.at["max", col]
+                if pd.notna(mn) and pd.notna(mx) and np.isfinite(mn) and np.isfinite(mx):
+                    numeric_bounds[col] = (float(mn), float(mx))
+
+    # Vectorized categorical column identification and unique set extraction for low-cardinality
+    cat_cols = [
+        col for col in df.columns
+        if col != target_col and (
+            pd.api.types.is_object_dtype(df[col])
+            or pd.api.types.is_string_dtype(df[col])
+            or isinstance(df[col].dtype, pd.CategoricalDtype)
+        )
+    ]
+    cat_set = set(cat_cols)
+    low_card_values: dict[str, list[str]] = {}
+
+    if cat_cols and n_rows > 0:
+        cardinalities = df[cat_cols].nunique(dropna=True)
+        for col in cat_cols:
+            if cardinalities[col] < 20:
+                low_card_values[col] = [str(x) for x in df[col].dropna().unique()]
+
     # 3. Feature-level expectations
     for col in df.columns:
         if col == target_col:
@@ -43,7 +100,7 @@ def generate_data_contract(df: pd.DataFrame, target_col: str) -> dict:
         dtype_str = str(df[col].dtype)
 
         # Null expectations
-        null_pct = df[col].isnull().sum() / len(df)
+        null_pct = null_rates.get(col, 0.0)
         if null_pct == 0:
             expectations.append({
                 "expectation_type": "expect_column_values_to_not_be_null",
@@ -57,37 +114,31 @@ def generate_data_contract(df: pd.DataFrame, target_col: str) -> dict:
                 "kwargs": {"column": col, "mostly": non_null_rate}
             })
 
-        # Numeric bounds
-        if pd.api.types.is_numeric_dtype(df[col]):
-            valid_series = df[col].dropna()
-            if not valid_series.empty:
-                finite_series = valid_series[np.isfinite(valid_series)]
-                if not finite_series.empty:
-                    min_val = float(finite_series.min())
-                    max_val = float(finite_series.max())
-                    expectations.append({
-                        "expectation_type": "expect_column_values_to_be_between",
-                        "kwargs": {
-                            "column": col,
-                            "min_value": min_val,
-                            "max_value": max_val
-                        }
-                    })
+        # Numeric bounds & type
+        if col in numeric_set:
+            if col in numeric_bounds:
+                min_val, max_val = numeric_bounds[col]
+                expectations.append({
+                    "expectation_type": "expect_column_values_to_be_between",
+                    "kwargs": {
+                        "column": col,
+                        "min_value": min_val,
+                        "max_value": max_val
+                    }
+                })
             expectations.append({
                 "expectation_type": "expect_column_values_to_be_of_type",
                 "kwargs": {"column": col, "type_": dtype_str}
             })
 
-        # Categorical sets (if low cardinality)
-        elif pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(df[col]):
-            n_unique = df[col].nunique()
-            if n_unique < 20:  # low cardinality
-                unique_vals = [str(x) for x in df[col].dropna().unique()]
+        # Categorical sets & type (if low cardinality)
+        elif col in cat_set:
+            if col in low_card_values:
                 expectations.append({
                     "expectation_type": "expect_column_values_to_be_in_set",
                     "kwargs": {
                         "column": col,
-                        "value_set": unique_vals
+                        "value_set": low_card_values[col]
                     }
                 })
             expectations.append({
