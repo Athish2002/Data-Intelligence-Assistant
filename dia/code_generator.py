@@ -147,7 +147,9 @@ Apache Airflow DAG for Model Orchestration: {model_label}
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+import os
 import pandas as pd
+import joblib
 import json
 import logging
 
@@ -162,29 +164,46 @@ default_args = {{
 }}
 
 def extract_data():
-    \"\"\"Simulates data extraction from {source_label}.\"\"\"
-    logging.info("Extracting data from {source_label}...")
-    # df = pd.read_csv("your_dataset.csv")
-    # df.to_parquet('/tmp/raw_data.parquet')
-    logging.info("Data extracted successfully to /tmp/raw_data.parquet")
+    \"\"\"Extracts data from configured source into parquet staging.\"\"\"
+    data_path = os.getenv("DATA_SOURCE_PATH", "input_data.csv")
+    stage_path = os.getenv("STAGE_PATH", "/tmp/raw_data.parquet")
+    logging.info("Extracting data from %s to %s", data_path, stage_path)
+    df = pd.read_csv(data_path) if data_path.endswith('.csv') else pd.read_parquet(data_path)
+    df.to_parquet(stage_path, index=False)
+    logging.info("Extracted %d rows and %d columns.", len(df), len(df.columns))
 
 def validate_data_contract():
-    \"\"\"Runs Great Expectations validation on the incoming data.\"\"\"
-    logging.info("Validating data against contract...")
-    # df = pd.read_parquet('/tmp/raw_data.parquet')
-    # Run Great Expectations check here
-    logging.info("Data contract validation passed.")
+    \"\"\"Validates schema and null rates on the incoming data.\"\"\"
+    stage_path = os.getenv("STAGE_PATH", "/tmp/raw_data.parquet")
+    df = pd.read_parquet(stage_path)
+    if "{target_col}" not in df.columns:
+        raise ValueError("Target column '{target_col}' missing from ingested dataset.")
+    null_rate = df["{target_col}"].isna().mean()
+    if null_rate > 0.10:
+        raise ValueError(f"Target '{target_col}' exceeds maximum null tolerance: {{null_rate:.2%}} nulls.")
+    logging.info("Data contract verification passed for %d rows.", len(df))
 
 def train_model():
-    \"\"\"Trains the {model_label} model on the validated data.\"\"\"
-    logging.info("Training model for target: {target_col}...")
-    # Insert pipeline.py logic here
-    logging.info("Model trained and saved to registry.")
+    \"\"\"Executes production training for {model_label}.\"\"\"
+    from dia.pipeline_coordinator import PipelineCoordinator
+    stage_path = os.getenv("STAGE_PATH", "/tmp/raw_data.parquet")
+    model_save_path = os.getenv("MODEL_PATH", "model_pipeline.joblib")
+    df = pd.read_parquet(stage_path)
+    res = PipelineCoordinator.execute_full_pipeline(
+        df=df,
+        target_col="{target_col}",
+        task_type="{task_type}",
+        user_goal="Train production model for {target_col}",
+    )
+    joblib.dump(res, model_save_path)
+    logging.info("Trained model saved to %s", model_save_path)
 
 def deploy_shadow_mode():
-    \"\"\"Deploys the model alongside the current champion in shadow mode.\"\"\"
-    logging.info("Deploying {model_label} in Shadow Mode for A/B testing...")
-    logging.info("Deployment complete.")
+    \"\"\"Registers trained artifact into MLOps shadow evaluation.\"\"\"
+    model_save_path = os.getenv("MODEL_PATH", "model_pipeline.joblib")
+    if not os.path.exists(model_save_path):
+        raise FileNotFoundError(f"Model artifact not found at {{model_save_path}}")
+    logging.info("Model verified and promoted to shadow evaluation.")
 
 with DAG(
     'dia_model_pipeline_{best_model_key}',

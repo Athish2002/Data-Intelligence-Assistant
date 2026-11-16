@@ -44,7 +44,8 @@ def sample_uncertain_predictions(
             df_vals = model.decision_function(X_processed)
             uncertainty_scores = 1.0 / (1.0 + np.abs(df_vals))
         else:
-            uncertainty_scores = np.random.uniform(0.4, 0.6, size=len(X_processed))
+            # Deterministic neutral uncertainty when model provides neither probabilities nor decision margins
+            uncertainty_scores = np.full(len(X_processed), 0.5)
 
     top_uncertain_indices = np.argsort(uncertainty_scores)[::-1][:n_samples]
 

@@ -1894,7 +1894,7 @@ async def upload_data_dictionary(file: UploadFile = File(...), request: Request 
     """
     raw_bytes = await file.read()
 
-    class _MockUpload:
+    class _BytesUploadAdapter:
         def __init__(self, data: bytes, name: str) -> None:
             self.data = data
             self.name = name
@@ -1903,7 +1903,7 @@ async def upload_data_dictionary(file: UploadFile = File(...), request: Request 
             return self.data
 
     try:
-        result = DataDictionarySource().load(uploaded_file=_MockUpload(raw_bytes, file.filename))
+        result = DataDictionarySource().load(uploaded_file=_BytesUploadAdapter(raw_bytes, file.filename))
     except (ValidationError, DataLoadError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
 

@@ -200,35 +200,6 @@ export async function renderGovernanceContracts() {
     }
   }, 400);
 
-  // Stepped progress transitions: 0% -> 30% -> 65% -> 90% -> 100%
-  setStepStatus(1, 'active');
-  updateProgress(30);
-  if (tickerEl) tickerEl.textContent = tickerItems[0];
-
-  const t1 = setTimeout(() => {
-    setStepStatus(1, 'completed');
-    setStepStatus(2, 'active');
-    updateProgress(65);
-    const elTicker = document.getElementById('gx-hud-ticker');
-    if (elTicker) elTicker.textContent = `Inspecting column completeness for [${escapeHtml(colA)}]...`;
-  }, 450);
-
-  const t2 = setTimeout(() => {
-    setStepStatus(2, 'completed');
-    setStepStatus(3, 'active');
-    updateProgress(90);
-    const elTicker = document.getElementById('gx-hud-ticker');
-    if (elTicker) elTicker.textContent = `Synthesizing range checks for [${escapeHtml(colB)}]...`;
-  }, 950);
-
-  const t3 = setTimeout(() => {
-    setStepStatus(3, 'completed');
-    setStepStatus(4, 'active');
-    updateProgress(98);
-    const elTicker = document.getElementById('gx-hud-ticker');
-    if (elTicker) elTicker.textContent = 'Synthesizing Expectation JSON & Markdown Artifacts...';
-  }, 1500);
-
   const cleanupHud = () => {
     if (timerInterval) {
       clearInterval(timerInterval);
@@ -238,14 +209,20 @@ export async function renderGovernanceContracts() {
       clearInterval(tickerInterval);
       tickerInterval = null;
     }
-    clearTimeout(t1);
-    clearTimeout(t2);
-    clearTimeout(t3);
   };
+
+  setStepStatus(1, 'active');
+  updateProgress(50);
+  if (tickerEl) tickerEl.textContent = 'Compiling Great Expectations suite & data contracts...';
 
   try {
     const res = await ApiClient.getDataContract(state.sessionId);
     cleanupHud();
+    setStepStatus(1, 'completed');
+    setStepStatus(2, 'completed');
+    setStepStatus(3, 'completed');
+    setStepStatus(4, 'completed');
+    updateProgress(100);
     const expectations = res.expectations || [];
     const nTests = res.n_expectations || expectations.length || 0;
 

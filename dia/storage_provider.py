@@ -297,13 +297,11 @@ class S3CompatibleStorageBackend(StorageBackend):
                     client_kwargs["aws_access_key_id"] = self.access_key_id
                     client_kwargs["aws_secret_access_key"] = self.secret_access_key
                 self.client = boto3.client("s3", **client_kwargs)
-            except (ImportError, Exception) as exc:
-                log.warning(
-                    "boto3 initialization not possible (%s). S3CompatibleStorageBackend falling back to emulated in-memory mock mode.",
-                    exc,
-                )
-                self.is_mock = True
-                self.client = None
+            except Exception as exc:
+                raise RuntimeError(
+                    f"S3CompatibleStorageBackend initialization failed: {exc}. "
+                    "Ensure boto3 is installed and valid S3 credentials or mock=True are explicitly configured."
+                ) from exc
         else:
             self.client = None
 
