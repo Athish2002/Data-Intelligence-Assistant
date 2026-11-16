@@ -215,11 +215,18 @@
           <input type="text" id="target-col-input" class="w-full glass-input text-sm" placeholder="e.g. churn_flag, default_risk" />
         </div>
 
-        <!-- Execution Action Button -->
-        <button id="train-btn" disabled class="w-full py-3 font-bold text-sm rounded-lg transition-all flex items-center justify-center space-x-2 uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95" style="background-color: var(--btn-primary-bg); color: var(--btn-primary-text);">
-          <i data-lucide="play" class="w-4 h-4 fill-current"></i>
-          <span>Launch ML Pipeline</span>
-        </button>
+        <!-- Workflow Execution Action Buttons (Visual Dashboard vs Model Training) -->
+        <div class="space-y-2">
+          <button id="view-visual-btn" disabled onclick="switchWorkspace('core', 'overview')" class="w-full py-2.5 font-bold text-xs rounded-lg transition-all flex items-center justify-center space-x-2 border disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Inspect empirical distributions, schemas & quality invariants">
+            <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-400"></i>
+            <span>Visual Diagnostics Dashboard</span>
+          </button>
+
+          <button id="train-btn" disabled class="w-full py-3 font-bold text-sm rounded-lg transition-all flex items-center justify-center space-x-2 uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95" style="background-color: var(--btn-primary-bg); color: var(--btn-primary-text);" title="Train empirical candidate models & generate predictions">
+            <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+            <span>Train Models &amp; Predict</span>
+          </button>
+        </div>
 
         <!-- 5-Stage Animated Training Progress Tracker -->
         <div id="train-progress" class="glass-card p-3 hidden space-y-2 border" style="border-color: var(--card-border); background-color: var(--card-bg);">

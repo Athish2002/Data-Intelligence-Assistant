@@ -44,7 +44,6 @@ def test_ingest_output_deep_verification():
 
     # 3. Capability flags
     assert res.capabilities["can_causal"] is True
-    assert res.capabilities["can_bandits"] is True
 
     # 4. Data Readiness output verification
     readiness = get_readiness_audit(res.session_id)
@@ -93,7 +92,7 @@ def test_automl_pipeline_deep_output_verification():
 
     # 3. Models evaluated and metrics verification
     assert len(train_res.models_evaluated) >= 3, f"Expected >= 3 models evaluated, got {len(train_res.models_evaluated)}"
-    
+
     champion_entry = next((m for m in train_res.models_evaluated if m.get("is_best")), train_res.models_evaluated[0])
     champ_metrics = champion_entry.get("metrics", {})
 

@@ -43,8 +43,6 @@ render_hero_banner()
 
 # ─── Remaining imports ────────────────────────────────────────────────────────
 from dia.active_learning import sample_uncertain_predictions
-from dia.bandit_optimizer import run_contextual_bandit_simulation
-from dia.canary_router import simulate_canary_routing
 from dia.causal_engine import estimate_uplift_t_learner, generate_counterfactual
 from dia.chat_analyst import answer_with_rag
 from dia.code_generator import (
@@ -108,8 +106,6 @@ from dia.rbac import ROLE_PERMISSIONS
 from dia.report_generator import generate_executive_html_report
 from dia.retrieval import build_session_index
 from dia.sql_transpiler import transpile_model_to_sql
-from dia.streaming_learner import simulate_streaming_incremental_fit
-from dia.synthetic_data import generate_synthetic_dataset
 from dia.time_series import detect_time_series_column, train_time_series_forecaster
 from dia.ui_theme import render_mission_ribbon
 from dia.validators import detect_pii_columns, validate_goal_text, validate_target_column
@@ -975,9 +971,6 @@ elif workspace == "🧬 Adaptive AI Engines":
     adaptive_options: list[str] = [
         "🎯 Causal & Counterfactuals",
         "🧠 Deep Autoencoder (DL)",
-        "🎰 Contextual Bandits (RL)",
-        "🧬 Generative Synthetic Data",
-        "⚡ Online Incremental Learning",
     ]
     if has_dates:
         adaptive_options.append("📈 Time-Series Forecaster")
@@ -1071,78 +1064,6 @@ elif workspace == "🧬 Adaptive AI Engines":
                 )
             except Exception as e:
                 st.error(f"Deep Autoencoder Error: {e}")
-    tab_idx += 1
-
-    # 3. Contextual Bandits
-    with w_tabs[tab_idx]:
-        st.subheader("🎰 Contextual Multi-Armed Bandits (Reinforcement Learning)")
-        st.markdown("Adaptive decision policy (**LinUCB**) balancing Exploration vs. Exploitation in real time.")
-        rl_alpha = st.slider("Exploration Intensity (Alpha)", 0.1, 3.0, 1.2, step=0.1, key="rl_alpha_slider")
-        if st.button("▶️ Launch LinUCB Contextual Bandit Simulation", key="rl_sim_btn"):
-            try:
-                bandit_res = run_contextual_bandit_simulation(
-                    X_contexts=s["train_result"]["X_test_processed"],
-                    alpha_exploration=rl_alpha,
-                )
-                if bandit_res["status"] == "success":
-                    b1, b2, b3 = st.columns(3)
-                    b1.metric("Bandit Policy Total Rewards", f"{bandit_res['bandit_total_rewards']:,}")
-                    b2.metric("Random Baseline Rewards", f"{bandit_res['random_baseline_rewards']:,}")
-                    b3.metric("Relative Policy Lift", f"{bandit_res['relative_policy_lift_pct']:+.1f}%", delta="Lift Over Random")
-                    st.json(bandit_res["action_selection_distribution"])
-            except Exception as e:
-                st.error(f"Bandit Error: {e}")
-    tab_idx += 1
-
-    # 4. Synthetic Data
-    with w_tabs[tab_idx]:
-        st.subheader("🧬 Generative Synthetic Data & Differential Privacy")
-        st.markdown("Generate statistically faithful synthetic tabular datasets with optional $(\\epsilon)$-Differential Privacy.")
-        syn_c1, syn_c2 = st.columns(2)
-        with syn_c1:
-            syn_rows = st.number_input("Number of Synthetic Samples", min_value=50, max_value=50000, value=len(s["df"]), step=100)
-        with syn_c2:
-            apply_dp = st.checkbox("Inject $(\\epsilon)$-Differential Privacy Noise", value=False)
-            eps_val = st.slider("Epsilon Privacy Budget", 0.1, 10.0, 1.0, step=0.1) if apply_dp else 1.0
-
-        if st.button("✨ Synthesize High-Fidelity Dataset", key="synth_btn"):
-            try:
-                df_synth, synth_meta = generate_synthetic_dataset(
-                    df=s["df"],
-                    n_samples=syn_rows,
-                    apply_dp_noise=apply_dp,
-                    epsilon=eps_val,
-                )
-                st.success(f"Generated {len(df_synth):,} synthetic records with **{synth_meta['overall_distribution_fidelity_pct']}% Overall Distribution Fidelity**!")
-                st.dataframe(df_synth.head(50), use_container_width=True)
-                st.download_button("⬇️ Download `synthetic_dataset.csv`", data=df_synth.to_csv(index=False), file_name="synthetic_dataset.csv", mime="text/csv")
-            except Exception as e:
-                st.error(f"Synthetic Generation Error: {e}")
-    tab_idx += 1
-
-    # 5. Online Incremental Learning
-    with w_tabs[tab_idx]:
-        st.subheader("⚡ Online Incremental Learning & Streaming Ingestion")
-        st.markdown("Simulate high-throughput event streaming where models update weights incrementally on-the-fly (`partial_fit`).")
-        st_c1, st_c2 = st.columns(2)
-        with st_c1:
-            batch_sz = st.slider("Streaming Batch Size", 5, 100, 20, key="stream_batch_sz")
-        with st_c2:
-            n_batches_sim = st.slider("Stream Steps to Simulate", 3, 30, 10, key="stream_n_batches")
-
-        if st.button("▶️ Launch Live Event Stream Simulation", key="stream_btn"):
-            try:
-                stream_res = simulate_streaming_incremental_fit(
-                    X=s["train_result"]["X_test_processed"],
-                    y=s["train_result"]["y_test"],
-                    task_type=s["final_task_type"],
-                    batch_size=batch_sz,
-                    n_batches=n_batches_sim,
-                )
-                st.success(f"Stream completed! Processed {stream_res['total_records_ingested']} live records across {stream_res['total_streaming_batches']} batches.")
-                st.dataframe(pd.DataFrame(stream_res["streaming_learning_curve"]), use_container_width=True)
-            except Exception as e:
-                st.error(f"Streaming Simulation Error: {e}")
     tab_idx += 1
 
     # 6. Time-Series Forecasting (Conditional: has_dates)
@@ -1368,32 +1289,7 @@ elif workspace == "🛡️ Governance, MLOps & Production":
             except Exception as e:
                 st.error(f"Error calculating drift: {e}")
 
-        st.divider()
-        st.subheader("🚦 Shadow & Canary Deployment Traffic Router")
-        can_c1, can_c2 = st.columns(2)
-        with can_c1:
-            can_pct = st.slider("Canary Traffic Allocation (%)", 1.0, 50.0, 10.0, step=1.0, key="can_traffic_pct")
-        with can_c2:
-            div_tol = st.slider("Max Allowed Prediction Divergence (%)", 5.0, 50.0, 15.0, step=1.0, key="can_div_tol")
 
-        if st.button("▶️ Launch Live Canary Traffic Simulation", key="can_sim_btn"):
-            try:
-                can_res = simulate_canary_routing(
-                    champion_model=s["train_result"]["best_model"],
-                    challenger_model=s["train_result"]["best_model"],
-                    X_live=s["train_result"]["X_test_processed"],
-                    canary_traffic_pct=can_pct,
-                    max_allowed_divergence_pct=div_tol,
-                    task_type=s["final_task_type"],
-                )
-                if can_res["status"] == "success":
-                    cn1, cn2, cn3 = st.columns(3)
-                    cn1.metric("Champion Requests", f"{can_res['champion_requests_served']:,}")
-                    cn2.metric("Canary Requests", f"{can_res['canary_requests_served']:,}")
-                    cn3.metric("Prediction Divergence", f"{can_res['prediction_divergence_pct']}%")
-                    st.info(f"**Deployment Verdict:** {can_res['status_verdict']}")
-            except Exception as e:
-                st.error(f"Canary Error: {e}")
 
     # 5. In-Database SQL Transpiler
     with w_tabs[4]:

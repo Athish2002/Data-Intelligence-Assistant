@@ -10,20 +10,17 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.schemas import (
-    BanditSimRequest,
     ChatRequest,
     CounterfactualRequest,
     DemoIngestRequest,
     RoiOptimizeRequest,
     SimulateRequest,
-    SyntheticGenerateRequest,
     TrainPipelineRequest,
 )
 from api.server import (
     app,
     chat_with_data,
     export_artifact,
-    generate_synthetic,
     get_active_learning_queue,
     get_all_artifacts,
     get_autoencoder_analysis,
@@ -38,7 +35,6 @@ from api.server import (
     list_llm_providers,
     optimize_business_roi,
     run_automl_pipeline,
-    simulate_bandits,
     simulate_whatif,
 )
 from dia.utils import is_torch_available
@@ -139,15 +135,6 @@ def test_automl_training_and_inference_flow():
             get_autoencoder_analysis(session_id)
         assert exc_info.value.status_code == 501
 
-    # 8. Contextual Bandits
-    ban_res = simulate_bandits(BanditSimRequest(session_id=session_id, n_steps=20))
-    assert ban_res.status == "success"
-
-    # 9. Synthetic Generation
-    syn_res = generate_synthetic(SyntheticGenerateRequest(session_id=session_id, n_samples=50))
-    assert syn_res.status == "success"
-    assert syn_res.n_generated == 50
-
     # 10. Governance Data Contract
     contract_res = get_data_contract_suite(session_id)
     assert contract_res.status == "success"
@@ -209,7 +196,7 @@ def test_invariants_scan_and_lock_endpoints():
     assert scan_body["status"] == "success"
     assert scan_body["n_laws_discovered"] >= 1
     laws = scan_body["laws"]
-    assert any("Balance" in l["name"] or "Invariant" in l["name"] for l in laws)
+    assert any("Balance" in law["name"] or "Invariant" in law["name"] for law in laws)
 
     # 2. Lock invariant
     target_law = laws[0]

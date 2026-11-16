@@ -5,7 +5,7 @@ Complete, production-grade FastAPI REST API for Data Intelligence Assistant.
 Exposes full-fidelity endpoints for:
 1. Core Intelligence (Data Profiling, Roles, Schema, 5-Pillar Readiness Audit)
 2. AutoML (Multi-model leaderboard, ROC curves, Confusion Matrix, SHAP, ROI Optimizer, Simulator, Active Learning)
-3. Adaptive AI Engines (Causal Counterfactuals, Uplift T-Learner, Deep Autoencoder, Contextual Bandits, Online Learning, Time-Series, NLP, Graph Intelligence, Generative Synthetic Data)
+3. Adaptive AI Engines (Causal Counterfactuals, Uplift T-Learner, Deep Autoencoder, Time-Series, NLP, Graph Intelligence)
 4. Governance, MLOps & Production (Data Contracts, GDPR ROPA, Feature Store, MLflow Model Card, Drift Monitor, SQL Transpiler, Multi-format Artifact Exports)
 """
 
@@ -33,7 +33,6 @@ from sklearn.metrics import confusion_matrix, roc_curve
 
 import dia.config as dia_config
 from dia.active_learning import sample_uncertain_predictions
-from dia.bandit_optimizer import run_contextual_bandit_simulation
 from dia.causal_discovery import discover_causal_graph, simulate_intervention
 from dia.causal_engine import estimate_uplift_t_learner, generate_counterfactual
 from dia.chat_analyst import answer_with_rag
@@ -84,10 +83,8 @@ from dia.recourse_engine import AlgorithmicRecourseEngine
 from dia.retrieval import build_session_index
 from dia.session_manager import BoundedSessionStore
 from dia.storage_provider import get_storage_backend
-from dia.streaming_learner import simulate_streaming_incremental_fit
 from dia.stress_testing import MonteCarloStressTester
 from dia.symbolic_features import SymbolicFeatureDiscovery
-from dia.synthetic_data import generate_synthetic_dataset
 from dia.time_series import detect_time_series_column, train_time_series_forecaster
 from dia.wasm_compiler import transpile_to_edge_bundle
 
@@ -103,8 +100,6 @@ from .schemas import (
     AutoDetectResponse,
     AutoencoderResponse,
     AxiomAuditSummaryResponse,
-    BanditSimRequest,
-    BanditSimResponse,
     ChatRequest,
     ChatResponse,
     ColumnRoleItem,
@@ -137,7 +132,6 @@ from .schemas import (
     LLMProvidersResponse,
     LLMProviderStatus,
     NlpAnalysisResponse,
-    OnlineLearningResponse,
     PredictRequest,
     PredictResponse,
     ProfileResponse,
@@ -157,8 +151,6 @@ from .schemas import (
     StressTestResponse,
     SymbolicDiscoveryRequest,
     SymbolicDiscoveryResponse,
-    SyntheticGenerateRequest,
-    SyntheticGenerateResponse,
     SystemGcResponse,
     SystemMetricsResponse,
     SystemReadinessResponse,
@@ -526,8 +518,6 @@ def _detect_capabilities(df: pd.DataFrame) -> dict[str, bool]:
         "has_entities": bool(has_entities),
         "can_causal": True,
         "can_autoencoder": True,
-        "can_bandits": True,
-        "can_synthetic": True,
     }
 
 
@@ -1626,75 +1616,6 @@ def get_autoencoder_analysis(session_id: str) -> AutoencoderResponse:
         raise HTTPException(status_code=500, detail=f"Autoencoder Error: {str(e)}") from e
 
 
-@app.post("/api/v1/adaptive/bandits", response_model=BanditSimResponse, tags=["Adaptive AI Engines"])
-def simulate_bandits(payload: BanditSimRequest) -> BanditSimResponse:
-    """Runs a Contextual Bandit (LinUCB) reinforcement learning simulation."""
-    sess = _get_session(payload.session_id)
-    pipe = sess.get("pipeline_result")
-    if pipe and "train_result" in pipe:
-        X_proc = pipe["train_result"]["X_test_processed"]
-    else:
-        df = sess["df"]
-        X_proc = df.select_dtypes(include=["number"]).fillna(0).values
-
-    try:
-        ban_res = run_contextual_bandit_simulation(X_proc, alpha_exploration=payload.alpha)
-        return BanditSimResponse(
-            status="success",
-            cumulative_reward=float(ban_res["bandit_total_rewards"]),
-            total_steps=int(ban_res["total_decision_rounds"]),
-            arm_selection_counts=ban_res["action_selection_distribution"],
-            reward_trajectory=[float(x) for x in ban_res["cumulative_reward_history"]],
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Bandit Error: {str(e)}") from e
-
-
-@app.get("/api/v1/adaptive/online-learning/{session_id}", response_model=OnlineLearningResponse, tags=["Adaptive AI Engines"])
-def get_online_learning(session_id: str) -> OnlineLearningResponse:
-    """Simulates streaming incremental mini-batch learning."""
-    sess = _get_session(session_id)
-    pipe = sess.get("pipeline_result")
-    if pipe and "train_result" in pipe:
-        train_res = pipe["train_result"]
-        X_proc = train_res["X_test_processed"]
-        y_proc = train_res.get("y_test") if "y_test" in train_res else train_res.get("y_true")
-        task_type = pipe["final_task_type"]
-    else:
-        df = sess["df"]
-        target = sess.get("target") or df.columns[-1]
-        num_df = df.select_dtypes(include=["number"]).fillna(0)
-        X_proc = num_df.drop(columns=[target], errors="ignore").values
-        y_proc = num_df[target].values if target in num_df else np.zeros(len(df))
-        task_type = "classification"
-
-    try:
-        stream_res = simulate_streaming_incremental_fit(X_proc, y_proc, task_type=task_type)
-        n_batches = int(stream_res.get("total_streaming_batches") or stream_res.get("batches_processed", 10))
-        final_metric = stream_res.get("final_online_metric")
-        if isinstance(final_metric, (int, float)):
-            final_loss = float(final_metric)
-        elif isinstance(final_metric, dict):
-            final_loss = float(final_metric.get("accuracy") or final_metric.get("rmse") or final_metric.get("score", 0.85))
-        else:
-            final_loss = float(stream_res.get("final_score", 0.85))
-
-        curve = stream_res.get("streaming_learning_curve") or stream_res.get("learning_curve", [])
-        history = [
-            float(h.get("accuracy") or h.get("rmse") or h.get("score", 0.0))
-            if isinstance(h, dict) else float(h)
-            for h in curve
-        ]
-        return OnlineLearningResponse(
-            status="success",
-            n_batches=n_batches,
-            final_loss=final_loss,
-            batch_loss_history=history,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Streaming Error: {str(e)}") from e
-
-
 @app.post("/api/v1/timeseries/forecast", response_model=TimeSeriesForecastResponse, tags=["Adaptive AI Engines"])
 def forecast_timeseries(payload: TimeSeriesForecastRequest) -> TimeSeriesForecastResponse:
     """Trains an autoregressive temporal forecaster and projects multi-step future points."""
@@ -1737,32 +1658,6 @@ def forecast_timeseries(payload: TimeSeriesForecastRequest) -> TimeSeriesForecas
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Forecasting Error: {str(e)}") from e
-
-
-@app.post("/api/v1/synthetic/generate", response_model=SyntheticGenerateResponse, tags=["Adaptive AI Engines"])
-def generate_synthetic(payload: SyntheticGenerateRequest) -> SyntheticGenerateResponse:
-    """Generates synthetic dataset using Gaussian copulas with differential privacy."""
-    sess = _get_session(payload.session_id)
-    df = sess["df"]
-
-    try:
-        df_synth, synth_meta = generate_synthetic_dataset(
-            df=df,
-            n_samples=payload.n_samples,
-            apply_dp_noise=payload.apply_dp_noise,
-            epsilon=payload.epsilon,
-        )
-        sess["synthetic_df"] = df_synth
-
-        return SyntheticGenerateResponse(
-            status="success",
-            n_generated=len(df_synth),
-            fidelity_score_pct=float(synth_meta["overall_distribution_fidelity_pct"]),
-            sample_records=df_synth.head(20).replace({np.nan: None}).to_dict(orient="records"),
-            download_filename="synthetic_dataset.csv",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Synthetic Error: {str(e)}") from e
 
 
 @app.get("/api/v1/adaptive/nlp/{session_id}", response_model=NlpAnalysisResponse, tags=["Adaptive AI Engines"])
@@ -3487,7 +3382,7 @@ get_invariants = get_session_invariants
 def export_artifact(session_id: str, format_type: str, request: Request = None) -> Response:
     """
     Downloads generated production artifacts:
-    python, airflow, fastapi, docker, docker-compose, github-actions, k8s, sql, html, synthetic, edge-bundle, dossier.
+    python, airflow, fastapi, docker, docker-compose, github-actions, k8s, sql, html, edge-bundle, dossier.
     """
     sess = _get_session(session_id)
     pipe = sess.get("pipeline_result")
@@ -3499,13 +3394,6 @@ def export_artifact(session_id: str, format_type: str, request: Request = None) 
     if format_type == "dossier":
         html_content = generate_executive_dossier_html(sess)
         return HTMLResponse(content=html_content, headers={"Content-Disposition": "attachment; filename=Executive_Audit_Dossier.html"})
-
-    if format_type == "synthetic":
-        df_synth = sess.get("synthetic_df")
-        if df_synth is None:
-            raise HTTPException(status_code=400, detail="Synthetic data not generated yet.")
-        csv_data = df_synth.to_csv(index=False)
-        return Response(content=csv_data, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=synthetic_dataset.csv"})
 
     if not pipe:
         raise HTTPException(status_code=400, detail="Pipeline has not been trained yet.")

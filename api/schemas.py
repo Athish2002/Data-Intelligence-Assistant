@@ -3,7 +3,7 @@ api/schemas.py
 ──────────────
 Complete Pydantic V2 schemas for Data Intelligence Assistant REST API.
 Covers Data Profiling, 5-Pillar Readiness Audit, AutoML, SHAP, Business ROI,
-What-If Simulators, Causal Uplift, Autoencoders, Bandits, Time-Series, NLP,
+What-If Simulators, Causal Uplift, Autoencoders, Time-Series, NLP,
 Graph Intelligence, and Governance MLOps suite.
 """
 
@@ -355,27 +355,6 @@ class AutoencoderResponse(BaseModel):
     loss_history: list[float]
 
 
-class BanditSimRequest(BaseModel):
-    session_id: str
-    n_steps: int = 100
-    alpha: float = 1.0
-
-
-class BanditSimResponse(BaseModel):
-    status: str
-    cumulative_reward: float
-    total_steps: int
-    arm_selection_counts: dict[str, int]
-    reward_trajectory: list[float]
-
-
-class OnlineLearningResponse(BaseModel):
-    status: str
-    n_batches: int
-    final_loss: float
-    batch_loss_history: list[float]
-
-
 class TimeSeriesForecastRequest(BaseModel):
     session_id: str
     date_col: str | None = None
@@ -388,21 +367,6 @@ class TimeSeriesForecastResponse(BaseModel):
     historical_points: list[dict[str, Any]]
     future_projections: list[dict[str, Any]]
     message: str | None = None
-
-
-class SyntheticGenerateRequest(BaseModel):
-    session_id: str
-    n_samples: int = 100
-    apply_dp_noise: bool = False
-    epsilon: float = 1.0
-
-
-class SyntheticGenerateResponse(BaseModel):
-    status: str
-    n_generated: int
-    fidelity_score_pct: float
-    sample_records: list[dict[str, Any]]
-    download_filename: str
 
 
 class NlpAnalysisResponse(BaseModel):

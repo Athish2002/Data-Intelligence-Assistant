@@ -40,9 +40,9 @@ export const WORKSPACE_SUBTABS = {
   adaptive: [
     { id: 'causal', label: 'Causal DAG Studio', icon: 'target' },
     { id: 'autoencoder', label: 'Deep Autoencoder', icon: 'cpu' },
-    { id: 'bandits', label: 'Contextual Bandits', icon: 'play-circle' },
-    { id: 'synthetic', label: 'Synthetic Data (DP)', icon: 'dna' },
-    { id: 'online', label: 'Online Streaming Fit', icon: 'zap' },
+    { id: 'timeseries', label: 'Time-Series Forecast', icon: 'trending-up' },
+    { id: 'nlp', label: 'NLP & Text Mining', icon: 'file-text' },
+    { id: 'graph', label: 'Graph Intelligence', icon: 'share-2' },
   ],
   governance: [
     { id: 'contracts', label: 'Data Quality (GX)', icon: 'check-square' },

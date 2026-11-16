@@ -177,26 +177,6 @@ export const ApiClient = {
     return await res.json();
   },
 
-  async simulateBandits(sessionId, nSteps, alpha) {
-    const res = await fetch(`${API_BASE}/adaptive/bandits`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: sessionId,
-        n_steps: parseInt(nSteps, 10),
-        alpha: parseFloat(alpha),
-      }),
-    });
-    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Bandit simulation failed'));
-    return await res.json();
-  },
-
-  async getOnlineLearning(sessionId) {
-    const res = await fetch(`${API_BASE}/adaptive/online-learning/${sessionId}`);
-    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Online learning simulation failed'));
-    return await res.json();
-  },
-
   async forecastTimeSeries(sessionId, dateCol, horizon) {
     const res = await fetch(`${API_BASE}/timeseries/forecast`, {
       method: 'POST',
@@ -208,21 +188,6 @@ export const ApiClient = {
       }),
     });
     if (!res.ok) throw new Error(await parseErrorResponse(res, 'Forecasting failed'));
-    return await res.json();
-  },
-
-  async generateSynthetic(sessionId, nSamples, applyDp, epsilon) {
-    const res = await fetch(`${API_BASE}/synthetic/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: sessionId,
-        n_samples: parseInt(nSamples, 10),
-        apply_dp_noise: Boolean(applyDp),
-        epsilon: parseFloat(epsilon),
-      }),
-    });
-    if (!res.ok) throw new Error(await parseErrorResponse(res, 'Synthetic generation failed'));
     return await res.json();
   },
 
