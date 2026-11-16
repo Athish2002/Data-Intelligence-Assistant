@@ -268,32 +268,29 @@ def get_pipeline():
         if os.path.exists(model_path):
             model_pipeline = joblib.load(model_path)
         else:
-            # Mock pipeline for standalone verification
-            model_pipeline = "mock"
+            raise RuntimeError(f"Trained model artifact not found at {{model_path}}. Please set MODEL_PATH or place model_pipeline.joblib in the working directory.")
     return model_pipeline
 
 @app.get("/health")
 def health_check():
-    return {{"status": "healthy", "target": "{target_col}", "task_type": "{task_type}"}}
+    return {{"status": "healthy", "target": "{target_col}", "task_type": "{task_type}", "model_name": "{model_label}"}}
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict_single(payload: PredictionInput):
     pipeline = get_pipeline()
     input_data = pd.DataFrame([payload.dict()])
-
-    # In production with saved pipeline:
-    # pred = pipeline.predict(input_data)[0]
-    # return {{"prediction": float(pred) if "{task_type}" == "regression" else str(pred)}}
-    return {{"prediction": "Sample Prediction", "model_name": "{model_label}"}}
+    pred = pipeline.predict(input_data)[0]
+    return {{"prediction": float(pred) if "{task_type}" == "regression" else str(pred), "model_name": "{model_label}"}}
 
 @app.post("/batch-predict")
 async def predict_batch(file: UploadFile = File(...)):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files supported.")
 
+    pipeline = get_pipeline()
     df = pd.read_csv(file.file)
-    # preds = pipeline.predict(df)
-    return {{"rows_processed": len(df), "status": "success"}}
+    preds = pipeline.predict(df)
+    return {{"rows_processed": len(df), "predictions": [float(p) if "{task_type}" == "regression" else str(p) for p in preds], "status": "success"}}
 """
     return api_template
 

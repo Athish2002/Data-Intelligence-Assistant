@@ -30,10 +30,11 @@ export function getInitialTheme() {
   try {
     const stored = localStorage.getItem(THEME_KEY);
     if (stored === THEMES.DAY || stored === THEMES.NIGHT) return stored;
+    if (stored === 'light' || stored === 'tokyo-sand') return THEMES.DAY;
 
     // Migrate from legacy keys
     const legacy = localStorage.getItem(LEGACY_THEME_KEY);
-    if (legacy === 'tokyo-sand') return THEMES.DAY;
+    if (legacy === 'tokyo-sand' || legacy === 'light') return THEMES.DAY;
     if (legacy === 'obsidian' || legacy === 'cyber-aurora') return THEMES.NIGHT;
   } catch (e) {
     console.warn('[Theme] localStorage unavailable, defaulting to night mode:', e);
@@ -51,7 +52,7 @@ export function initTheme() {
 
   // Listen for storage events across tabs
   window.addEventListener('storage', (e) => {
-    if (e.key === THEME_KEY && (e.newValue === THEMES.NIGHT || e.newValue === THEMES.DAY)) {
+    if (e.key === THEME_KEY && e.newValue) {
       applyTheme(e.newValue, false);
     }
   });

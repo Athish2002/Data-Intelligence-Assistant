@@ -62,17 +62,6 @@
 </head>
 <body class="h-screen overflow-hidden flex flex-col antialiased selection:bg-[#00e575] selection:text-black relative" style="background-color: var(--bg-primary); color: var(--text-secondary);">
 
-  <!-- Static Mode Preview Banner for GitHub Pages -->
-  <div id="static-preview-banner" class="w-full bg-emerald-950/80 border-b border-emerald-500/30 px-4 py-2 text-center text-xs font-mono text-emerald-300 flex items-center justify-between z-50 sticky top-0">
-    <div class="flex items-center space-x-2 mx-auto">
-      <span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse"></span>
-      <span>GitHub Pages Static Preview &bull; Full ML workbench with live Python training requires running locally or via Docker.</span>
-      <a href="https://github.com/Athish2002/Data-Intelligence-Assistant" target="_blank" class="underline font-bold text-white hover:text-[#00e575] ml-2">Clone &amp; Run &rarr;</a>
-    </div>
-    <button onclick="document.getElementById('static-preview-banner').style.display='none'" class="text-slate-400 hover:text-white text-sm px-2">&times;</button>
-  </div>
-
-
   <!-- Ambient Cyber Aurora Background Mode Layer -->
   <div id="ambient-aurora" class="ambient-aurora-bg" aria-hidden="true">
     <div class="aurora-orb aurora-orb-1"></div>
@@ -226,11 +215,18 @@
           <input type="text" id="target-col-input" class="w-full glass-input text-sm" placeholder="e.g. churn_flag, default_risk" />
         </div>
 
-        <!-- Execution Action Button -->
-        <button id="train-btn" disabled class="w-full py-3 font-bold text-sm rounded-lg transition-all flex items-center justify-center space-x-2 uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95" style="background-color: var(--btn-primary-bg); color: var(--btn-primary-text);">
-          <i data-lucide="play" class="w-4 h-4 fill-current"></i>
-          <span>Launch ML Pipeline</span>
-        </button>
+        <!-- Workflow Execution Action Buttons (Visual Dashboard vs Model Training) -->
+        <div class="space-y-2">
+          <button id="view-visual-btn" disabled onclick="switchWorkspace('core', 'overview')" class="w-full py-2.5 font-bold text-xs rounded-lg transition-all flex items-center justify-center space-x-2 border disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Inspect empirical distributions, schemas & quality invariants">
+            <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-400"></i>
+            <span>Visual Diagnostics Dashboard</span>
+          </button>
+
+          <button id="train-btn" disabled class="w-full py-3 font-bold text-sm rounded-lg transition-all flex items-center justify-center space-x-2 uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95" style="background-color: var(--btn-primary-bg); color: var(--btn-primary-text);" title="Train empirical candidate models & generate predictions">
+            <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+            <span>Train Models &amp; Predict</span>
+          </button>
+        </div>
 
         <!-- 5-Stage Animated Training Progress Tracker -->
         <div id="train-progress" class="glass-card p-3 hidden space-y-2 border" style="border-color: var(--card-border); background-color: var(--card-bg);">

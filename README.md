@@ -66,20 +66,17 @@ Organised roughly the way the app presents them.
 | Feature | Description |
 |---|---|
 | **Deep Tabular Autoencoder** | PyTorch bottleneck network; flags anomalies by reconstruction error with per-feature attribution *(optional — needs `torch`)* |
-| **Causal ML** | Counterfactual "what-if" search and T-learner uplift modelling |
-| **Contextual Bandits** | LinUCB and Thompson Sampling for exploration/exploitation policy simulation |
+| **Causal ML & DAG Studio** | PC algorithm discovery, Pearl's do-calculus, counterfactual "what-if" search, and T-learner uplift modelling |
 | **Time-Series Forecasting** | Auto-detects date columns, builds lag/rolling/calendar features, forecasts with prediction intervals |
-| **Streaming / Online Learning** | Incremental `partial_fit` learners (SGD, Passive-Aggressive) with live accuracy curves |
 | **NLP & Lexical Analysis** | TF-IDF vectorization plus TruncatedSVD topic extraction |
 | **Graph Intelligence** | NetworkX entity graphs — PageRank, betweenness, community and collusion-ring detection |
-| **Synthetic Data & Privacy** | Gaussian-copula synthesis with calibrated Laplace noise for differential privacy |
 
 ### 🛡️ Governance, MLOps & Production
 | Feature | Description |
 |---|---|
 | **Fairness & Bias Auditing** | Group metrics plus decision-tree rule extraction to explain disparities |
-| **Drift Monitoring** | Distribution drift detection and `IsolationForest` outlier flagging |
-| **Model Registry** | Versioning and promotion tracking, with canary routing |
+| **Drift Monitoring** | Distribution drift detection via KS-test, PSI, and MMD plus `IsolationForest` outlier flagging |
+| **Model Registry** | Versioning, artifact lineage, and production promotion tracking |
 | **Feature Store** | Feature definitions and retrieval |
 | **Privacy & GDPR Audit** | PII detection and compliance reporting |
 | **RBAC** | Role-based access control primitives |
@@ -194,8 +191,6 @@ data-intelligence-assistant/
 │   ├── model_trainer.py    # 10 model families, HPO, calibration, ensembling
 │   ├── deep_autoencoder.py # PyTorch tabular autoencoder (anomaly detection)
 │   ├── time_series.py      # Lag/rolling features + autoregressive forecasting
-│   ├── streaming_learner.py# Online learning via partial_fit
-│   ├── bandit_optimizer.py # LinUCB / Thompson Sampling
 │   ├── causal_engine.py    # Counterfactuals and T-learner uplift
 │   ├── explainability.py   # SHAP / Plotly / Seaborn importance charts
 │   ├── fairness.py         # Bias auditing and rule extraction

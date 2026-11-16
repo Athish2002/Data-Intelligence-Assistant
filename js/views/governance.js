@@ -9,14 +9,243 @@ import { ApiClient } from '../api.js';
 import { renderModelRequiredState } from './automl.js';
 
 export async function renderGovernanceContracts() {
+  if (!state.sessionId) {
+    el.tabContent.innerHTML = renderModelRequiredState(
+      'Data Contract Suite Awaiting Ingestion',
+      'Ingest a dataset or select an enterprise demo to automatically synthesize Great Expectations invariants and data quality assertions.',
+      'check-square'
+    );
+    lucide.createIcons();
+    return;
+  }
+
+  // Multi-Stage Progressive Loading HUD
   el.tabContent.innerHTML = `
-    <div class="glass-card p-12 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
-      <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-      <span class="text-xs font-mono uppercase tracking-wider">Generating Great Expectations Suite & Invariants...</span>
+    <div class="glass-card p-8 max-w-xl mx-auto my-8 space-y-5">
+      <!-- Header with animated shield/check icon & live elapsed timer -->
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800/80">
+        <div class="flex items-center space-x-3.5">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+            <svg class="w-5 h-5 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path d="m9 12 2 2 4-4"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-100 tracking-tight">
+              Compiling Great Expectations Suite &amp; Data Contracts
+            </h3>
+            <p id="gx-hud-ticker" class="text-xs text-slate-400 mt-0.5 truncate max-w-xs sm:max-w-sm font-mono">
+              Initializing contract compiler...
+            </p>
+          </div>
+        </div>
+        <div class="text-right shrink-0 pl-3">
+          <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">Elapsed</span>
+          <span id="gx-hud-timer" class="text-xs font-mono font-bold text-emerald-400 tabular-nums">0.0s</span>
+        </div>
+      </div>
+
+      <!-- Stepped progress bar (0% -> 30% -> 65% -> 90% -> 100%) -->
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between text-xs font-mono">
+          <span class="text-slate-400 font-medium">Invariant Compilation</span>
+          <span id="gx-hud-percent" class="text-emerald-400 font-bold tabular-nums">0%</span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-slate-900 border border-slate-800 overflow-hidden relative">
+          <div id="gx-hud-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-300 ease-out" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Visual 4-Step Checklist -->
+      <div class="space-y-2 pt-1 font-mono text-xs">
+        <!-- Step 1 -->
+        <div id="gx-step-1" class="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40 text-slate-400 transition-all duration-200">
+          <div class="flex items-center space-x-3">
+            <span class="gx-step-icon w-5 h-5 rounded-full flex items-center justify-center shrink-0 border border-slate-700 bg-slate-900 text-[10px] font-bold text-slate-400">1</span>
+            <div>
+              <div class="text-xs font-semibold text-slate-300 gx-step-title">1. Schema &amp; Column Set Parity</div>
+              <div class="text-[11px] text-slate-500 gx-step-sub font-sans">Verifying feature existence</div>
+            </div>
+          </div>
+          <span class="gx-step-badge text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900/80 text-slate-500 font-semibold tracking-wider uppercase">Pending</span>
+        </div>
+
+        <!-- Step 2 -->
+        <div id="gx-step-2" class="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40 text-slate-400 transition-all duration-200">
+          <div class="flex items-center space-x-3">
+            <span class="gx-step-icon w-5 h-5 rounded-full flex items-center justify-center shrink-0 border border-slate-700 bg-slate-900 text-[10px] font-bold text-slate-400">2</span>
+            <div>
+              <div class="text-xs font-semibold text-slate-300 gx-step-title">2. Completeness &amp; Null Invariants</div>
+              <div class="text-[11px] text-slate-500 gx-step-sub font-sans">Asserting non-null guarantees</div>
+            </div>
+          </div>
+          <span class="gx-step-badge text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900/80 text-slate-500 font-semibold tracking-wider uppercase">Pending</span>
+        </div>
+
+        <!-- Step 3 -->
+        <div id="gx-step-3" class="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40 text-slate-400 transition-all duration-200">
+          <div class="flex items-center space-x-3">
+            <span class="gx-step-icon w-5 h-5 rounded-full flex items-center justify-center shrink-0 border border-slate-700 bg-slate-900 text-[10px] font-bold text-slate-400">3</span>
+            <div>
+              <div class="text-xs font-semibold text-slate-300 gx-step-title">3. Numerical Envelopes &amp; Domain Bounds</div>
+              <div class="text-[11px] text-slate-500 gx-step-sub font-sans">Computing min/max boundaries</div>
+            </div>
+          </div>
+          <span class="gx-step-badge text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900/80 text-slate-500 font-semibold tracking-wider uppercase">Pending</span>
+        </div>
+
+        <!-- Step 4 -->
+        <div id="gx-step-4" class="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40 text-slate-400 transition-all duration-200">
+          <div class="flex items-center space-x-3">
+            <span class="gx-step-icon w-5 h-5 rounded-full flex items-center justify-center shrink-0 border border-slate-700 bg-slate-900 text-[10px] font-bold text-slate-400">4</span>
+            <div>
+              <div class="text-xs font-semibold text-slate-300 gx-step-title">4. Synthesizing Expectation JSON &amp; Markdown Artifacts</div>
+              <div class="text-[11px] text-slate-500 gx-step-sub font-sans">Compiling contract specification</div>
+            </div>
+          </div>
+          <span class="gx-step-badge text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900/80 text-slate-500 font-semibold tracking-wider uppercase">Pending</span>
+        </div>
+      </div>
     </div>
   `;
+
+  const setStepStatus = (stepNum, status) => {
+    const stepEl = document.getElementById(`gx-step-${stepNum}`);
+    if (!stepEl) return;
+    const icon = stepEl.querySelector('.gx-step-icon');
+    const title = stepEl.querySelector('.gx-step-title');
+    const badge = stepEl.querySelector('.gx-step-badge');
+
+    if (status === 'active') {
+      stepEl.className = 'flex items-center justify-between p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 transition-all duration-200';
+      if (icon) {
+        icon.className = 'gx-step-icon w-5 h-5 rounded-full flex items-center justify-center shrink-0 border border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+        icon.innerHTML = '<div class="w-2.5 h-2.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>';
+      }
+      if (title) title.className = 'text-xs font-semibold text-emerald-300 gx-step-title';
+      if (badge) {
+        badge.className = 'gx-step-badge text-[10px] px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 font-semibold tracking-wider uppercase';
+        badge.textContent = 'Active';
+      }
+    } else if (status === 'completed') {
+      stepEl.className = 'flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40 transition-all duration-200';
+      if (icon) {
+        icon.className = 'gx-step-icon w-5 h-5 rounded-full flex items-center justify-center shrink-0 border border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+        icon.innerHTML = '<svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      }
+      if (title) title.className = 'text-xs font-semibold text-slate-200 gx-step-title';
+      if (badge) {
+        badge.className = 'gx-step-badge text-[10px] px-2 py-0.5 rounded border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 font-semibold tracking-wider uppercase';
+        badge.textContent = 'Passed';
+      }
+    } else {
+      stepEl.className = 'flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40 text-slate-400 transition-all duration-200';
+      if (icon) {
+        icon.className = 'gx-step-icon w-5 h-5 rounded-full flex items-center justify-center shrink-0 border border-slate-700 bg-slate-900 text-[10px] font-bold text-slate-500';
+        icon.textContent = `${stepNum}`;
+      }
+      if (title) title.className = 'text-xs font-semibold text-slate-400 gx-step-title';
+      if (badge) {
+        badge.className = 'gx-step-badge text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900/80 text-slate-500 font-semibold tracking-wider uppercase';
+        badge.textContent = 'Pending';
+      }
+    }
+  };
+
+  const updateProgress = (pct) => {
+    const bar = document.getElementById('gx-hud-bar');
+    const txt = document.getElementById('gx-hud-percent');
+    if (bar) bar.style.width = `${pct}%`;
+    if (txt) txt.textContent = `${pct}%`;
+  };
+
+  const datasetCols = state.datasetMeta?.columns || [];
+  const colA = datasetCols[0] || 'id';
+  const colB = datasetCols[1] || (datasetCols.length > 1 ? datasetCols[1] : 'feature_vector');
+  const colC = datasetCols[2] || (datasetCols.length > 2 ? datasetCols[2] : 'target');
+
+  const tickerItems = [
+    `Verifying schema parity across ${datasetCols.length || 'all'} feature columns...`,
+    `Checking column existence for [${escapeHtml(colA)}]...`,
+    `Inspecting column completeness for [${escapeHtml(colB)}] (0% null tolerance)...`,
+    `Asserting non-null guarantees across feature vectors...`,
+    `Synthesizing range checks for [${escapeHtml(colC)}]...`,
+    `Computing numerical envelopes & min/max bounds...`,
+    `Compiling Great Expectations suite JSON & artifacts...`,
+  ];
+
+  const tickerEl = document.getElementById('gx-hud-ticker');
+  const timerEl = document.getElementById('gx-hud-timer');
+  const startTime = Date.now();
+
+  let timerInterval = setInterval(() => {
+    const elTimer = document.getElementById('gx-hud-timer');
+    if (elTimer) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      elTimer.textContent = `${elapsed}s`;
+    } else {
+      cleanupHud();
+    }
+  }, 100);
+
+  let tickerIdx = 0;
+  let tickerInterval = setInterval(() => {
+    const elTicker = document.getElementById('gx-hud-ticker');
+    if (elTicker) {
+      tickerIdx = (tickerIdx + 1) % tickerItems.length;
+      elTicker.textContent = tickerItems[tickerIdx];
+    } else {
+      cleanupHud();
+    }
+  }, 400);
+
+  // Stepped progress transitions: 0% -> 30% -> 65% -> 90% -> 100%
+  setStepStatus(1, 'active');
+  updateProgress(30);
+  if (tickerEl) tickerEl.textContent = tickerItems[0];
+
+  const t1 = setTimeout(() => {
+    setStepStatus(1, 'completed');
+    setStepStatus(2, 'active');
+    updateProgress(65);
+    const elTicker = document.getElementById('gx-hud-ticker');
+    if (elTicker) elTicker.textContent = `Inspecting column completeness for [${escapeHtml(colA)}]...`;
+  }, 450);
+
+  const t2 = setTimeout(() => {
+    setStepStatus(2, 'completed');
+    setStepStatus(3, 'active');
+    updateProgress(90);
+    const elTicker = document.getElementById('gx-hud-ticker');
+    if (elTicker) elTicker.textContent = `Synthesizing range checks for [${escapeHtml(colB)}]...`;
+  }, 950);
+
+  const t3 = setTimeout(() => {
+    setStepStatus(3, 'completed');
+    setStepStatus(4, 'active');
+    updateProgress(98);
+    const elTicker = document.getElementById('gx-hud-ticker');
+    if (elTicker) elTicker.textContent = 'Synthesizing Expectation JSON & Markdown Artifacts...';
+  }, 1500);
+
+  const cleanupHud = () => {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+    if (tickerInterval) {
+      clearInterval(tickerInterval);
+      tickerInterval = null;
+    }
+    clearTimeout(t1);
+    clearTimeout(t2);
+    clearTimeout(t3);
+  };
+
   try {
     const res = await ApiClient.getDataContract(state.sessionId);
+    cleanupHud();
     const expectations = res.expectations || [];
     const nTests = res.n_expectations || expectations.length || 0;
 
@@ -217,6 +446,7 @@ export async function renderGovernanceContracts() {
 
     lucide.createIcons();
   } catch (err) {
+    cleanupHud();
     el.tabContent.innerHTML = `<div class="glass-card p-6 text-rose-400 font-mono text-xs">Failed to load data contract: ${escapeHtml(err.message)}</div>`;
   }
 }

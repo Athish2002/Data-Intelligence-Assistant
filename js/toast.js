@@ -31,7 +31,7 @@ export function showLoading(msg) {
 
   if (trainProgress) trainProgress.classList.remove('hidden');
   if (statusText) statusText.textContent = msg;
-  if (stageTitle) stageTitle.innerHTML = `<span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse mr-1.5"></span> Ingestion`;
+  if (stageTitle) stageTitle.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5" style="background-color: var(--accent-emerald, #10b981);"></span> Ingestion`;
   if (progressBar) progressBar.style.width = '25%';
   if (percentText) percentText.textContent = '25%';
 }
@@ -58,7 +58,7 @@ export function showTrainingProgress() {
   updateNodeState(4, 'pending');
   updateNodeState(5, 'pending');
 
-  if (stageTitle) stageTitle.innerHTML = `<span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse mr-1.5"></span> Stage 1/5: Ingestion`;
+  if (stageTitle) stageTitle.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5" style="background-color: var(--accent-emerald, #10b981);"></span> Stage 1/5: Ingestion`;
   if (statusText) statusText.textContent = 'Sanitizing types and detecting delimiters...';
   if (progressBar) progressBar.style.width = '15%';
   if (percentText) percentText.textContent = '15%';
@@ -74,6 +74,11 @@ export function showTrainingProgress() {
     }
   }, 100);
 
+  if (progressStageTimeout) {
+    progressStageTimeout.forEach((t) => clearTimeout(t));
+    progressStageTimeout = null;
+  }
+
   // Auto-advance simulated micro-stages while backend trains
   const scheduleStage = (delay, stageNum, title, desc, pct) => {
     return setTimeout(() => {
@@ -81,7 +86,7 @@ export function showTrainingProgress() {
       for (let i = 1; i < stageNum; i++) updateNodeState(i, 'completed');
       updateNodeState(stageNum, 'active');
 
-      if (stageTitle) stageTitle.innerHTML = `<span class="w-2 h-2 rounded-full bg-[#00e575] animate-pulse mr-1.5"></span> Stage ${stageNum}/5: ${title}`;
+      if (stageTitle) stageTitle.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5" style="background-color: var(--accent-emerald, #10b981);"></span> Stage ${stageNum}/5: ${title}`;
       if (statusText) statusText.textContent = desc;
       if (progressBar) progressBar.style.width = `${pct}%`;
       if (percentText) percentText.textContent = `${pct}%`;
@@ -91,9 +96,28 @@ export function showTrainingProgress() {
   const t1 = scheduleStage(1200, 2, 'Feature Profiling', 'Extracting cardinality & distributions...', 35);
   const t2 = scheduleStage(2600, 3, 'AutoML Benchmark', 'Fitting Random Forest, LightGBM & Ensembles...', 65);
   const t3 = scheduleStage(5200, 4, 'Explainability', 'Calculating TreeSHAP & ROC curve coordinates...', 85);
-  const t4 = scheduleStage(8000, 5, 'Governance', 'Compiling Great Expectations contract suite...', 95);
 
-  progressStageTimeout = [t1, t2, t3, t4];
+  // Stage 5: Governance & Great Expectations with smooth micro-step increment ticks between 85% and 98%
+  const scheduleStage5Tick = (delay, pct, desc) => {
+    return setTimeout(() => {
+      for (let i = 1; i <= 4; i++) updateNodeState(i, 'completed');
+      updateNodeState(5, 'active');
+
+      if (stageTitle) stageTitle.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5" style="background-color: var(--accent-emerald, #10b981);"></span> Stage 5/5: Governance`;
+      if (statusText) statusText.textContent = desc;
+      if (progressBar) progressBar.style.width = `${pct}%`;
+      if (percentText) percentText.textContent = `${pct}%`;
+    }, delay);
+  };
+
+  const t4_1 = scheduleStage5Tick(7200, 88, 'Governance: Compiling Great Expectations contract suite...');
+  const t4_2 = scheduleStage5Tick(8600, 91, 'Governance: Verifying schema parity & non-null invariants...');
+  const t4_3 = scheduleStage5Tick(10000, 93, 'Governance: Computing numerical envelopes & domain boundaries...');
+  const t4_4 = scheduleStage5Tick(11600, 95, 'Governance: Synthesizing Great Expectations JSON suite...');
+  const t4_5 = scheduleStage5Tick(13200, 97, 'Governance: Validating data contract rules & verification gates...');
+  const t4_6 = scheduleStage5Tick(15000, 98, 'Governance: Assembling executive audit dossier artifacts...');
+
+  progressStageTimeout = [t1, t2, t3, t4_1, t4_2, t4_3, t4_4, t4_5, t4_6];
 }
 
 export function hideTrainingProgress(success = true) {
@@ -114,7 +138,7 @@ export function hideTrainingProgress(success = true) {
 
   if (success) {
     for (let i = 1; i <= 5; i++) updateNodeState(i, 'completed');
-    if (stageTitle) stageTitle.innerHTML = `<span class="text-[#00e575]">✓ Pipeline Complete</span>`;
+    if (stageTitle) stageTitle.innerHTML = `<span class="text-emerald-400 font-semibold flex items-center" style="color: var(--accent-emerald, #10b981);"><span class="mr-1">✓</span> Pipeline Complete</span>`;
     if (statusText) statusText.textContent = 'All 5 stages finalized successfully.';
     if (progressBar) progressBar.style.width = '100%';
     if (percentText) percentText.textContent = '100%';

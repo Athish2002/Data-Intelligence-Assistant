@@ -47,9 +47,6 @@ import {
 import {
   renderAdaptiveCausal,
   renderAdaptiveAutoencoder,
-  renderAdaptiveBandits,
-  renderAdaptiveSynthetic,
-  renderAdaptiveOnline,
   renderAdaptiveTimeSeries,
   renderAdaptiveNlp,
   renderAdaptiveGraph,
@@ -175,6 +172,28 @@ function switchWorkspace(wsId, subtabId = null) {
 }
 
 window.switchWorkspace = switchWorkspace;
+
+window.launchWorkflowChoice = async function (choice, demoName = 'Bank Credit Risk & Default') {
+  if (el.demoSelect) el.demoSelect.value = demoName;
+  showLoading(`Loading dataset for ${choice === 'visual' ? 'Visual Profiling' : 'Model Training'}...`);
+  try {
+    const res = await ApiClient.ingestDemo(demoName);
+    handleIngestSuccess(res);
+    hideLoading();
+    
+    if (choice === 'visual') {
+      switchWorkspace('core', 'overview');
+      showSuccess(`Dataset loaded! Opened Visual Profiling & Diagnostics Dashboard.`);
+    } else if (choice === 'train') {
+      switchWorkspace('automl', 'leaderboard');
+      showSuccess(`Dataset loaded! Initiating empirical AutoML model training...`);
+      if (el.trainBtn) el.trainBtn.click();
+    }
+  } catch (err) {
+    hideLoading();
+    showError(err.message);
+  }
+};
 
 window.quickLoadBenchmark = async function (demoName) {
   if (el.demoSelect) {
@@ -386,11 +405,8 @@ function handleIngestSuccess(res) {
 
   // Add conditional adaptive tabs based on capabilities
   WORKSPACE_SUBTABS.adaptive = [
-    { id: 'causal', label: 'Causal & Counterfactuals', icon: 'target' },
+    { id: 'causal', label: 'Causal DAG Studio', icon: 'target' },
     { id: 'autoencoder', label: 'Deep Autoencoder', icon: 'cpu' },
-    { id: 'bandits', label: 'Contextual Bandits', icon: 'play-circle' },
-    { id: 'synthetic', label: 'Synthetic Data (DP)', icon: 'dna' },
-    { id: 'online', label: 'Online Streaming Fit', icon: 'zap' },
   ];
   if (res.capabilities.has_dates) {
     WORKSPACE_SUBTABS.adaptive.push({ id: 'timeseries', label: 'Time-Series Forecast', icon: 'trending-up' });
@@ -429,6 +445,8 @@ function handleIngestSuccess(res) {
   }
 
   el.trainBtn.disabled = false;
+  const viewVisBtn = document.getElementById('view-visual-btn');
+  if (viewVisBtn) viewVisBtn.disabled = false;
   renderSubtabBar();
   renderCurrentView();
 }
@@ -568,29 +586,29 @@ const SCREEN_CATALOG = {
     requiresModel: false,
     icon: 'cpu',
   },
-  'adaptive:bandits': {
-    title: 'Contextual Multi-Armed Bandits',
+  'adaptive:timeseries': {
+    title: 'Automated Time-Series & Temporal Forecasting',
     badge: 'ADAPTIVE AI',
-    description: 'Upper Confidence Bound (UCB) policy optimization for real-time exploratory decision making.',
+    description: 'Autoregressive multi-horizon forecasting with seasonal lag decomposition and prediction intervals.',
     recommendedDemo: 'Telecom Customer Churn',
     requiresModel: false,
-    icon: 'play-circle',
+    icon: 'trending-up',
   },
-  'adaptive:synthetic': {
-    title: 'Differentially Private Synthetic Data Generator',
+  'adaptive:nlp': {
+    title: 'NLP & Lexical Feature Mining',
     badge: 'ADAPTIVE AI',
-    description: 'Generates privacy-preserving tabular twins with calibrated Laplacian noise and statistical fidelity evaluation.',
+    description: 'Sentiment polarity scoring, TF-IDF lexical dense features, and high-entropy text tokens.',
     recommendedDemo: 'Hospital Patient Readmission',
     requiresModel: false,
-    icon: 'dna',
+    icon: 'file-text',
   },
-  'adaptive:online': {
-    title: 'Online Streaming Model Fit (SGD / River)',
+  'adaptive:graph': {
+    title: 'Graph Intelligence & Centrality Topology',
     badge: 'ADAPTIVE AI',
-    description: 'Continuous incremental model adaptation for high-velocity streaming data pipelines.',
-    recommendedDemo: 'Telecom Customer Churn',
+    description: 'Entity relationship networks, PageRank scoring, and community cluster detection.',
+    recommendedDemo: 'Bank Credit Risk & Default',
     requiresModel: false,
-    icon: 'zap',
+    icon: 'share-2',
   },
 
   // Autonomous ML
@@ -934,9 +952,6 @@ function renderCurrentView() {
   else if (w === 'adaptive') {
     if (s === 'causal') renderAdaptiveCausal();
     else if (s === 'autoencoder') renderAdaptiveAutoencoder();
-    else if (s === 'bandits') renderAdaptiveBandits();
-    else if (s === 'synthetic') renderAdaptiveSynthetic();
-    else if (s === 'online') renderAdaptiveOnline();
     else if (s === 'timeseries') renderAdaptiveTimeSeries();
     else if (s === 'nlp') renderAdaptiveNlp();
     else if (s === 'graph') renderAdaptiveGraph();

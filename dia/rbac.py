@@ -117,8 +117,8 @@ ROLE_ACTION_PERMISSIONS["Compliance & Privacy Officer"] = ROLE_ACTION_PERMISSION
 _ADMIN_TABS = [
     "📊 Overview", "🔍 Column Roles", "🩺 Readiness", "💡 Smart Insights",
     "🤖 Model Results", "🔬 Explainability", "💼 Business Impact", "🎛️ Simulator",
-    "🎯 Causal & Counterfactuals", "📈 Time-Series Forecast", "🧬 Synthetic Data",
-    "⚡ Online Learning", "💬 Chat Copilot", "🌊 Drift Monitor",
+    "🎯 Causal & Counterfactuals", "📈 Time-Series Forecast",
+    "💬 Chat Copilot", "🌊 Drift Monitor",
     "🔒 Privacy & Compliance", "📦 Model Registry & MLOps", "🛡️ Data Contract",
     "🧪 A/B Test Planner", "👥 Active Learning", "📑 Executive Briefing", "💻 Code Export", "📝 Summary"
 ]
@@ -126,7 +126,7 @@ _ADMIN_TABS = [
 _DS_TABS = [
     "📊 Overview", "🔍 Column Roles", "🩺 Readiness", "💡 Smart Insights",
     "🤖 Model Results", "🔬 Explainability", "🎛️ Simulator", "🎯 Causal & Counterfactuals",
-    "📈 Time-Series Forecast", "🧬 Synthetic Data", "⚡ Online Learning", "💬 Chat Copilot",
+    "📈 Time-Series Forecast", "💬 Chat Copilot",
     "🌊 Drift Monitor", "📦 Model Registry & MLOps", "🛡️ Data Contract", "👥 Active Learning",
     "💻 Code Export", "📝 Summary"
 ]

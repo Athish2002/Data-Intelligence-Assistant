@@ -214,3 +214,55 @@ def test_invariants_scan_and_lock_endpoints():
     res_scan2 = client.post(f"/api/v1/invariants/scan/{session_id}")
     scan_body2 = res_scan2.json()
     assert scan_body2["laws"][0]["is_locked"] is True
+
+
+def test_workflow_choice_contracts():
+    """
+    Validates the dual-objective contract:
+    - Path 1: Standalone Visual Profiling & Diagnostics works immediately upon ingestion without training.
+    - Path 2: Empirical AutoML model training runs cross-validation and produces leaderboard.
+    - Pruned endpoints: Bandit, Streaming Learner, and Synthetic Data generation return 404 Not Found.
+    """
+    client = TestClient(app)
+    # 1. Ingest dataset
+    ingest_res = client.post("/api/v1/ingest/demo", json={"demo_name": "Bank Credit Risk & Default"})
+    assert ingest_res.status_code == 200
+    meta = ingest_res.json()
+    session_id = meta["session_id"]
+    assert meta["n_rows"] == 600
+    assert meta["n_cols"] == 8
+    assert meta["detected_domain"] == "Banking, FinTech & Credit Underwriting"
+    assert len(meta["suggested_objectives"]) > 0
+
+    # 2. Path 1: Visual Diagnostics requires NO training
+    profile_res = client.get(f"/api/v1/profile/{session_id}")
+    assert profile_res.status_code == 200
+    p_data = profile_res.json()
+    assert p_data["shape"] == [600, 8]
+    assert len(p_data["columns_info"]) == 8
+    assert "correlations" in p_data
+
+    readiness_res = client.get(f"/api/v1/readiness/{session_id}")
+    assert readiness_res.status_code == 200
+    r_data = readiness_res.json()
+    assert r_data["overall_readiness_score"] >= 80
+
+    # 3. Path 2: Autonomous Model Training
+    train_res = client.post(
+        "/api/v1/pipeline/train",
+        json={
+            "session_id": session_id,
+            "goal": meta["suggested_objectives"][0],
+            "target_col": meta["suggested_target"],
+        },
+    )
+    assert train_res.status_code == 200
+    t_data = train_res.json()
+    assert len(t_data["models_evaluated"]) >= 3
+    assert t_data["best_model_label"] is not None
+    assert t_data["target_col"] == meta["suggested_target"]
+
+    # 4. Verify all pruned synthetic routes return 404 or 405 (disallowed)
+    assert client.post("/api/v1/adaptive/bandits/simulate", json={}).status_code in (404, 405)
+    assert client.get(f"/api/v1/adaptive/streaming/status/{session_id}").status_code in (404, 405)
+    assert client.post("/api/v1/adaptive/synthetic/generate", json={}).status_code in (404, 405)

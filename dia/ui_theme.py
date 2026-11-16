@@ -220,7 +220,7 @@ def render_hero_banner() -> None:
   <div class="dia-hero-title">🧠 Data Intelligence Assistant (DIA Enterprise v11.0)</div>
   <p class="dia-hero-subtitle">
     Autonomous Machine Learning, Causal Inference, Time-Series Forecasting, Deep Learning Anomaly Manifolds,
-    Contextual Bandits, Regulatory Data Governance (GDPR/HIPAA/SOC2), and Native In-Database SQL Transpilation.
+    Regulatory Data Governance (GDPR/HIPAA/SOC2), and Native In-Database SQL Transpilation.
   </p>
 </div>
 """,

@@ -692,7 +692,7 @@ class SynthesizerNode:
         treatment = state.candidate_treatments[0]
         outcome = state.target_outcome
 
-        # Obtain observational data or generate topological SEM
+        # Obtain observational data or generate topological SEM for graph-only tests
         if state.data is not None and not state.data.empty:
             df = state.data
         elif state.causal_graph is not None:
@@ -704,11 +704,9 @@ class SynthesizerNode:
                 outcome=outcome,
             )
         else:
-            rng = np.random.default_rng(42)
-            df = pd.DataFrame({
-                treatment: rng.normal(0, 1, 200),
-                outcome: 2.0 * rng.normal(0, 1, 200),
-            })
+            state.status = "FAILED"
+            state.error_message = "Empirical observational data or a causal DAG must be provided to estimate causal effects."
+            return state
 
         # Estimate ATE via backdoor adjustment regression
         stat_res = estimate_backdoor_ate(

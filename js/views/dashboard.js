@@ -27,26 +27,69 @@ export function renderLiveMissionControl() {
     el.tabContent.innerHTML = `
       <div class="space-y-4">
         
-        <!-- Empty State Overview Card -->
-        <div id="section-mission-overview" class="glass-card p-8 text-center max-w-xl mx-auto my-6 space-y-4" data-section-anchor="Overview">
-          <div class="w-12 h-12 rounded-full mx-auto flex items-center justify-center border" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
-            <i data-lucide="activity" class="w-6 h-6 text-emerald-400"></i>
+        <!-- Self-Choosing Workflow Selection Card -->
+        <div id="section-mission-overview" class="glass-card p-7 max-w-3xl mx-auto my-6 space-y-6 text-center" data-section-anchor="Overview">
+          <div class="space-y-2">
+            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-semibold">
+              <i data-lucide="compass" class="w-3.5 h-3.5"></i>
+              <span>WORKFLOW OBJECTIVE DISPATCHER</span>
+            </div>
+            <h3 class="text-xl font-bold font-mono tracking-tight" style="color: var(--text-primary);">
+              Choose Your Analytical Objective
+            </h3>
+            <p class="leading-relaxed max-w-xl mx-auto text-xs sm:text-sm" style="color: var(--text-secondary);">
+              Select whether you want immediate exploratory visual data profiling &amp; diagnostics, or full autonomous machine learning training with live inference.
+            </p>
           </div>
-          <h3 class="text-lg font-bold font-mono tracking-tight" style="color: var(--text-primary);">
-            Ready to Connect Dataset
-          </h3>
-          <p class="leading-relaxed" style="color: var(--text-secondary); font-size: 0.875rem;">
-            Live Mission Control displays real-time telemetry, model metrics, and confusion matrices once a dataset is loaded.
-          </p>
-          <div class="flex items-center justify-center space-x-3 pt-2">
-            <a href="/" class="px-4 py-2 rounded-lg font-semibold text-xs cursor-pointer flex items-center space-x-2 no-underline border border-slate-700 hover:bg-slate-800 text-slate-200 transition-all active:scale-[0.98] shadow-sm" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Return to Landing Page">
-              <i data-lucide="home" class="w-4 h-4 text-emerald-400"></i>
+
+          <!-- The Two Primary Choices -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+            <!-- Choice 1: Visual Profiling & Diagnostics Dashboard -->
+            <div class="p-5 rounded-xl border flex flex-col justify-between space-y-4 hover:border-emerald-500/50 transition-all group" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+              <div class="space-y-2">
+                <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+                </div>
+                <h4 class="text-sm font-bold font-mono" style="color: var(--text-primary);">
+                  1. Visual Profiling &amp; Diagnostics
+                </h4>
+                <p class="text-xs leading-relaxed" style="color: var(--text-secondary);">
+                  Explore empirical distributions, statistical correlations, schema health, data quality contracts, and algebraic conservation laws instantly without model training.
+                </p>
+              </div>
+              <button onclick="window.launchWorkflowChoice('visual', 'Bank Credit Risk & Default')" class="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all active:scale-[0.98] flex items-center justify-center space-x-2 cursor-pointer shadow-sm">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                <span>Open Visual Diagnostics Dashboard</span>
+              </button>
+            </div>
+
+            <!-- Choice 2: Model Training & Predictions -->
+            <div class="p-5 rounded-xl border flex flex-col justify-between space-y-4 hover:border-indigo-500/50 transition-all group" style="background-color: var(--bg-secondary); border-color: var(--card-border);">
+              <div class="space-y-2">
+                <div class="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <i data-lucide="cpu" class="w-5 h-5"></i>
+                </div>
+                <h4 class="text-sm font-bold font-mono" style="color: var(--text-primary);">
+                  2. Autonomous ML Training &amp; Predictions
+                </h4>
+                <p class="text-xs leading-relaxed" style="color: var(--text-secondary);">
+                  Train empirical candidate model architectures (LightGBM, XGBoost, CatBoost, RF, LogReg), evaluate cross-validated leaderboards, calculate SHAP, and run predictions.
+                </p>
+              </div>
+              <button onclick="window.launchWorkflowChoice('train', 'Bank Credit Risk & Default')" class="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all active:scale-[0.98] flex items-center justify-center space-x-2 cursor-pointer shadow-sm">
+                <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                <span>Train Models &amp; Predict</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-2 flex items-center justify-center space-x-3 text-xs" style="color: var(--text-muted);">
+            <a href="/" class="hover:underline flex items-center space-x-1" style="color: var(--text-secondary);">
+              <i data-lucide="home" class="w-3.5 h-3.5 text-emerald-400"></i>
               <span>Return to Landing Page</span>
             </a>
-            <button onclick="window.quickLoadBenchmark('Bank Credit Risk & Default')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2 px-4 rounded-lg shadow-sm transition-all active:scale-[0.98] cursor-pointer flex items-center space-x-2">
-              <i data-lucide="play" class="w-4 h-4 text-white fill-current"></i>
-              <span>Launch Banking Default Telemetry</span>
-            </button>
+            <span>&bull;</span>
+            <span>Or select any benchmark in the left dock</span>
           </div>
         </div>
 
@@ -175,7 +218,7 @@ export function renderLiveMissionControl() {
 
   // Compute primary metric display
   let metricDisplay = 'Awaiting Execution';
-  let metricSub = 'Click "Launch ML Pipeline" to evaluate';
+  let metricSub = 'Click "Train Models & Predict" to evaluate';
   if (p && p.models_evaluated && p.models_evaluated.length > 0) {
     const bestM = p.models_evaluated.find((m) => m.is_best) || p.models_evaluated[0];
     const metrics = bestM.metrics || {};
@@ -219,9 +262,13 @@ export function renderLiveMissionControl() {
             </a>
             ${
               !p
-                ? `<button onclick="el.trainBtn.click()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold text-xs uppercase tracking-wider flex items-center space-x-2 cursor-pointer shadow-sm transition-all active:scale-[0.98]">
+                ? `<button onclick="switchWorkspace('core', 'overview')" class="px-3.5 py-2 rounded-lg font-bold text-xs border flex items-center space-x-1.5 cursor-pointer hover:bg-white/5 transition-colors" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);" title="Visual Profiling & Diagnostics">
+                    <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Visual Profiling &rarr;</span>
+                  </button>
+                  <button onclick="el.trainBtn.click()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-semibold text-xs uppercase tracking-wider flex items-center space-x-2 cursor-pointer shadow-sm transition-all active:scale-[0.98]">
                     <i data-lucide="play" class="w-4 h-4 fill-current text-white"></i>
-                    <span>Run AutoML Pipeline</span>
+                    <span>Train Models &amp; Predict</span>
                   </button>`
                 : `<button onclick="switchWorkspace('automl', 'leaderboard')" class="px-3.5 py-2 rounded-lg font-bold text-xs border flex items-center space-x-1.5 cursor-pointer hover:bg-white/5 transition-colors" style="background-color: var(--bg-secondary); border-color: var(--card-border); color: var(--text-primary);">
                     <i data-lucide="trophy" class="w-4 h-4 text-emerald-400"></i>

@@ -218,7 +218,7 @@ export function renderLiveMissionControl() {
 
   // Compute primary metric display
   let metricDisplay = 'Awaiting Execution';
-  let metricSub = 'Click "Launch ML Pipeline" to evaluate';
+  let metricSub = 'Click "Train Models & Predict" to evaluate';
   if (p && p.models_evaluated && p.models_evaluated.length > 0) {
     const bestM = p.models_evaluated.find((m) => m.is_best) || p.models_evaluated[0];
     const metrics = bestM.metrics || {};
