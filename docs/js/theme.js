@@ -74,7 +74,7 @@ export function applyTheme(theme, animate = true) {
   const isInitialLoad = !isInitialized && !animate;
   isInitialized = true;
 
-  currentTheme = (theme === 'tokyo-sand' || theme === THEMES.DAY) ? THEMES.DAY : THEMES.NIGHT;
+  currentTheme = (theme === 'tokyo-sand' || theme === 'light' || theme === THEMES.DAY) ? THEMES.DAY : THEMES.NIGHT;
   const root = document.documentElement;
 
   if (animate) {
